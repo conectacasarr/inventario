@@ -82,7 +82,7 @@
                             <td><span class="badge bg-primary">{{ item.quantidade }}</span></td>
                             <td style="white-space: nowrap;">
                                 {% if item.valor_unitario and item.quantidade %}
-                                    <strong>R$ {{ "{:,.2f}".format(item.valor_unitario).replace(",", "X").replace(".", ",").replace("X", ".") }}</strong>
+                                    <strong>R$ {{ "{:,.2f}".format(item.valor_unitario * item.quantidade).replace(",", "X").replace(".", ",").replace("X", ".") }}</strong>
                                 {% else %}
                                     -
                                 {% endif %}
