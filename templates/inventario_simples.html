@@ -148,7 +148,7 @@
                                     {% set valor_total = itens|selectattr('valor_unitario')|map(attribute='valor_unitario')|list %}
                                     {% set quantidades = itens|selectattr('valor_unitario')|map(attribute='quantidade')|list %}
                                     {% if valor_total %}
-                                        R$ {{ "{:.2f}".format(soma_total).replace(".", ",") }}
+                                        R$ {{ "{:,.2f}".format(soma_total).replace(",", "X").replace(".", ",").replace("X", ".") }}
                                     {% else %}
                                         R$ 0,00
                                     {% endif %}
