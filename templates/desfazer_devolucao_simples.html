@@ -1,0 +1,33 @@
+{% extends 'base_simples.html' %}
+
+{% block title %}Desfazer Devolução - OAIBV{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Desfazer Devolução</h2>
+
+    <div class="card">
+        <div class="card-header">
+            <h5>Confirmar Desfazer Devolução</h5>
+        </div>
+        <div class="card-body">
+            <p><strong>Item:</strong> {{ emprestimo.tombamento }} - {{ emprestimo.descricao }}</p>
+            <p><strong>Quantidade:</strong> {{ emprestimo.quantidade }}</p>
+            <p><strong>Pessoa:</strong> {{ emprestimo.nome }}</p>
+            <p><strong>Data Empréstimo:</strong> {{ format_date(emprestimo.data_emprestimo) }}</p>
+            <p><strong>Data Devolução:</strong> {{ format_date(emprestimo.data_devolucao) }}</p>
+
+            <form method="POST">
+                <div class="mb-3">
+                    <label for="justificativa" class="form-label">Justificativa (Obrigatória)</label>
+                    <textarea class="form-control" id="justificativa" name="justificativa" rows="3" required></textarea>
+                </div>
+                <div class="d-flex justify-content-between">
+                    <a href="{{ url_for('emprestimos') }}" class="btn btn-secondary">Cancelar</a>
+                    <button type="submit" class="btn btn-danger">Confirmar Desfazer Devolução</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

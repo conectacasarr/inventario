@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container">
+    <h1 class="mb-4">Novo Item</h1>
+    
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="fas fa-plus"></i> Cadastrar Novo Item</h5>
+        </div>
+        <div class="card-body">
+            <form method="post">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="tombamento">Tombamento:</label>
+                            <input type="text" class="form-control" id="tombamento" name="tombamento" required
+                                   value="{{ form_data.tombamento if form_data else '' }}">
+                            <small class="form-text text-muted">Código único do item (ex: 001, 002, etc.)</small>
+                        </div>
+                    </div>
+                    <div class="col-md-8">
+                        <div class="form-group">
+                            <label for="descricao">Descrição:</label>
+                            <input type="text" class="form-control" id="descricao" name="descricao" required
+                                   value="{{ form_data.descricao if form_data else '' }}">
+                        </div>
+                    </div>
+                </div>
+                
+                    <label for="grupo_id" class="form-label">Grupo *</label>
+                    <select class="form-control" id="grupo_id" name="grupo_id" required>
+                        <option value="">Selecione um grupo</option>
+                        {% for grupo in grupos %}
+                            <option value="{{ grupo.id }}" {% if form_data and form_data.grupo_id == grupo.id|string %}selected{% endif %}>
+                             {{ grupo.nome }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="marca">Marca:</label>
+                            <input type="text" class="form-control" id="marca" name="marca"
+                                   value="{{ form_data.marca if form_data else '' }}">
+                            <small class="form-text text-muted">Marca ou fabricante do item</small>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="nota_fiscal">Nota Fiscal:</label>
+                            <input type="text" class="form-control" id="nota_fiscal" name="nota_fiscal"
+                                   value="{{ form_data.nota_fiscal if form_data else '' }}">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="valor">Valor:</label>
+                            <div class="input-group">
+                                <div class="input-group-prepend">
+                                    <span class="input-group-text">R$</span>
+                                </div>
+                                <input type="text" class="form-control" id="valor" name="valor"
+                                       value="{{ form_data.valor if form_data else '' }}">
+                            </div>
+                            <small class="form-text text-muted">Opcional</small>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="quantidade">Quantidade Inicial:</label>
+                            <input type="number" class="form-control" id="quantidade" name="quantidade" min="0" required
+                                   value="{{ form_data.quantidade if form_data else '1' }}">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="text-right">
+                    <a href="{{ url_for('inventario') }}" class="btn btn-secondary">
+                        <i class="fas fa-times"></i> Cancelar
+                    </a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Cadastrar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

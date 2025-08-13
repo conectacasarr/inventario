@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Termo de Compromisso - OAIBV</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+        h1 {
+            font-size: 18px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .content {
+            text-align: justify;
+            margin-bottom: 30px;
+        }
+        .signature {
+            margin-top: 50px;
+            text-align: center;
+        }
+        .signature-line {
+            border-top: 1px solid #000;
+            width: 250px;
+            margin: 0 auto;
+            margin-bottom: 5px;
+        }
+        .date {
+            margin-top: 30px;
+            text-align: right;
+        }
+        .item-details {
+            margin: 20px 0;
+            padding: 10px;
+            border: 1px solid #ddd;
+            background-color: #f9f9f9;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>TERMO DE COMPROMISSO DE EMPRÉSTIMO</h1>
+        <p><strong>OAIBV – Organização e Apoio à Igreja em Boa Vista</strong></p>
+    </div>
+    
+    <div class="content">
+        <p>Pelo presente instrumento, eu, <strong>{{ emprestimo.nome }}</strong>, 
+        do grupo caseiro <strong>{{ emprestimo.grupo }}</strong>, contato <strong>{{ emprestimo.contato }}</strong>, 
+        declaro ter recebido da OAIBV – Organização e Apoio à Igreja em Boa Vista, o(s) item(ns) abaixo relacionado(s):</p>
+        
+        <div class="item-details">
+            <p><strong>Item:</strong> {{ item.tombamento }} - {{ item.descricao }}<br>
+            <strong>Marca:</strong> {{ item.marca or "Não informada" }}<br>
+            <strong>Grupo:</strong> {{ item.grupo }}<br>
+            <strong>Qtd:</strong> {{ emprestimo.quantidade }}<br>
+            <strong>Valor estimado:</strong> {{ "R$ {:.2f}".format(item.valor) if item.valor else "Não informado" }}</p>
+        </div>
+        
+        <p>Comprometo-me a:</p>
+        <ol>
+            <li>Zelar pela conservação do(s) bem(ns) emprestado(s), utilizando-o(s) exclusivamente para os fins a que se destina(m);</li>
+            <li>Não ceder, emprestar ou transferir o(s) bem(ns) a terceiros;</li>
+            <li>Comunicar imediatamente qualquer ocorrência que afete a integridade do(s) bem(ns);</li>
+            <li>Devolver o(s) bem(ns) nas mesmas condições em que foi(ram) recebido(s), ressalvado o desgaste natural pelo uso;</li>
+            <li>Responsabilizar-me por eventuais danos ou extravios, comprometendo-me a ressarcir a OAIBV em caso de perda ou dano irreparável.</li>
+        </ol>
+        
+        <p>O prazo para devolução será combinado com a administração da OAIBV, podendo ser prorrogado mediante autorização prévia.</p>
+    </div>
+    
+    <div class="date">
+        <p>Boa Vista, {{ data_atual.strftime('%d de %B de %Y') }}</p>
+    </div>
+    
+    <div class="signature">
+        <div class="signature-line"></div>
+        <p>{{ emprestimo.nome }}</p>
+    </div>
+    
+    <div class="signature">
+        <div class="signature-line"></div>
+        <p>Responsável OAIBV</p>
+    </div>
+</body>
+</html>

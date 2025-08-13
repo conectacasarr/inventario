@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container">
+    <h1 class="mb-4">Desfazer Devolução</h1>
+    
+    <div class="card">
+        <div class="card-header bg-warning text-white">
+            <h5 class="mb-0"><i class="fas fa-undo"></i> Desfazer Devolução de Empréstimo</h5>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> Você está prestes a desfazer a devolução do seguinte empréstimo:
+            </div>
+            
+            <div class="table-responsive mb-4">
+                <table class="table table-bordered">
+                    <tr>
+                        <th style="width: 30%">Item:</th>
+                        <td>{{ emprestimo.item.tombamento }} - {{ emprestimo.item.descricao }}</td>
+                    </tr>
+                    <tr>
+                        <th>Pessoa:</th>
+                        <td>{{ emprestimo.nome }}</td>
+                    </tr>
+                    <tr>
+                        <th>Grupo:</th>
+                        <td>{{ emprestimo.grupo }}</td>
+                    </tr>
+                    <tr>
+                        <th>Contato:</th>
+                        <td>{{ emprestimo.contato }}</td>
+                    </tr>
+                    <tr>
+                        <th>Data do Empréstimo:</th>
+                        <td>{{ emprestimo.data_emprestimo|strftime('%d/%m/%Y %H:%M') }}</td>
+                    </tr>
+                    <tr>
+                        <th>Data da Devolução:</th>
+                        <td>{{ emprestimo.data_devolucao|strftime('%d/%m/%Y %H:%M') }}</td>
+                    </tr>
+                </table>
+            </div>
+            
+            <form method="post">
+                <div class="form-group">
+                    <label for="justificativa"><strong>Justificativa:</strong></label>
+                    <textarea class="form-control" id="justificativa" name="justificativa" rows="3" required
+                              placeholder="Informe o motivo para desfazer esta devolução"></textarea>
+                </div>
+                
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i> Esta ação será registrada no log do sistema com sua justificativa.
+                </div>
+                
+                <div class="text-right">
+                    <a href="{{ url_for('emprestimos') }}" class="btn btn-secondary">
+                        <i class="fas fa-times"></i> Cancelar
+                    </a>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="fas fa-undo"></i> Confirmar Desfazer Devolução
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

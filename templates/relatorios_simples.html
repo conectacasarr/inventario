@@ -1,0 +1,187 @@
+{% extends 'base_simples.html' %}
+
+{% block title %}Relatórios - OAIBV{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Relatórios</h2>
+
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Filtros</h5>
+        </div>
+        <div class="card-body">
+            <form method="GET" action="{{ url_for('relatorios') }}">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Buscar</label>
+                        <input type="text" class="form-control" name="busca" placeholder="Busca" value="{{ filtro_busca or '' }}">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Grupo</label>
+                        <select class="form-select" name="grupo">
+                            <option value="">Todos os Grupos</option>
+                            {% for grupo in grupos_disponiveis %}
+                            <option value="{{ grupo }}" {% if filtro_grupo == grupo %}selected{% endif %}>{{ grupo }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-4">
+                        <label class="form-label">Tipo de Movimentação</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" id="tipo_todos" name="tipo" value="todos" {% if filtro_tipo == 'todos' %}checked{% endif %}>
+                            <label class="form-check-label" for="tipo_todos">Todos</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" id="tipo_inventario" name="tipo" value="inventario" {% if filtro_tipo == 'inventario' %}checked{% endif %}>
+                            <label class="form-check-label" for="tipo_inventario">Inventário</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" id="tipo_emprestimos" name="tipo" value="emprestimos" {% if filtro_tipo == 'emprestimos' %}checked{% endif %}>
+                            <label class="form-check-label" for="tipo_emprestimos">Empréstimos</label>
+                        </div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label for="data_inicio" class="form-label">Data Início</label>
+                        <input type="date" class="form-control" id="data_inicio" name="data_inicio" value="{{ filtro_data_inicio }}">
+                    </div>
+
+                    <div class="col-md-4">
+                        <label for="data_fim" class="form-label">Data Fim</label>
+                        <input type="date" class="form-control" id="data_fim" name="data_fim" value="{{ filtro_data_fim }}">
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-between mt-3">
+                    <button type="submit" class="btn btn-primary">Filtrar</button>
+                    <div class="btn-group">
+                        <button type="submit" name="formato" value="pdf" class="btn btn-outline-secondary">Exportar PDF</button>
+                    </div>
+                </div>
+            </form>
+
+        </div>
+    </div>
+
+    {% if filtro_tipo in ['todos', 'inventario'] %}
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Inventário</h5>
+        </div>
+        <div class="card-body">
+            {% if itens %}
+            <div class="table-responsive">
+                <table class="table table-striped" id="tabela-inventario">
+                    <thead>
+                        <tr>
+                            <th>Tombamento</th>
+                            <th>Descrição</th>
+                            <th>Grupo</th>
+                            <th>Marca</th>
+                            <th>Valor</th>
+                            <th>Quantidade</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in itens %}
+                        <tr>
+                            <td>{{ item.tombamento }}</td>
+                            <td>{{ item.descricao }}</td>
+                            <td>{{ item.grupo or '-' }}</td>
+                            <td>{{ item.marca or '-' }}</td>
+                            <td>
+                                {% if item.valor_unitario is not none %}
+                                    {% set valor_formatado = "{:,.2f}".format(item.valor_unitario|float) %}
+                                    R$ {{ valor_formatado.replace(',', 'X').replace('.', ',').replace('X', '.') }}
+                                {% else %}-{% endif %}
+                            </td>
+                            <td>{{ item.quantidade }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div style="margin-top: 30px; text-align: center; background: #f4f4f4; padding: 15px; border-radius: 6px;">
+                <h3 style="margin: 0;">Resumo Financeiro</h3>
+                <p style="font-size: 16px;">Valor total estimado de todos os itens do inventário:</p>
+                <p style="font-size: 22px; color: darkblue; font-weight: bold;">{{ total_geral_html }}</p>
+            </div>
+            {% else %}
+            <p>Não há itens registrados ou nenhum corresponde aos filtros aplicados.</p>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if filtro_tipo in ['todos', 'emprestimos'] %}
+    <div class="card">
+        <div class="card-header">
+            <h5>Empréstimos</h5>
+        </div>
+        <div class="card-body">
+            {% if emprestimos %}
+            <div class="table-responsive">
+                <table class="table table-striped" id="tabela-inventario">
+                    <thead>
+                        <tr>
+                            <th>Data Empréstimo</th>
+                            <th>Data Devolução</th>
+                            <th>Tombamento</th>
+                            <th>Descrição</th>
+                            <th>Marca</th>
+                            <th>Quantidade</th>
+                            <th>Pessoa</th>
+                            <th>Grupo</th>
+                            <th>Contato</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for emprestimo in emprestimos %}
+                            {% for i in range(emprestimo.tombamentos|length) %}
+                            <tr>
+                                <td>{{ format_date(emprestimo.data_emprestimo) }}</td>
+                                <td>{{ format_date(emprestimo.data_devolucao) or '-' }}</td>
+                                <td>{{ emprestimo.tombamentos[i] }}</td>
+                                <td>{{ emprestimo.descricoes[i] }}</td>
+                                <td>{{ emprestimo.marcas[i] }}</td>
+                                <td>{{ emprestimo.quantidades[i] }}</td>
+                                <td>{{ emprestimo.usuario_nome }}</td>
+                                <td>{{ emprestimo.grupos[i] }}</td>
+                                <td>{{ emprestimo.contato }}</td>
+                            </tr>
+                            {% endfor %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p>Não há empréstimos registrados ou nenhum corresponde aos filtros aplicados.</p>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function aplicarFiltro(inputId, tabelaId) {
+    const input = document.getElementById(inputId);
+    const tabela = document.getElementById(tabelaId);
+
+    input.addEventListener("keyup", () => {
+        const filtro = input.value.toLowerCase();
+        const linhas = tabela.getElementsByTagName("tr");
+
+        for (let i = 1; i < linhas.length; i++) {
+            const texto = linhas[i].textContent.toLowerCase();
+            linhas[i].style.display = texto.includes(filtro) ? "" : "none";
+        }
+    });
+}
+</script>
+{% endblock %}

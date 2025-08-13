@@ -1,0 +1,93 @@
+{% extends 'base_simples.html' %}
+
+{% block title %}Novo Item - OAIBV{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Cadastrar Novo Item</h2>
+    
+    <div class="card">
+        <div class="card-header">
+            <h5>Formulário de Cadastro</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="tombamento" class="form-label">Tombamento</label>
+                            <input type="text" class="form-control" id="tombamento" name="tombamento" value="{{ proximo_tombamento }}" readonly>
+                            <small class="form-text text-muted">Gerado automaticamente</small>
+                        </div>
+                        <div class="mb-3">
+                            <label for="descricao" class="form-label">Descrição *</label>
+                            <input type="text" class="form-control" id="descricao" name="descricao" value="{{ form.descricao or '' }}" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="grupo_id" class="form-label">Grupo *</label>
+                            <select class="form-control" id="grupo_id" name="grupo_id" required>
+                                <option value="">Selecione um grupo</option>
+                                {% for grupo in grupos %}
+                                <option value="{{ grupo.id }}" {% if form.grupo_id == grupo.id|string %}selected{% endif %}>{{ grupo.nome }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="marca_id" class="form-label">Marca</label>
+                            <select class="form-control" id="marca_id" name="marca_id">
+                                <option value="">Selecione uma marca</option>
+                                {% for marca in marcas %}
+                                <option value="{{ marca.id }}" {% if form.marca_id == marca.id|string %}selected{% endif %}>{{ marca.nome }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="nota_fiscal" class="form-label">Nota Fiscal</label>
+                            <input type="text" class="form-control" id="nota_fiscal" name="nota_fiscal" value="{{ form.nota_fiscal or '' }}">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="data_aquisicao" class="form-label">Data de Aquisição</label>
+                            <input type="date" class="form-control" id="data_aquisicao" name="data_aquisicao" value="{{ form.data_aquisicao or '' }}">
+                        </div>
+                        <div class="mb-3">
+                            <label for="situacao_bem" class="form-label">Situação do Bem</label>
+                            <select class="form-control" id="situacao_bem" name="situacao_bem">
+                                <option value="Em uso" {% if form.situacao_bem == 'Em uso' or not form.situacao_bem %}selected{% endif %}>Em uso</option>
+                                <option value="Descartado" {% if form.situacao_bem == 'Descartado' %}selected{% endif %}>Descartado</option>
+                                <option value="Vendido" {% if form.situacao_bem == 'Vendido' %}selected{% endif %}>Vendido</option>
+                                <option value="Doado" {% if form.situacao_bem == 'Doado' %}selected{% endif %}>Doado</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="valor_unitario" class="form-label">Valor Unitário (R$)</label>
+                            <input type="text" class="form-control" id="valor_unitario" name="valor_unitario" placeholder="Ex: 150,50" value="{{ form.valor_unitario or '' }}">
+                        </div>
+                        <div class="mb-3">
+                            <label for="quantidade" class="form-label">Quantidade *</label>
+                            <input type="number" class="form-control" id="quantidade" name="quantidade" value="{{ form.quantidade or 1 }}" min="1" required>
+                        </div>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-between">
+                    <a href="{{ url_for('inventario') }}" class="btn btn-secondary">Voltar</a>
+                    <button type="submit" class="btn btn-primary">Cadastrar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// Formatação automática do valor unitário
+document.getElementById('valor_unitario').addEventListener('input', function(e) {
+    let value = e.target.value.replace(/\D/g, '');
+    if (value.length > 0) {
+        value = (parseInt(value) / 100).toFixed(2);
+        value = value.replace('.', ',');
+        e.target.value = value;
+    }
+});
+</script>
+{% endblock %}

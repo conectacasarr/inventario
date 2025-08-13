@@ -1,0 +1,238 @@
+{% extends 'base_simples.html' %}
+
+{% block title %}Empréstimos - OAIBV{% endblock %}
+
+{% block head_extra %}
+<style>
+    .remove-item-btn {
+        cursor: pointer;
+        color: red;
+        font-weight: bold;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Empréstimos</h2>
+
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Novo Empréstimo</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST" id="form-novo-emprestimo">
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <label for="nome" class="form-label">Nome do Solicitante *</label>
+                        <input type="text" class="form-control" id="nome" name="nome" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="grupo" class="form-label">Grupo/Setor do Solicitante *</label>
+                        <input type="text" name="grupo" id="grupo" class="form-control" required placeholder="Digite o bairro (grupo caseiro)">
+                    </div>
+                    <div class="col-md-4">
+                        <label for="contato" class="form-label">Contato *</label>
+                        <input type="text" class="form-control" id="contato" name="contato" placeholder="(95) 90000-0000" required>
+                    </div>
+                </div>
+
+                <hr>
+
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <label for="filtro_grupo_item" class="form-label">Grupo de Itens *</label>
+                        <select class="form-control" id="filtro_grupo_item">
+                            <option value="">Todos os grupos</option>
+                            {% for g in grupos %}
+                                <option value="{{ g.id }}">{{ g.nome }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="col-md-5">
+                        <label for="item_select_unico" class="form-label">Item *</label>
+                        <select class="form-control" id="item_select_unico">
+                            <option value="">Selecione um item</option>
+                            {% for item in itens %}
+                                <option value="{{ item.id }}"
+                                        data-max="{{ item.quantidade }}"
+                                        data-grupo="{{ item.grupo_id }}"
+                                        data-marca="{{ item.marca }}">
+                                    {{ item.tombamento }} - {{ item.descricao }}
+                                    {% if item.marca %} ({{ item.marca }}){% else %} (sem marca){% endif %}
+                                    [{{ item.grupo_nome }}] - {{ item.quantidade }} disp.
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="col-md-2">
+                        <label for="item_quantidade_unica" class="form-label">Quantidade *</label>
+                        <input type="number" class="form-control" id="item_quantidade_unica" min="1" value="1">
+                    </div>
+
+                    <div class="col-md-1 d-flex align-items-end">
+                        <button type="button" class="btn btn-success btn-sm" id="add-item-unico">Adicionar</button>
+                    </div>
+                </div>
+                
+                <div id="itens-container" class="mb-3"></div>
+
+                <div class="mb-3">
+                    <label for="observacoes" class="form-label">Observações</label>
+                    <textarea class="form-control" id="observacoes" name="observacoes" rows="2"></textarea>
+                </div>
+
+                <button type="submit" class="btn btn-primary">Registrar Empréstimo</button>
+            </form>
+        </div>
+    </div>
+
+    {% if emprestimos_ativos %}
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Empréstimos Ativos</h5>
+        </div>
+        <div class="card-body">
+            <table class="table table-sm table-bordered">
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Nome</th>
+                        <th>Grupo</th>
+                        <th>Contato</th>
+                        <th>Itens</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for emprestimo in emprestimos_ativos %}
+                    <tr>
+                        <td>{{ format_date(emprestimo.data_emprestimo) }}</td>
+                        <td>{{ emprestimo.nome }}</td>
+                        <td>{{ emprestimo.grupo_caseiro }}</td>
+                        <td>{{ emprestimo.contato }}</td>
+                        <td>{{ emprestimo.itens_desc | replace(", ", "<br>") | safe }}</td>
+                        <td>
+                            <a href="{{ url_for('devolver_emprestimo', id=emprestimo.emprestimo_id) }}" class="btn btn-sm btn-success">Devolver</a>
+                            <a href="{{ url_for('termo_compromisso', emprestimo_id=emprestimo.emprestimo_id) }}" class="btn btn-sm btn-info" target="_blank">Termo</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if emprestimos_devolvidos %}
+    <div class="card">
+        <div class="card-header">
+            <h5>Histórico de Empréstimos</h5>
+        </div>
+        <div class="card-body">
+            <table class="table table-sm table-bordered">
+                <thead>
+                    <tr>
+                        <th>Data Empréstimo</th>
+                        <th>Data Devolução</th>
+                        <th>Nome</th>
+                        <th>Grupo</th>
+                        <th>Itens</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for emprestimo in emprestimos_devolvidos %}
+                    <tr>
+                        <td>{{ format_date(emprestimo.data_emprestimo) }}</td>
+                        <td>{{ format_date(emprestimo.data_devolucao) }}</td>
+                        <td>{{ emprestimo.nome }}</td>
+                        <td>{{ emprestimo.grupo_caseiro }}</td>
+                        <td>{{ emprestimo.itens_desc | replace(", ", "<br>") | safe }}</td>
+                        <td>
+                            <a href="{{ url_for('termo_compromisso', emprestimo_id=emprestimo.emprestimo_id) }}" class="btn btn-sm btn-secondary" target="_blank">Termo</a>
+                            {% if current_user.is_admin %}
+                            <a href="{{ url_for('desfazer_devolucao', id=emprestimo.emprestimo_id) }}" class="btn btn-sm btn-danger">Desfazer</a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const filtroGrupo = document.getElementById("filtro_grupo_item");
+    const itemSelect = document.getElementById("item_select_unico");
+    const quantidadeInput = document.getElementById("item_quantidade_unica");
+    const addItemBtn = document.getElementById("add-item-unico");
+    const container = document.getElementById("itens-container");
+
+    filtroGrupo.addEventListener('change', () => {
+        const grupo = filtroGrupo.value;
+        for (let option of itemSelect.options) {
+            if (!option.value) continue;
+            const grupoItem = option.getAttribute('data-grupo');
+            option.style.display = (grupo === "" || grupoItem === grupo) ? '' : 'none';
+        }
+        itemSelect.value = "";
+    });
+
+    addItemBtn.addEventListener('click', () => {
+        try {
+            const itemId = itemSelect.value;
+            const quantidade = quantidadeInput.value;
+            const selectedOption = itemSelect.selectedOptions[0];
+
+            if (!itemId || !quantidade || !selectedOption) {
+                alert("Selecione um item e informe a quantidade.");
+                return;
+            }
+
+            const max = parseInt(selectedOption.dataset.max || 1);
+            if (parseInt(quantidade) > max) {
+                alert("Quantidade maior que o disponível.");
+                return;
+            }
+
+            const tombamento = selectedOption.textContent.split(" - ")[0].trim();
+            const descricao = selectedOption.textContent.split(" - ")[1]?.split("(")[0]?.trim();
+            const marca = selectedOption.dataset.marca || "sem marca";
+            const grupo = selectedOption.textContent.match(/\[(.*?)\]/)?.[1] || "";
+            const label = `${tombamento} - ${descricao} (${marca}) [${grupo}] - ${quantidade} disp.`;
+
+            const row = document.createElement('div');
+            row.className = 'row mb-2';
+            row.innerHTML = `
+                <div class="col-md-7">
+                    <input type="hidden" name="item_id[]" value="${itemId}">
+                    <input type="hidden" name="quantidade[]" value="${quantidade}">
+                    <input class="form-control" value="${label}" disabled>
+                </div>
+                <div class="col-md-2">
+                    <input class="form-control" value="${quantidade}" disabled>
+                </div>
+                <div class="col-md-3 d-flex align-items-center">
+                    <span class="remove-item-btn" onclick="this.parentNode.parentNode.remove()">Remover</span>
+                </div>
+            `;
+
+            container.appendChild(row);
+            itemSelect.value = "";
+            quantidadeInput.value = "1";
+        } catch (err) {
+            console.error("Erro ao adicionar item:", err);
+            alert("Erro ao adicionar item. Veja o console para detalhes.");
+        }
+    });
+});
+</script>
+{% endblock %}

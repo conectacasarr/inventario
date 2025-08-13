@@ -1,0 +1,149 @@
+{% extends 'base_simples.html' %}
+
+{% block title %}Editar Item - OAIBV{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Editar Item</h2>
+    
+    <div class="card">
+        <div class="card-header">
+            <h5>Formulário de Edição</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="tombamento" class="form-label">Tombamento</label>
+                            <input type="text" class="form-control" id="tombamento" name="tombamento" value="{{ item.tombamento }}" readonly>
+                            <small class="form-text text-muted">Não pode ser alterado</small>
+                        </div>
+                        <div class="mb-3">
+                            <label for="descricao" class="form-label">Descrição *</label>
+                            <input type="text" class="form-control" id="descricao" name="descricao" value="{{ item.descricao }}" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="grupo_id" class="form-label">Grupo *</label>
+                            <select class="form-control" id="grupo_id" name="grupo_id" required>
+                                <option value="">Selecione um grupo</option>
+                                {% for grupo in grupos %}
+                                <option value="{{ grupo.id }}" {% if item.grupo_id == grupo.id %}selected{% endif %}>{{ grupo.nome }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="marca_id" class="form-label">Marca</label>
+                            <select class="form-control" id="marca_id" name="marca_id">
+                                <option value="">Selecione uma marca</option>
+                                {% for marca in marcas %}
+                                <option value="{{ marca.id }}" {% if item.marca_id == marca.id %}selected{% endif %}>{{ marca.nome }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="nota_fiscal" class="form-label">Nota Fiscal</label>
+                            <input type="text" class="form-control" id="nota_fiscal" name="nota_fiscal" value="{{ item.nota_fiscal or '' }}">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="data_aquisicao" class="form-label">Data de Aquisição</label>
+                        <input type="date" class="form-control" id="data_aquisicao" name="data_aquisicao"
+							value="{{ item.data_aquisicao.strftime('%Y-%m-%d') if item.data_aquisicao else '' }}">
+
+                        </div>
+                        <div class="mb-3">
+                            <label for="situacao_bem" class="form-label">Situação do Bem</label>
+                            <select class="form-control" id="situacao_bem" name="situacao_bem">
+                                <option value="Em uso" {% if item.situacao_bem == 'Em uso' or not item.situacao_bem %}selected{% endif %}>Em uso</option>
+                                <option value="Descartado" {% if item.situacao_bem == 'Descartado' %}selected{% endif %}>Descartado</option>
+                                <option value="Vendido" {% if item.situacao_bem == 'Vendido' %}selected{% endif %}>Vendido</option>
+                                <option value="Doado" {% if item.situacao_bem == 'Doado' %}selected{% endif %}>Doado</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="valor_unitario" class="form-label">Valor Unitário (R$)</label>
+                            <input type="text" class="form-control" id="valor_unitario" name="valor_unitario" 
+                                   placeholder="Ex: 150,50" value="{{ '{:.2f}'.format(item.valor_unitario).replace('.', ',') if item.valor_unitario else '' }}">
+                        </div>
+                        <div class="mb-3">
+                            <label for="quantidade" class="form-label">Quantidade *</label>
+                            <input type="number" class="form-control" id="quantidade" name="quantidade" 
+                                   value="{{ item.quantidade }}" min="1" required>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Informações adicionais -->
+                <div class="row mt-4">
+                    <div class="col-md-12">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h6 class="card-title">Informações do Item</h6>
+                                <div class="row">
+                                    <div class="col-md-3">
+                                        <strong>Valor Total:</strong>
+                                        {% if item.valor_unitario and item.quantidade %}
+                                            R$ {{ "{:.2f}".format(item.valor_unitario * item.quantidade).replace('.', ',') }}
+                                        {% else %}
+                                            R$ 0,00
+                                        {% endif %}
+                                    </div>
+                                    <div class="col-md-3">
+                                        <strong>Situação Atual:</strong> {{ item.situacao_bem or 'Em uso' }}
+                                    </div>
+                                    <div class="col-md-3">
+                                        <strong>Data Cadastro:</strong> 
+                                        {% if item.id %}
+                                            {{ "Cadastrado" }}
+                                        {% else %}
+                                            {{ "Novo item" }}
+                                        {% endif %}
+                                    </div>
+                                    <div class="col-md-3">
+                                        <strong>Tombamento:</strong> {{ item.tombamento }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="d-flex justify-content-between mt-4">
+                    <a href="{{ url_for('inventario') }}" class="btn btn-secondary">Voltar</a>
+                    <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// Formatação automática do valor unitário
+document.getElementById('valor_unitario').addEventListener('input', function(e) {
+    let value = e.target.value.replace(/\D/g, '');
+    if (value.length > 0) {
+        value = (parseInt(value) / 100).toFixed(2);
+        value = value.replace('.', ',');
+        e.target.value = value;
+    }
+});
+
+// Atualizar valor total em tempo real
+function atualizarValorTotal() {
+    const valorUnitario = parseFloat(document.getElementById('valor_unitario').value.replace(',', '.')) || 0;
+    const quantidade = parseInt(document.getElementById('quantidade').value) || 0;
+    const valorTotal = valorUnitario * quantidade;
+    
+    // Atualizar exibição do valor total se houver um elemento para isso
+    const valorTotalElement = document.querySelector('.valor-total-display');
+    if (valorTotalElement) {
+        valorTotalElement.textContent = 'R$ ' + valorTotal.toFixed(2).replace('.', ',');
+    }
+}
+
+document.getElementById('valor_unitario').addEventListener('input', atualizarValorTotal);
+document.getElementById('quantidade').addEventListener('input', atualizarValorTotal);
+</script>
+{% endblock %}

@@ -1,0 +1,211 @@
+{% extends 'base.html' %}
+
+{% block title %}Empréstimos{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Empréstimos</h2>
+    
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Registrar Novo Empréstimo</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group mb-3">
+                            <label for="item_id">Item:</label>
+                            <select class="form-control" id="item_id" name="item_id" required>
+                                <option value="">Selecione um item</option>
+                                {% for item in itens %}
+                                <option value="{{ item.id }}">{{ item.tombamento }} - {{ item.descricao }} ({{ item.marca or 'Sem marca' }}) - Disponível: {{ item.quantidade }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group mb-3">
+                            <label for="quantidade">Quantidade:</label>
+                            <input type="number" class="form-control" id="quantidade" name="quantidade" value="1" min="1" required>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group mb-3">
+                            <label for="nome">Nome:</label>
+                            <input type="text" class="form-control" id="nome" name="nome" required>
+                        </div>
+                        <div class="form-group mb-3">
+                            <label for="grupo">Grupo Caseiro:</label>
+                            <input type="text" class="form-control" id="grupo" name="grupo" required>
+                        </div>
+                        <div class="form-group mb-3">
+                            <label for="contato">Telefone:</label>
+                            <input type="text" class="form-control" id="contato" name="contato" placeholder="(95) 90000-0000" required>
+                            <small class="form-text text-muted">Formato: (95) 90000-0000</small>
+                        </div>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary">Registrar Empréstimo</button>
+            </form>
+        </div>
+    </div>
+    
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Empréstimos Ativos</h5>
+        </div>
+        <div class="card-body">
+            {% if emprestimos_ativos %}
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Item</th>
+                            <th>Marca</th>
+                            <th>Quantidade</th>
+                            <th>Pessoa</th>
+                            <th>Grupo</th>
+                            <th>Contato</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for emprestimo in emprestimos_ativos %}
+                        <tr>
+                            <td>{{ emprestimo.data_emprestimo|strftime('%d/%m/%Y') }}</td>
+                            <td>
+                                {% if emprestimo.item %}
+                                {{ emprestimo.item.tombamento }} - {{ emprestimo.item.descricao }}
+                                {% else %}
+                                Item não encontrado
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if emprestimo.item and emprestimo.item.marca %}
+                                {{ emprestimo.item.marca }}
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if emprestimo.quantidade is defined %}
+                                {{ emprestimo.quantidade }}
+                                {% else %}
+                                1
+                                {% endif %}
+                            </td>
+                            <td>{{ emprestimo.nome }}</td>
+                            <td>{{ emprestimo.grupo }}</td>
+                            <td>{{ emprestimo.contato }}</td>
+                            <td>
+                            <td>
+                                <div style="display: flex; gap: 5px;">
+                                    <a href="{{ url_for('termo_compromisso', emprestimo_id=emprestimo.emprestimo_id) }}" class="btn btn-sm btn-secondary" target="_blank">Termo</a>
+                                    <a href="{{ url_for('desfazer_devolucao', id=emprestimo.emprestimo_id) }}" class="btn btn-sm btn-danger">Desfazer</a>
+                                </div>
+                            </td>                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p>Não há empréstimos ativos.</p>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="card">
+        <div class="card-header">
+            <h5>Histórico de Empréstimos</h5>
+        </div>
+        <div class="card-body">
+            {% if emprestimos_devolvidos %}
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Data Empréstimo</th>
+                            <th>Data Devolução</th>
+                            <th>Item</th>
+                            <th>Marca</th>
+                            <th>Quantidade</th>
+                            <th>Pessoa</th>
+                            <th>Grupo</th>
+                            <th>Contato</th>
+                            {% if current_user.tipo == 'admin' %}
+                            <th>Ações</th>
+                            {% endif %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for emprestimo in emprestimos_devolvidos %}
+                        <tr>
+                            <td>{{ emprestimo.data_emprestimo|strftime('%d/%m/%Y') }}</td>
+                            <td>{{ emprestimo.data_devolucao|strftime('%d/%m/%Y') }}</td>
+                            <td>
+                                {% if emprestimo.item %}
+                                {{ emprestimo.item.tombamento }} - {{ emprestimo.item.descricao }}
+                                {% else %}
+                                Item não encontrado
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if emprestimo.item and emprestimo.item.marca %}
+                                {{ emprestimo.item.marca }}
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if emprestimo.quantidade is defined %}
+                                {{ emprestimo.quantidade }}
+                                {% else %}
+                                1
+                                {% endif %}
+                            </td>
+                            <td>{{ emprestimo.nome }}</td>
+                            <td>{{ emprestimo.grupo }}</td>
+                            <td>{{ emprestimo.contato }}</td>
+                            {% if current_user.tipo == 'admin' %}
+                            <td>
+                                <div class="d-flex gap-2">
+                                    <a href="{{ url_for('desfazer_devolucao', id=emprestimo.id) }}" class="btn btn-sm btn-warning">Desfazer</a>
+                                    <!-- Exemplo: botão extra se quiser adicionar -->
+                                    {# <a href="#" class="btn btn-sm btn-secondary">Termo</a> #}
+                                </div>
+                            </td>
+                            {% endif %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p>Não há histórico de empréstimos.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Máscara para telefone
+        const contatoInput = document.getElementById('contato');
+        if (contatoInput) {
+            contatoInput.addEventListener('input', function(e) {
+                let value = e.target.value.replace(/\D/g, '');
+                if (value.length <= 11) {
+                    if (value.length > 2) {
+                        value = '(' + value.substring(0, 2) + ') ' + value.substring(2);
+                    }
+                    if (value.length > 9) {
+                        value = value.substring(0, 10) + '-' + value.substring(10);
+                    }
+                    e.target.value = value;
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

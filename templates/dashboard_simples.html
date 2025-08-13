@@ -1,0 +1,256 @@
+{% extends 'base_simples.html' %}
+
+{% block title %}Dashboard - OAIBV{% endblock %}
+
+{% block head_extra %}
+<!-- Chart.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+    .dashboard-card-stat {
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        color: #fff;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        transition: transform 0.3s ease;
+    }
+    .dashboard-card-stat:hover {
+        transform: translateY(-5px);
+    }
+    .dashboard-card-stat .stat-icon {
+        font-size: 3rem;
+        opacity: 0.8;
+    }
+    .dashboard-card-stat .stat-value {
+        font-size: 2.5rem;
+        font-weight: bold;
+    }
+    .dashboard-card-stat .stat-label {
+        font-size: 1rem;
+        margin-bottom: 0;
+    }
+    .chart-container {
+        background-color: #fff;
+        padding: 1.5rem;
+        border-radius: 10px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        margin-bottom: 1.5rem;
+    }
+	.chart-container canvas {
+    max-width: 400px;
+    max-height: 300px;
+    display: block;
+    margin: 0 auto;
+}
+
+    .table-transactions th {
+        background-color: #e9ecef;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">Dashboard</h2>
+
+    <!-- Stats Cards -->
+    <div class="row">
+        <div class="col-md-4">
+            <div class="dashboard-card-stat bg-primary">
+                <div class="row">
+                    <div class="col-8">
+                        <div class="stat-value">{{ total_itens }}</div>
+                        <p class="stat-label">Itens Cadastrados</p>
+                    </div>
+                    <div class="col-4 text-end">
+                        <i class="fas fa-boxes stat-icon"></i>
+                    </div>
+                </div>
+                 <a href="{{ url_for('inventario') }}" class="text-white" style="text-decoration: none;"><small>Ver detalhes <i class="fas fa-arrow-circle-right"></i></small></a>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="dashboard-card-stat bg-success">
+                 <div class="row">
+                    <div class="col-8">
+                        <div class="stat-value">{{ total_emprestado }}</div>
+                        <p class="stat-label">Empréstimos Ativos</p>
+                    </div>
+                    <div class="col-4 text-end">
+                        <i class="fas fa-handshake stat-icon"></i>
+                    </div>
+                </div>
+                 <a href="{{ url_for('emprestimos') }}" class="text-white" style="text-decoration: none;"><small>Ver detalhes <i class="fas fa-arrow-circle-right"></i></small></a>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="dashboard-card-stat bg-warning text-dark">
+                 <div class="row">
+                    <div class="col-8">
+                        <div class="stat-value">{{ total_devolvido }}</div>
+                        <p class="stat-label">Empréstimos Devolvidos</p>
+                    </div>
+                    <div class="col-4 text-end">
+                        <i class="fas fa-undo-alt stat-icon"></i>
+                    </div>
+                </div>
+                 <a href="{{ url_for("emprestimos") }}" class="text-dark" style="text-decoration: none;"><small>Ver detalhes <i class="fas fa-arrow-circle-right"></i></small></a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="chart-container">
+                <h5 class="mb-3">Itens por Grupo</h5>
+                <canvas id="itensPorGrupoChart"></canvas>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="chart-container">
+                <h5 class="mb-3">Status dos Empréstimos</h5>
+                <canvas id="emprestimosStatusChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Access & Recent Transactions -->
+     <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Acesso Rápido</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3 mb-2">
+                            <a href="{{ url_for('novo_item') }}" class="btn btn-outline-primary w-100"><i class="fas fa-plus-circle me-1"></i> Novo Item</a>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <a href="{{ url_for('grupos_marcas') }}" class="btn btn-outline-secondary w-100"><i class="fas fa-tags me-1"></i> Grupos e Marcas </a>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <a href="{{ url_for('emprestimos') }}" class="btn btn-outline-info w-100"><i class="fas fa-handshake me-1"></i> Empréstimo</a>
+                        </div>
+                         <div class="col-md-3 mb-2">
+                            <a href="{{ url_for('relatorios') }}" class="btn btn-outline-secondary w-100"><i class="fas fa-chart-bar me-1"></i> Relatórios</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Chart: Itens por Grupo
+    const ctxItensGrupo = document.getElementById('itensPorGrupoChart').getContext('2d');
+    const itensPorGrupoChart = new Chart(ctxItensGrupo, {
+        type: 'doughnut', // ou 'pie'
+        data: {
+            labels: {{ grupos_labels | tojson }},
+            datasets: [{
+                label: 'Quantidade de Itens',
+                data: {{ grupos_data | tojson }},
+                backgroundColor: [
+                    'rgba(54, 162, 235, 0.8)',
+                    'rgba(255, 99, 132, 0.8)',
+                    'rgba(255, 206, 86, 0.8)',
+                    'rgba(75, 192, 192, 0.8)',
+                    'rgba(153, 102, 255, 0.8)',
+                    'rgba(255, 159, 64, 0.8)',
+                    'rgba(199, 199, 199, 0.8)',
+                    'rgba(83, 102, 255, 0.8)',
+                    'rgba(40, 159, 64, 0.8)',
+                    'rgba(210, 99, 132, 0.8)'
+                ],
+                borderColor: [
+                    'rgba(54, 162, 235, 1)',
+                    'rgba(255, 99, 132, 1)',
+                    'rgba(255, 206, 86, 1)',
+                    'rgba(75, 192, 192, 1)',
+                    'rgba(153, 102, 255, 1)',
+                    'rgba(255, 159, 64, 1)',
+                    'rgba(199, 199, 199, 1)',
+                    'rgba(83, 102, 255, 1)',
+                    'rgba(40, 159, 64, 1)',
+                    'rgba(210, 99, 132, 1)'
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'top',
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            if (context.parsed !== null) {
+                                label += context.parsed;
+                            }
+                            return label;
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // Chart: Status dos Empréstimos
+    const ctxEmprestimosStatus = document.getElementById('emprestimosStatusChart').getContext('2d');
+    const emprestimosStatusChart = new Chart(ctxEmprestimosStatus, {
+        type: 'pie', // ou 'doughnut'
+        data: {
+            labels: {{ emprestimos_status_labels | tojson }},
+            datasets: [{
+                label: 'Status',
+                data: {{ emprestimos_status_data | tojson }},
+                backgroundColor: [
+                    'rgba(75, 192, 192, 0.8)', // Ativos (verde-azulado)
+                    'rgba(255, 159, 64, 0.8)'  // Devolvidos (laranja)
+                ],
+                 borderColor: [
+                    'rgba(75, 192, 192, 1)',
+                    'rgba(255, 159, 64, 1)'
+                ],
+                borderWidth: 1
+            }]
+        },
+         options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'top',
+                },
+                 tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            if (context.parsed !== null) {
+                                label += context.parsed;
+                            }
+                            return label;
+                        }
+                    }
+                }
+            }
+        }
+    });
+});
+</script>
+
+{% endblock %}
+

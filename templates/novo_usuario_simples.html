@@ -1,0 +1,42 @@
+{% extends 'base_simples.html' %}
+
+{% block title %}Novo Usuário - OAIBV{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Cadastrar Novo Usuário</h2>
+    
+    <div class="card">
+        <div class="card-header">
+            <h5>Formulário de Cadastro</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST">
+                <div class="mb-3">
+                    <label for="nome" class="form-label">Nome</label>
+                    <input type="text" class="form-control" id="nome" name="nome" required>
+                </div>
+                <div class="mb-3">
+                    <label for="usuario" class="form-label">Usuário</label>
+                    <input type="text" class="form-control" id="usuario" name="usuario" required>
+                </div>
+                <div class="mb-3">
+                    <label for="senha" class="form-label">Senha</label>
+                    <input type="password" class="form-control" id="senha" name="senha" required>
+                </div>
+                <div class="mb-3">
+                    <label for="tipo" class="form-label">Tipo</label>
+                    <select class="form-control" id="tipo" name="tipo" required>
+                        <option value="comum">Comum</option>
+                        <option value="admin">Administrador</option>
+                    </select>
+                </div>
+                <div class="d-flex justify-content-between">
+                    <a href="{{ url_for('usuarios') }}" class="btn btn-secondary">Voltar</a>
+                    <button type="submit" class="btn btn-primary">Cadastrar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

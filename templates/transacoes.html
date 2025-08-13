@@ -1,0 +1,101 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h1 class="mb-4">Transações</h1>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-5">
+        <div class="form-container">
+            <h4 class="form-title">Registrar Nova Transação</h4>
+            <form method="POST" action="{{ url_for('transacoes') }}">
+                <div class="form-group">
+                    <label for="item_id">Item *</label>
+                    <select class="form-control" id="item_id" name="item_id" required>
+                        <option value="">Selecione um item...</option>
+                        {% for item in itens %}
+                        <option value="{{ item.id }}">{{ item.tombamento }} - {{ item.descricao }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="quantidade">Quantidade *</label>
+                    <input type="number" min="1" class="form-control" id="quantidade" name="quantidade" value="1" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>Tipo de Transação *</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="tipo" id="tipo_entrada" value="entrada" checked>
+                        <label class="form-check-label" for="tipo_entrada">
+                            <i class="fas fa-arrow-down text-success"></i> Entrada
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="tipo" id="tipo_saida" value="saida">
+                        <label class="form-check-label" for="tipo_saida">
+                            <i class="fas fa-arrow-up text-danger"></i> Saída
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="form-group mt-4">
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-save"></i> Registrar Transação
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <div class="col-md-7">
+        <div class="table-container">
+            <h4 class="mb-3">Transações Recentes</h4>
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Data/Hora</th>
+                            <th>Item</th>
+                            <th>Tipo</th>
+                            <th>Quantidade</th>
+                            <th>Usuário</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if transacoes %}
+                            {% for transacao in transacoes %}
+                            <tr>
+                                <td>{{ transacao.data.strftime('%d/%m/%Y %H:%M') }}</td>
+                                <td>{{ transacao.item.tombamento }} - {{ transacao.item.descricao }}</td>
+                                <td>
+                                    {% if transacao.tipo == 'entrada' %}
+                                    <span class="badge badge-success">
+                                        <i class="fas fa-arrow-down"></i> Entrada
+                                    </span>
+                                    {% else %}
+                                    <span class="badge badge-danger">
+                                        <i class="fas fa-arrow-up"></i> Saída
+                                    </span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ transacao.quantidade }}</td>
+                                <td>{{ transacao.usuario.nome }}</td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="5" class="text-center">Nenhuma transação registrada.</td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

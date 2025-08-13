@@ -1,0 +1,298 @@
+{% extends "base_simples.html" %}
+
+{% block title %}Grupos e Marcas{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h2 class="mb-4">Gestão de Grupos e Marcas</h2>
+            
+            <!-- Abas para Grupos e Marcas -->
+            <ul class="nav nav-tabs" id="gruposMarcasTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="grupos-tab" data-bs-toggle="tab" data-bs-target="#grupos" type="button" role="tab">
+                        <i class="fas fa-layer-group"></i> Grupos
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="marcas-tab" data-bs-toggle="tab" data-bs-target="#marcas" type="button" role="tab">
+                        <i class="fas fa-tags"></i> Marcas
+                    </button>
+                </li>
+            </ul>
+            
+            <div class="tab-content" id="gruposMarcasTabsContent">
+                <!-- Aba Grupos -->
+                <div class="tab-pane fade show active" id="grupos" role="tabpanel">
+                    <div class="card mt-3">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">Grupos Cadastrados</h5>
+                            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalNovoGrupo">
+                                <i class="fas fa-plus"></i> Novo Grupo
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            {% if grupos %}
+                                <div class="table-responsive">
+                                    <table class="table table-striped table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>ID</th>
+                                                <th>Nome</th>
+                                                <th>Itens Cadastrados</th>
+                                                <th>Ações</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for grupo in grupos %}
+                                            <tr>
+                                                <td>{{ grupo.id }}</td>
+                                                <td>{{ grupo.nome }}</td>
+                                                <td>{{ grupo.total_itens }}</td>
+                                                <td>
+                                                    <button type="button" class="btn btn-sm btn-outline-primary" 
+                                                            onclick="editarGrupo({{ grupo.id }}, '{{ grupo.nome }}')">
+                                                        <i class="fas fa-edit"></i>
+                                                    </button>
+                                                    {% if grupo.itens|length == 0 %}
+                                                    <button type="button" class="btn btn-sm btn-outline-danger" 
+                                                            onclick="excluirGrupo({{ grupo.id }}, '{{ grupo.nome }}')">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% else %}
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle"></i> Nenhum grupo cadastrado ainda.
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Aba Marcas -->
+                <div class="tab-pane fade" id="marcas" role="tabpanel">
+                    <div class="card mt-3">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">Marcas Cadastradas</h5>
+                            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalNovaMarca">
+                                <i class="fas fa-plus"></i> Nova Marca
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            {% if marcas %}
+                                <div class="table-responsive">
+                                    <table class="table table-striped table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>ID</th>
+                                                <th>Nome</th>
+                                                <th>Itens Cadastrados</th>
+                                                <th>Ações</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for marca in marcas %}
+                                            <tr>
+                                                <td>{{ marca.id }}</td>
+                                                <td>{{ marca.nome }}</td>
+                                                <td>{{ marca.total_itens }}</td>
+                                                <td>
+                                                    <button type="button" class="btn btn-sm btn-outline-primary" 
+                                                            onclick="editarMarca({{ marca.id }}, '{{ marca.nome }}')">
+                                                        <i class="fas fa-edit"></i>
+                                                    </button>
+                                                    {% if marca.itens|length == 0 %}
+                                                    <button type="button" class="btn btn-sm btn-outline-danger" 
+                                                            onclick="excluirMarca({{ marca.id }}, '{{ marca.nome }}')">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% else %}
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle"></i> Nenhuma marca cadastrada ainda.
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Novo Grupo -->
+<div class="modal fade" id="modalNovoGrupo" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Novo Grupo</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('grupos_marcas') }}">
+                <div class="modal-body">
+                    <input type="hidden" name="acao" value="novo_grupo">
+                    <div class="mb-3">
+                        <label for="nome_grupo" class="form-label">Nome do Grupo</label>
+                        <input type="text" class="form-control" id="nome_grupo" name="nome" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Nova Marca -->
+<div class="modal fade" id="modalNovaMarca" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Nova Marca</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('grupos_marcas') }}">
+                <div class="modal-body">
+                    <input type="hidden" name="acao" value="nova_marca">
+                    <div class="mb-3">
+                        <label for="nome_marca" class="form-label">Nome da Marca</label>
+                        <input type="text" class="form-control" id="nome_marca" name="nome" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Editar Grupo -->
+<div class="modal fade" id="modalEditarGrupo" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Editar Grupo</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('grupos_marcas') }}">
+                <div class="modal-body">
+                    <input type="hidden" name="acao" value="editar_grupo">
+                    <input type="hidden" id="editar_grupo_id" name="id">
+                    <div class="mb-3">
+                        <label for="editar_nome_grupo" class="form-label">Nome do Grupo</label>
+                        <input type="text" class="form-control" id="editar_nome_grupo" name="nome" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Editar Marca -->
+<div class="modal fade" id="modalEditarMarca" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Editar Marca</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('grupos_marcas') }}">
+                <div class="modal-body">
+                    <input type="hidden" name="acao" value="editar_marca">
+                    <input type="hidden" id="editar_marca_id" name="id">
+                    <div class="mb-3">
+                        <label for="editar_nome_marca" class="form-label">Nome da Marca</label>
+                        <input type="text" class="form-control" id="editar_nome_marca" name="nome" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function editarGrupo(id, nome) {
+    document.getElementById('editar_grupo_id').value = id;
+    document.getElementById('editar_nome_grupo').value = nome;
+    new bootstrap.Modal(document.getElementById('modalEditarGrupo')).show();
+}
+
+function editarMarca(id, nome) {
+    document.getElementById('editar_marca_id').value = id;
+    document.getElementById('editar_nome_marca').value = nome;
+    new bootstrap.Modal(document.getElementById('modalEditarMarca')).show();
+}
+
+function excluirGrupo(id, nome) {
+    if (confirm(`Tem certeza que deseja excluir o grupo "${nome}"?`)) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '{{ url_for("grupos_marcas") }}';
+        
+        const acaoInput = document.createElement('input');
+        acaoInput.type = 'hidden';
+        acaoInput.name = 'acao';
+        acaoInput.value = 'excluir_grupo';
+        
+        const idInput = document.createElement('input');
+        idInput.type = 'hidden';
+        idInput.name = 'id';
+        idInput.value = id;
+        
+        form.appendChild(acaoInput);
+        form.appendChild(idInput);
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+function excluirMarca(id, nome) {
+    if (confirm(`Tem certeza que deseja excluir a marca "${nome}"?`)) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '{{ url_for("grupos_marcas") }}';
+        
+        const acaoInput = document.createElement('input');
+        acaoInput.type = 'hidden';
+        acaoInput.name = 'acao';
+        acaoInput.value = 'excluir_marca';
+        
+        const idInput = document.createElement('input');
+        idInput.type = 'hidden';
+        idInput.name = 'id';
+        idInput.value = id;
+        
+        form.appendChild(acaoInput);
+        form.appendChild(idInput);
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+</script>
+{% endblock %}
+

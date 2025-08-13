@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relatório de Inventário - OAIBV</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+        h1 {
+            font-size: 18px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        h2 {
+            font-size: 16px;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            font-size: 10px;
+        }
+        th {
+            background-color: #f2f2f2;
+            text-align: left;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .filtros {
+            font-size: 11px;
+            margin-bottom: 15px;
+        }
+        .data-geracao {
+            font-size: 10px;
+            text-align: right;
+            margin-top: 20px;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <h1>Relatório de Inventário - OAIBV</h1>
+    
+    <div class="filtros">
+        <strong>Filtros aplicados:</strong><br>
+        {% if data_inicio %}Data inicial: {{ data_inicio.strftime('%d/%m/%Y') }}{% endif %}
+        {% if data_fim %}Data final: {{ data_fim.strftime('%d/%m/%Y') }}{% endif %}
+        {% if grupo %}Grupo: {{ grupo }}{% endif %}
+        Tipo de movimentação: 
+        {% if 'transacoes' in tipo_movimentacao %}Transações{% endif %}
+        {% if 'transacoes' in tipo_movimentacao and 'emprestimos' in tipo_movimentacao %} e {% endif %}
+        {% if 'emprestimos' in tipo_movimentacao %}Empréstimos{% endif %}
+    </div>
+    
+    <h2>Itens do Inventário</h2>
+    {% if itens %}
+    <table>
+        <thead>
+            <tr>
+                <th>Tombamento</th>
+                <th>Descrição</th>
+                <th>Marca</th>
+                <th>Grupo</th>
+                <th>Nota Fiscal</th>
+                <th>Valor</th>
+                <th>Qtd</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in itens %}
+            <tr>
+                <td>{{ item.tombamento }}</td>
+                <td>{{ item.descricao }}</td>
+                <td>{{ item.marca or '-' }}</td>
+                <td>{{ item.grupo }}</td>
+                <td>{{ item.nota_fiscal or '' }}</td>
+                <td>{{ "R$ {:.2f}".format(item.valor) if item.valor else '-' }}</td>
+                <td>{{ item.quantidade }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>Nenhum item encontrado.</p>
+    {% endif %}
+    
+    {% if 'transacoes' in tipo_movimentacao and transacoes %}
+    <h2>Transações</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Data</th>
+                <th>Tipo</th>
+                <th>Item</th>
+                <th>Marca</th>
+                <th>Grupo</th>
+                <th>Qtd</th>
+                <th>Usuário</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for t in transacoes %}
+            <tr>
+                <td>{{ t.data.strftime('%d/%m/%Y %H:%M') }}</td>
+                <td>{{ t.tipo }}</td>
+                <td>{{ t.item }}</td>
+                <td>{{ t.marca }}</td>
+                <td>{{ t.grupo }}</td>
+                <td>{{ t.quantidade }}</td>
+                <td>{{ t.usuario }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+    
+    {% if 'emprestimos' in tipo_movimentacao and emprestimos %}
+    <h2>Empréstimos</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Data</th>
+                <th>Item</th>
+                <th>Marca</th>
+                <th>Grupo</th>
+                <th>Qtd</th>
+                <th>Pessoa</th>
+                <th>Contato</th>
+                <th>Status</th>
+                <th>Data Devolução</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for e in emprestimos %}
+            <tr>
+                <td>{{ e.data.strftime('%d/%m/%Y %H:%M') }}</td>
+                <td>{{ e.item }}</td>
+                <td>{{ e.marca }}</td>
+                <td>{{ e.grupo }}</td>
+                <td>{{ e.quantidade }}</td>
+                <td>{{ e.pessoa }}</td>
+                <td>{{ e.contato }}</td>
+                <td>{{ e.status }}</td>
+                <td>{{ e.data_devolucao.strftime('%d/%m/%Y %H:%M') if e.data_devolucao else 'N/A' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+    
+    <div class="data-geracao">
+        Relatório gerado em {{ data_geracao.strftime('%d/%m/%Y %H:%M:%S') }}
+    </div>
+</body>
+</html>

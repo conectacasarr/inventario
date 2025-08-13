@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h1 class="mb-4">Cadastrar Novo Usuário</h1>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="form-container">
+            <form method="POST" action="{{ url_for('novo_usuario') }}">
+                <div class="form-group">
+                    <label for="nome">Nome Completo *</label>
+                    <input type="text" class="form-control" id="nome" name="nome" 
+                           value="{{ form_data.nome if form_data else '' }}" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="usuario">Nome de Usuário *</label>
+                    <input type="text" class="form-control" id="usuario" name="usuario" 
+                           value="{{ form_data.usuario if form_data else '' }}" required>
+                    <small class="form-text text-muted">Nome de usuário para login no sistema.</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="senha">Senha *</label>
+                    <input type="password" class="form-control" id="senha" name="senha" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="confirmar_senha">Confirmar Senha *</label>
+                    <input type="password" class="form-control" id="confirmar_senha" name="confirmar_senha" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>Tipo de Usuário *</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="tipo" id="tipo_comum" value="comum" checked>
+                        <label class="form-check-label" for="tipo_comum">
+                            Comum
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="tipo" id="tipo_admin" value="admin">
+                        <label class="form-check-label" for="tipo_admin">
+                            Administrador
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="form-group mt-4">
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-save"></i> Cadastrar Usuário
+                    </button>
+                    <a href="{{ url_for('usuarios') }}" class="btn btn-secondary ml-2">
+                        <i class="fas fa-times"></i> Cancelar
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
