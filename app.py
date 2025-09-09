@@ -279,7 +279,7 @@ def inventario():
     if where_clauses:
         query += " WHERE " + " AND ".join(where_clauses)
     
-    query += " ORDER BY i.tombamento"
+    query += " ORDER BY date(i.data_aquisicao) ASC"
     
     # Executar consulta
     # Convertendo itens para dicionários
