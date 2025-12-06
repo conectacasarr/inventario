@@ -1,0 +1,25 @@
+# Byte-compiled / cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Environments
+.env
+venv/
+env/
+instance/*.db
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Visual Studio / JetBrains
+.vscode/
+.idea/
+*.iml
+
+# Archives
+archive_aplicacao_copias/
+instance/oaibv.db 
