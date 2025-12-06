@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h1 class="mb-4">Gestão de Usuários</h1>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        <a href="{{ url_for('novo_usuario') }}" class="btn btn-success">
+            <i class="fas fa-user-plus"></i> Cadastrar Novo Usuário
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="table-container">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Nome</th>
+                            <th>Usuário</th>
+                            <th>Tipo</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if usuarios %}
+                            {% for usuario in usuarios %}
+                            <tr>
+                                <td>{{ usuario.nome }}</td>
+                                <td>{{ usuario.usuario }}</td>
+                                <td>
+                                    {% if usuario.tipo == 'admin' %}
+                                    <span class="badge badge-danger">Administrador</span>
+                                    {% else %}
+                                    <span class="badge badge-info">Comum</span>
+                                    {% endif %}
+                                </td>
+                                <td class="action-buttons">
+                                    <a href="{{ url_for('editar_usuario', id=usuario.id) }}" class="btn btn-sm btn-primary">
+                                        <i class="fas fa-edit"></i> Editar
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="4" class="text-center">Nenhum usuário encontrado.</td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

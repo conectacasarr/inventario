@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container d-flex justify-content-center align-items-center" style="min-height: 80vh;">
+    <div class="login-box shadow-lg" style="width: 450px; max-width: 100%;">
+        <div class="logo-container text-center bg-primary text-white p-4 rounded-top">
+            <h1 class="logo mb-2" style="font-weight: 700; font-size: 28px;">Inventário - OAIBV</h1>
+            <h2 style="font-size: 16px; font-weight: 400;">Organização e Apoio à Igreja em Boa Vista</h2>
+        </div>
+        
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} m-3">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        <div class="p-4 bg-white rounded-bottom">
+            <form method="POST" action="{{ url_for('login') }}">
+                <div class="form-group mb-3">
+                    <label for="usuario" class="form-label">Usuário</label>
+                    <input type="text" class="form-control form-control-lg" id="usuario" name="usuario" required autofocus>
+                </div>
+                <div class="form-group mb-4">
+                    <label for="senha" class="form-label">Senha</label>
+                    <input type="password" class="form-control form-control-lg" id="senha" name="senha" required>
+                </div>
+                <button type="submit" class="btn btn-primary btn-lg w-100">Entrar</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+    .login-box {
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    }
+    .btn-primary {
+        transition: all 0.3s ease;
+    }
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+</style>
+{% endblock %}
