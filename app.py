@@ -121,6 +121,26 @@ def get_db():
     db.row_factory = sqlite3.Row
     return db
 
+
+def get_table_columns(db_conn, table_name):
+    return {row["name"] for row in db_conn.execute(f"PRAGMA table_info({table_name})").fetchall()}
+
+
+def emprestimos_tem_grupo_id(db_conn):
+    return "grupo_id" in get_table_columns(db_conn, "emprestimos")
+
+
+def emprestimos_grupo_select_sql(db_conn, alias="e"):
+    if emprestimos_tem_grupo_id(db_conn):
+        return f"COALESCE(gsol.nome, '')"
+    return f"COALESCE({alias}.grupo_caseiro, '')"
+
+
+def emprestimos_grupo_join_sql(db_conn, alias="e"):
+    if emprestimos_tem_grupo_id(db_conn):
+        return f"LEFT JOIN grupos gsol ON {alias}.grupo_id = gsol.id"
+    return f"LEFT JOIN grupos gsol ON gsol.nome = {alias}.grupo_caseiro"
+
 def init_db():
     with app.app_context():
         db = get_db()
@@ -1006,6 +1026,7 @@ def grupos_marcas():
 @login_required
 def emprestimos():
     db = get_db()
+    usa_grupo_id = emprestimos_tem_grupo_id(db)
     
     if request.method == "POST":
         # Dados do solicitante
@@ -1058,10 +1079,18 @@ def emprestimos():
 
             # Criar o registro principal do empréstimo
             cursor = db.cursor()
-            cursor.execute("""
-                INSERT INTO emprestimos (nome, grupo_id, contato, data_emprestimo, usuario_id) 
-                VALUES (?, ?, ?, ?, ?)
-            """, (nome, grupo, contato, datetime.now(), current_user.id))
+            if usa_grupo_id:
+                cursor.execute("""
+                    INSERT INTO emprestimos (nome, grupo_id, contato, data_emprestimo, usuario_id) 
+                    VALUES (?, ?, ?, ?, ?)
+                """, (nome, grupo, contato, datetime.now(), current_user.id))
+            else:
+                grupo_row = db.execute("SELECT nome FROM grupos WHERE id = ?", (grupo,)).fetchone()
+                grupo_nome = grupo_row["nome"] if grupo_row else grupo
+                cursor.execute("""
+                    INSERT INTO emprestimos (nome, grupo_caseiro, contato, data_emprestimo, usuario_id) 
+                    VALUES (?, ?, ?, ?, ?)
+                """, (nome, grupo_nome, contato, datetime.now(), current_user.id))
             emprestimo_id = cursor.lastrowid
             
             log_itens_str = []
@@ -1095,25 +1124,28 @@ def emprestimos():
 
     # Listar empréstimos (GET)
     # Precisa ajustar a consulta para lidar com múltiplos itens
-    emprestimos_ativos_raw = db.execute("""
-        SELECT e.id as emprestimo_id, e.nome, g.nome as grupo_caseiro, e.contato, e.data_emprestimo, 
+    grupo_select = emprestimos_grupo_select_sql(db)
+    grupo_join = emprestimos_grupo_join_sql(db)
+
+    emprestimos_ativos_raw = db.execute(f"""
+        SELECT e.id as emprestimo_id, e.nome, {grupo_select} as grupo_caseiro, e.contato, e.data_emprestimo, 
                GROUP_CONCAT(i.tombamento || ' (' || ei.quantidade || 'x) - ' || i.descricao, ', ') as itens_desc
         FROM emprestimos e
         JOIN emprestimo_itens ei ON e.id = ei.emprestimo_id
         JOIN itens i ON ei.item_id = i.id
-        LEFT JOIN grupos g ON e.grupo_id = g.id
+        {grupo_join}
         WHERE e.data_devolucao IS NULL
         GROUP BY e.id
         ORDER BY e.data_emprestimo DESC
     """).fetchall()
     
-    emprestimos_devolvidos_raw = db.execute("""
-        SELECT e.id as emprestimo_id, e.nome, g.nome as grupo_caseiro, e.contato, e.data_emprestimo, e.data_devolucao,
+    emprestimos_devolvidos_raw = db.execute(f"""
+        SELECT e.id as emprestimo_id, e.nome, {grupo_select} as grupo_caseiro, e.contato, e.data_emprestimo, e.data_devolucao,
                GROUP_CONCAT(i.tombamento || ' (' || ei.quantidade || 'x) - ' || i.descricao, ', ') as itens_desc
         FROM emprestimos e
         JOIN emprestimo_itens ei ON e.id = ei.emprestimo_id
         JOIN itens i ON ei.item_id = i.id
-        LEFT JOIN grupos g ON e.grupo_id = g.id
+        {grupo_join}
         WHERE e.data_devolucao IS NOT NULL
         GROUP BY e.id
         ORDER BY e.data_devolucao DESC
@@ -1307,12 +1339,14 @@ def excluir_emprestimo(id):
 @login_required
 def termo_compromisso(emprestimo_id):
     db = get_db()
+    grupo_select = emprestimos_grupo_select_sql(db)
+    grupo_join = emprestimos_grupo_join_sql(db)
 
-    emprestimo_base = db.execute("""
-        SELECT e.*, u.nome as usuario_nome, g.nome as grupo_caseiro
+    emprestimo_base = db.execute(f"""
+        SELECT e.*, u.nome as usuario_nome, {grupo_select} as grupo_caseiro
         FROM emprestimos e 
         JOIN usuarios u ON e.usuario_id = u.id
-        LEFT JOIN grupos g ON e.grupo_id = g.id
+        {grupo_join}
         WHERE e.id = ?
     """, (emprestimo_id,)).fetchone()
 
@@ -1422,6 +1456,8 @@ def termo_compromisso(emprestimo_id):
 @login_required
 def relatorios():
     db = get_db()
+    grupo_select = emprestimos_grupo_select_sql(db)
+    grupo_join = emprestimos_grupo_join_sql(db)
     
     # Obter parâmetros de filtro
     filtro_grupo = request.args.get("grupo", "")
@@ -1483,10 +1519,10 @@ def relatorios():
     # Consultar empréstimos (com itens agrupados)
     emprestimos = []
     if filtro_tipo in ["todos", "emprestimos"]:
-        query_emprestimos = """
+        query_emprestimos = f"""
             SELECT e.id AS emprestimo_id,
                 e.nome,
-                gsol.nome AS grupo_caseiro,
+                {grupo_select} AS grupo_caseiro,
                 e.contato,
                 e.data_emprestimo,
                 e.data_devolucao,
@@ -1500,7 +1536,7 @@ def relatorios():
             JOIN itens i ON ei.item_id = i.id
             LEFT JOIN marcas m ON i.marca_id = m.id
             LEFT JOIN grupos g ON i.grupo_id = g.id
-            LEFT JOIN grupos gsol ON e.grupo_id = gsol.id
+            {grupo_join}
             JOIN usuarios u ON e.usuario_id = u.id
         """
          # ✅ Adicione estas linhas AQUI
