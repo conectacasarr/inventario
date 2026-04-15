@@ -549,6 +549,11 @@ def dashboard():
     # Dados para gráfico de empréstimos (Ativos vs Devolvidos)
     emprestimos_status_labels = ["Ativos", "Devolvidos"]
     emprestimos_status_data = [total_emprestado, total_devolvido]
+    total_grupos = len(grupos_labels)
+    grupo_destaque = grupos_labels[0] if grupos_labels else "Sem grupos"
+    grupo_destaque_total = grupos_data[0] if grupos_data else 0
+    total_movimentacoes = total_emprestado + total_devolvido
+    taxa_devolucao = round((total_devolvido / total_movimentacoes) * 100) if total_movimentacoes else 0
     
     return render_template("dashboard_simples.html", 
                           total_itens=total_itens,
@@ -558,6 +563,11 @@ def dashboard():
                           grupos_data=grupos_data,
                           emprestimos_status_labels=emprestimos_status_labels,
                           emprestimos_status_data=emprestimos_status_data,
+                          total_grupos=total_grupos,
+                          grupo_destaque=grupo_destaque,
+                          grupo_destaque_total=grupo_destaque_total,
+                          total_movimentacoes=total_movimentacoes,
+                          taxa_devolucao=taxa_devolucao,
                           format_date=format_date # Passando a função format_date
                           )
 

@@ -3,254 +3,715 @@
 {% block title %}Dashboard - OAIBV{% endblock %}
 
 {% block head_extra %}
-<!-- Chart.js CDN -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
-    .dashboard-card-stat {
-        border-radius: 10px;
-        padding: 1.5rem;
-        margin-bottom: 1.5rem;
+    .dashboard-shell {
+        padding-bottom: 2rem;
+    }
+
+    .dashboard-hero {
+        position: relative;
+        overflow: hidden;
+        border-radius: 28px;
+        padding: 2rem;
+        margin-bottom: 1.75rem;
         color: #fff;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-        transition: transform 0.3s ease;
+        background:
+            radial-gradient(circle at top right, rgba(255, 255, 255, 0.18), transparent 24%),
+            linear-gradient(135deg, #0f4c81 0%, #0e7490 45%, #1d4ed8 100%);
+        box-shadow: 0 26px 50px rgba(15, 76, 129, 0.18);
     }
-    .dashboard-card-stat:hover {
-        transform: translateY(-5px);
+
+    .dashboard-hero::after {
+        content: "";
+        position: absolute;
+        inset: auto -4rem -4rem auto;
+        width: 14rem;
+        height: 14rem;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.08);
+        filter: blur(2px);
     }
-    .dashboard-card-stat .stat-icon {
-        font-size: 3rem;
+
+    .dashboard-eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.45rem 0.8rem;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.12);
+        font-size: 0.82rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
+    .dashboard-hero h1 {
+        font-size: clamp(2rem, 4vw, 3.2rem);
+        font-weight: 800;
+        margin: 1rem 0 0.75rem;
+    }
+
+    .dashboard-hero p {
+        max-width: 42rem;
+        font-size: 1.02rem;
+        margin-bottom: 0;
+        color: rgba(255, 255, 255, 0.88);
+    }
+
+    .dashboard-hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.85rem;
+        justify-content: flex-end;
+        align-items: flex-start;
+        height: 100%;
+    }
+
+    .hero-action {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.65rem;
+        padding: 0.9rem 1rem;
+        min-width: 13rem;
+        border-radius: 18px;
+        text-decoration: none;
+        color: #0f172a;
+        background: rgba(255, 255, 255, 0.92);
+        box-shadow: 0 10px 20px rgba(15, 23, 42, 0.12);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .hero-action:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 14px 26px rgba(15, 23, 42, 0.14);
+        color: #0f172a;
+    }
+
+    .hero-action i {
+        width: 2.3rem;
+        height: 2.3rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+        color: #fff;
+        background: linear-gradient(135deg, #2563eb, #0891b2);
+    }
+
+    .hero-action strong {
+        display: block;
+        font-size: 0.96rem;
+    }
+
+    .hero-action span {
+        display: block;
+        font-size: 0.82rem;
+        color: #475569;
+    }
+
+    .kpi-card {
+        position: relative;
+        overflow: hidden;
+        height: 100%;
+        border: 0;
+        border-radius: 24px;
+        color: #fff;
+        padding: 1.35rem;
+        box-shadow: 0 20px 40px rgba(15, 23, 42, 0.12);
+    }
+
+    .kpi-card::before {
+        content: "";
+        position: absolute;
+        inset: auto -1.5rem -1.5rem auto;
+        width: 7rem;
+        height: 7rem;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.12);
+    }
+
+    .kpi-card.primary {
+        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    }
+
+    .kpi-card.success {
+        background: linear-gradient(135deg, #0f9f6e 0%, #15803d 100%);
+    }
+
+    .kpi-card.warning {
+        color: #1f2937;
+        background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+    }
+
+    .kpi-card.slate {
+        background: linear-gradient(135deg, #334155 0%, #0f172a 100%);
+    }
+
+    .kpi-topline {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+
+    .kpi-topline span {
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        opacity: 0.82;
+    }
+
+    .kpi-topline i {
+        font-size: 1.9rem;
         opacity: 0.8;
     }
-    .dashboard-card-stat .stat-value {
-        font-size: 2.5rem;
-        font-weight: bold;
-    }
-    .dashboard-card-stat .stat-label {
-        font-size: 1rem;
-        margin-bottom: 0;
-    }
-    .chart-container {
-        background-color: #fff;
-        padding: 1.5rem;
-        border-radius: 10px;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-        margin-bottom: 1.5rem;
-    }
-	.chart-container canvas {
-    max-width: 400px;
-    max-height: 300px;
-    display: block;
-    margin: 0 auto;
-}
 
-    .table-transactions th {
-        background-color: #e9ecef;
+    .kpi-value {
+        font-size: clamp(2rem, 3vw, 2.8rem);
+        font-weight: 800;
+        line-height: 1;
+        margin-bottom: 0.75rem;
+    }
+
+    .kpi-label {
+        margin-bottom: 0.55rem;
+        font-size: 1.12rem;
+        font-weight: 700;
+    }
+
+    .kpi-subtext {
+        font-size: 0.92rem;
+        opacity: 0.88;
+        margin-bottom: 0;
+        max-width: 15rem;
+    }
+
+    .dashboard-panel {
+        background: #fff;
+        border-radius: 24px;
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        box-shadow: 0 18px 34px rgba(15, 23, 42, 0.08);
+        padding: 1.4rem;
+        height: 100%;
+    }
+
+    .panel-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .panel-title {
+        margin: 0;
+        font-size: 1.25rem;
+        font-weight: 800;
+        color: #1e293b;
+    }
+
+    .panel-subtitle {
+        margin: 0.25rem 0 0;
+        font-size: 0.92rem;
+        color: #64748b;
+    }
+
+    .panel-badge {
+        padding: 0.45rem 0.75rem;
+        border-radius: 999px;
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: #0f766e;
+        background: #ccfbf1;
+        white-space: nowrap;
+    }
+
+    .insight-list {
+        display: grid;
+        gap: 0.85rem;
+    }
+
+    .insight-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        padding: 0.95rem 1rem;
+        border-radius: 18px;
+        background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+    }
+
+    .insight-item strong {
+        display: block;
+        color: #0f172a;
+    }
+
+    .insight-item span {
+        display: block;
+        font-size: 0.85rem;
+        color: #64748b;
+    }
+
+    .insight-value {
+        font-size: 1.2rem;
+        font-weight: 800;
+        color: #0f172a;
+        white-space: nowrap;
+    }
+
+    .chart-stage {
+        position: relative;
+        min-height: 320px;
+    }
+
+    .chart-stage canvas {
+        max-height: 320px;
+    }
+
+    .chart-empty {
+        position: absolute;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 2rem;
+        border-radius: 18px;
+        background: repeating-linear-gradient(
+            -45deg,
+            rgba(241, 245, 249, 0.95),
+            rgba(241, 245, 249, 0.95) 16px,
+            rgba(248, 250, 252, 0.95) 16px,
+            rgba(248, 250, 252, 0.95) 32px
+        );
+        color: #64748b;
+    }
+
+    .chart-empty.visible {
+        display: flex;
+    }
+
+    .chart-empty i {
+        font-size: 2rem;
+        color: #94a3b8;
+        margin-bottom: 0.75rem;
+    }
+
+    .quick-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 0.9rem;
+    }
+
+    .quick-link {
+        display: flex;
+        gap: 0.9rem;
+        align-items: center;
+        padding: 1rem;
+        border-radius: 18px;
+        text-decoration: none;
+        color: #0f172a;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+        transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+
+    .quick-link:hover {
+        transform: translateY(-3px);
+        color: #0f172a;
+        border-color: rgba(37, 99, 235, 0.2);
+        box-shadow: 0 16px 30px rgba(15, 23, 42, 0.08);
+    }
+
+    .quick-link i {
+        width: 2.65rem;
+        height: 2.65rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 14px;
+        color: #fff;
+        background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    }
+
+    .quick-link strong {
+        display: block;
+        margin-bottom: 0.1rem;
+    }
+
+    .quick-link span {
+        display: block;
+        font-size: 0.84rem;
+        color: #64748b;
+    }
+
+    @media (max-width: 991px) {
+        .dashboard-hero-actions {
+            justify-content: flex-start;
+            margin-top: 1.25rem;
+        }
+    }
+
+    @media (max-width: 767px) {
+        .dashboard-shell {
+            padding-bottom: 1rem;
+        }
+
+        .dashboard-hero,
+        .dashboard-panel,
+        .kpi-card {
+            border-radius: 20px;
+        }
+
+        .dashboard-hero {
+            padding: 1.4rem;
+        }
+
+        .chart-stage {
+            min-height: 280px;
+        }
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <h2 class="mb-4">Dashboard</h2>
+<div class="dashboard-shell">
+    <section class="dashboard-hero">
+        <div class="row align-items-center g-4">
+            <div class="col-lg-7">
+                <div class="dashboard-eyebrow">
+                    <i class="fas fa-chart-line"></i>
+                    Visao Geral do Inventario
+                </div>
+                <h1>Dashboard mais claro para acompanhar o patrimonio da OAIBV.</h1>
+                <p>
+                    Consulte os numeros principais, veja a distribuicao dos itens por grupo
+                    e acompanhe rapidamente o ritmo dos emprestimos sem precisar navegar por varias telas.
+                </p>
+            </div>
+            <div class="col-lg-5">
+                <div class="dashboard-hero-actions">
+                    <a href="{{ url_for('novo_item') }}" class="hero-action">
+                        <i class="fas fa-plus"></i>
+                        <div>
+                            <strong>Novo item</strong>
+                            <span>Cadastrar patrimonio rapidamente</span>
+                        </div>
+                    </a>
+                    <a href="{{ url_for('relatorios') }}" class="hero-action">
+                        <i class="fas fa-chart-pie"></i>
+                        <div>
+                            <strong>Relatorios</strong>
+                            <span>Extrair visoes consolidadas</span>
+                        </div>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
 
-    <!-- Stats Cards -->
-    <div class="row">
-        <div class="col-md-4">
-            <div class="dashboard-card-stat bg-primary">
-                <div class="row">
-                    <div class="col-8">
-                        <div class="stat-value">{{ total_itens }}</div>
-                        <p class="stat-label">Itens Cadastrados</p>
-                    </div>
-                    <div class="col-4 text-end">
-                        <i class="fas fa-boxes stat-icon"></i>
-                    </div>
+    <section class="row g-4 mb-4">
+        <div class="col-md-6 col-xl-3">
+            <div class="kpi-card primary">
+                <div class="kpi-topline">
+                    <span>Patrimonio</span>
+                    <i class="fas fa-boxes"></i>
                 </div>
-                 <a href="{{ url_for('inventario') }}" class="text-white" style="text-decoration: none;"><small>Ver detalhes <i class="fas fa-arrow-circle-right"></i></small></a>
+                <div class="kpi-value">{{ total_itens }}</div>
+                <div class="kpi-label">Itens cadastrados</div>
+                <p class="kpi-subtext">Inventario total atualmente disponivel no sistema.</p>
             </div>
         </div>
-        <div class="col-md-4">
-            <div class="dashboard-card-stat bg-success">
-                 <div class="row">
-                    <div class="col-8">
-                        <div class="stat-value">{{ total_emprestado }}</div>
-                        <p class="stat-label">Empréstimos Ativos</p>
-                    </div>
-                    <div class="col-4 text-end">
-                        <i class="fas fa-handshake stat-icon"></i>
-                    </div>
+        <div class="col-md-6 col-xl-3">
+            <div class="kpi-card success">
+                <div class="kpi-topline">
+                    <span>Circulacao</span>
+                    <i class="fas fa-handshake"></i>
                 </div>
-                 <a href="{{ url_for('emprestimos') }}" class="text-white" style="text-decoration: none;"><small>Ver detalhes <i class="fas fa-arrow-circle-right"></i></small></a>
+                <div class="kpi-value">{{ total_emprestado }}</div>
+                <div class="kpi-label">Emprestimos ativos</div>
+                <p class="kpi-subtext">Itens atualmente emprestados e ainda nao devolvidos.</p>
             </div>
         </div>
-        <div class="col-md-4">
-            <div class="dashboard-card-stat bg-warning text-dark">
-                 <div class="row">
-                    <div class="col-8">
-                        <div class="stat-value">{{ total_devolvido }}</div>
-                        <p class="stat-label">Empréstimos Devolvidos</p>
-                    </div>
-                    <div class="col-4 text-end">
-                        <i class="fas fa-undo-alt stat-icon"></i>
-                    </div>
+        <div class="col-md-6 col-xl-3">
+            <div class="kpi-card warning">
+                <div class="kpi-topline">
+                    <span>Historico</span>
+                    <i class="fas fa-undo-alt"></i>
                 </div>
-                 <a href="{{ url_for("emprestimos") }}" class="text-dark" style="text-decoration: none;"><small>Ver detalhes <i class="fas fa-arrow-circle-right"></i></small></a>
+                <div class="kpi-value">{{ total_devolvido }}</div>
+                <div class="kpi-label">Emprestimos devolvidos</div>
+                <p class="kpi-subtext">Registros concluidos que ja retornaram ao inventario.</p>
             </div>
         </div>
-    </div>
+        <div class="col-md-6 col-xl-3">
+            <div class="kpi-card slate">
+                <div class="kpi-topline">
+                    <span>Organizacao</span>
+                    <i class="fas fa-layer-group"></i>
+                </div>
+                <div class="kpi-value">{{ total_grupos }}</div>
+                <div class="kpi-label">Grupos catalogados</div>
+                <p class="kpi-subtext">Categorias ativas para organizar o patrimonio.</p>
+            </div>
+        </div>
+    </section>
 
-    <!-- Charts Row -->
-    <div class="row mt-4">
-        <div class="col-md-6">
-            <div class="chart-container">
-                <h5 class="mb-3">Itens por Grupo</h5>
-                <canvas id="itensPorGrupoChart"></canvas>
-            </div>
-        </div>
-        <div class="col-md-6">
-            <div class="chart-container">
-                <h5 class="mb-3">Status dos Empréstimos</h5>
-                <canvas id="emprestimosStatusChart"></canvas>
-            </div>
-        </div>
-    </div>
-
-    <!-- Quick Access & Recent Transactions -->
-     <div class="row mt-4">
-        <div class="col-md-12">
-            <div class="card">
-                <div class="card-header">
-                    <h5>Acesso Rápido</h5>
+    <section class="row g-4 mb-4">
+        <div class="col-lg-4">
+            <div class="dashboard-panel">
+                <div class="panel-header">
+                    <div>
+                        <h3 class="panel-title">Resumo rapido</h3>
+                        <p class="panel-subtitle">Leitura objetiva para decisao e acompanhamento.</p>
+                    </div>
+                    <span class="panel-badge">Atualizado ao vivo</span>
                 </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-3 mb-2">
-                            <a href="{{ url_for('novo_item') }}" class="btn btn-outline-primary w-100"><i class="fas fa-plus-circle me-1"></i> Novo Item</a>
+                <div class="insight-list">
+                    <div class="insight-item">
+                        <div>
+                            <strong>Grupo com mais itens</strong>
+                            <span>{{ grupo_destaque }}</span>
                         </div>
-                        <div class="col-md-3 mb-2">
-                            <a href="{{ url_for('grupos_marcas') }}" class="btn btn-outline-secondary w-100"><i class="fas fa-tags me-1"></i> Grupos e Marcas </a>
+                        <div class="insight-value">{{ grupo_destaque_total }}</div>
+                    </div>
+                    <div class="insight-item">
+                        <div>
+                            <strong>Movimentacoes registradas</strong>
+                            <span>Ativos + devolvidos</span>
                         </div>
-                        <div class="col-md-3 mb-2">
-                            <a href="{{ url_for('emprestimos') }}" class="btn btn-outline-info w-100"><i class="fas fa-handshake me-1"></i> Empréstimo</a>
+                        <div class="insight-value">{{ total_movimentacoes }}</div>
+                    </div>
+                    <div class="insight-item">
+                        <div>
+                            <strong>Taxa de devolucao</strong>
+                            <span>Baseada no historico de emprestimos</span>
                         </div>
-                         <div class="col-md-3 mb-2">
-                            <a href="{{ url_for('relatorios') }}" class="btn btn-outline-secondary w-100"><i class="fas fa-chart-bar me-1"></i> Relatórios</a>
+                        <div class="insight-value">{{ taxa_devolucao }}%</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-8">
+            <div class="dashboard-panel">
+                <div class="panel-header">
+                    <div>
+                        <h3 class="panel-title">Acesso rapido</h3>
+                        <p class="panel-subtitle">Atalhos para as acoes mais frequentes do sistema.</p>
+                    </div>
+                </div>
+                <div class="quick-grid">
+                    <a href="{{ url_for('novo_item') }}" class="quick-link">
+                        <i class="fas fa-plus-circle"></i>
+                        <div>
+                            <strong>Novo item</strong>
+                            <span>Registrar patrimonio</span>
+                        </div>
+                    </a>
+                    <a href="{{ url_for('inventario') }}" class="quick-link">
+                        <i class="fas fa-warehouse"></i>
+                        <div>
+                            <strong>Inventario</strong>
+                            <span>Consultar itens cadastrados</span>
+                        </div>
+                    </a>
+                    <a href="{{ url_for('emprestimos') }}" class="quick-link">
+                        <i class="fas fa-handshake"></i>
+                        <div>
+                            <strong>Emprestimos</strong>
+                            <span>Gerenciar saidas e devolucoes</span>
+                        </div>
+                    </a>
+                    <a href="{{ url_for('grupos_marcas') }}" class="quick-link">
+                        <i class="fas fa-tags"></i>
+                        <div>
+                            <strong>Grupos e marcas</strong>
+                            <span>Manter organizacao do catalogo</span>
+                        </div>
+                    </a>
+                    <a href="{{ url_for('relatorios') }}" class="quick-link">
+                        <i class="fas fa-chart-bar"></i>
+                        <div>
+                            <strong>Relatorios</strong>
+                            <span>Visualizar e exportar dados</span>
+                        </div>
+                    </a>
+                    {% if current_user.tipo == "admin" %}
+                    <a href="{{ url_for('usuarios') }}" class="quick-link">
+                        <i class="fas fa-users-cog"></i>
+                        <div>
+                            <strong>Usuarios</strong>
+                            <span>Controlar acessos do sistema</span>
+                        </div>
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="row g-4">
+        <div class="col-xl-7">
+            <div class="dashboard-panel">
+                <div class="panel-header">
+                    <div>
+                        <h3 class="panel-title">Itens por grupo</h3>
+                        <p class="panel-subtitle">Distribuicao do patrimonio por categoria cadastrada.</p>
+                    </div>
+                </div>
+                <div class="chart-stage">
+                    <canvas id="itensPorGrupoChart"></canvas>
+                    <div id="itensPorGrupoEmpty" class="chart-empty">
+                        <div>
+                            <i class="fas fa-inbox"></i>
+                            <div><strong>Nenhum grupo com itens para exibir.</strong></div>
+                            <div>Cadastre ou classifique itens para visualizar este grafico.</div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
-    
+        <div class="col-xl-5">
+            <div class="dashboard-panel">
+                <div class="panel-header">
+                    <div>
+                        <h3 class="panel-title">Status dos emprestimos</h3>
+                        <p class="panel-subtitle">Comparativo entre emprestimos ativos e devolvidos.</p>
+                    </div>
+                </div>
+                <div class="chart-stage">
+                    <canvas id="emprestimosStatusChart"></canvas>
+                    <div id="emprestimosStatusEmpty" class="chart-empty">
+                        <div>
+                            <i class="fas fa-route"></i>
+                            <div><strong>Ainda nao ha movimentacoes de emprestimo.</strong></div>
+                            <div>Quando os registros comecarem, o painel exibira a distribuicao aqui.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
 </div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Chart: Itens por Grupo
-    const ctxItensGrupo = document.getElementById('itensPorGrupoChart').getContext('2d');
-    const itensPorGrupoChart = new Chart(ctxItensGrupo, {
-        type: 'doughnut', // ou 'pie'
-        data: {
-            labels: {{ grupos_labels | tojson }},
-            datasets: [{
-                label: 'Quantidade de Itens',
-                data: {{ grupos_data | tojson }},
-                backgroundColor: [
-                    'rgba(54, 162, 235, 0.8)',
-                    'rgba(255, 99, 132, 0.8)',
-                    'rgba(255, 206, 86, 0.8)',
-                    'rgba(75, 192, 192, 0.8)',
-                    'rgba(153, 102, 255, 0.8)',
-                    'rgba(255, 159, 64, 0.8)',
-                    'rgba(199, 199, 199, 0.8)',
-                    'rgba(83, 102, 255, 0.8)',
-                    'rgba(40, 159, 64, 0.8)',
-                    'rgba(210, 99, 132, 0.8)'
-                ],
-                borderColor: [
-                    'rgba(54, 162, 235, 1)',
-                    'rgba(255, 99, 132, 1)',
-                    'rgba(255, 206, 86, 1)',
-                    'rgba(75, 192, 192, 1)',
-                    'rgba(153, 102, 255, 1)',
-                    'rgba(255, 159, 64, 1)',
-                    'rgba(199, 199, 199, 1)',
-                    'rgba(83, 102, 255, 1)',
-                    'rgba(40, 159, 64, 1)',
-                    'rgba(210, 99, 132, 1)'
-                ],
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                legend: {
-                    position: 'top',
-                },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            let label = context.label || '';
-                            if (label) {
-                                label += ': ';
-                            }
-                            if (context.parsed !== null) {
-                                label += context.parsed;
-                            }
-                            return label;
-                        }
-                    }
-                }
-            }
-        }
-    });
+    const palette = [
+        '#2563eb', '#ec4899', '#f59e0b', '#14b8a6', '#8b5cf6',
+        '#f97316', '#64748b', '#22c55e', '#06b6d4', '#ef4444'
+    ];
 
-    // Chart: Status dos Empréstimos
-    const ctxEmprestimosStatus = document.getElementById('emprestimosStatusChart').getContext('2d');
-    const emprestimosStatusChart = new Chart(ctxEmprestimosStatus, {
-        type: 'pie', // ou 'doughnut'
-        data: {
-            labels: {{ emprestimos_status_labels | tojson }},
-            datasets: [{
-                label: 'Status',
-                data: {{ emprestimos_status_data | tojson }},
-                backgroundColor: [
-                    'rgba(75, 192, 192, 0.8)', // Ativos (verde-azulado)
-                    'rgba(255, 159, 64, 0.8)'  // Devolvidos (laranja)
-                ],
-                 borderColor: [
-                    'rgba(75, 192, 192, 1)',
-                    'rgba(255, 159, 64, 1)'
-                ],
-                borderWidth: 1
-            }]
-        },
-         options: {
-            responsive: true,
-            plugins: {
-                legend: {
-                    position: 'top',
-                },
-                 tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            let label = context.label || '';
-                            if (label) {
-                                label += ': ';
+    function createChartOrEmpty(canvasId, emptyId, config, dataArray) {
+        const total = (dataArray || []).reduce((acc, value) => acc + Number(value || 0), 0);
+        const canvas = document.getElementById(canvasId);
+        const empty = document.getElementById(emptyId);
+
+        if (!canvas) {
+            return null;
+        }
+
+        if (!total) {
+            canvas.style.display = 'none';
+            if (empty) {
+                empty.classList.add('visible');
+            }
+            return null;
+        }
+
+        if (empty) {
+            empty.classList.remove('visible');
+        }
+
+        return new Chart(canvas.getContext('2d'), config);
+    }
+
+    createChartOrEmpty(
+        'itensPorGrupoChart',
+        'itensPorGrupoEmpty',
+        {
+            type: 'doughnut',
+            data: {
+                labels: {{ grupos_labels | tojson }},
+                datasets: [{
+                    label: 'Quantidade de itens',
+                    data: {{ grupos_data | tojson }},
+                    backgroundColor: palette,
+                    borderColor: '#ffffff',
+                    borderWidth: 3,
+                    hoverOffset: 8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '58%',
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: {
+                            usePointStyle: true,
+                            boxWidth: 10,
+                            padding: 16
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const value = context.parsed || 0;
+                                return `${context.label}: ${value} item(ns)`;
                             }
-                            if (context.parsed !== null) {
-                                label += context.parsed;
-                            }
-                            return label;
                         }
                     }
                 }
             }
-        }
-    });
+        },
+        {{ grupos_data | tojson }}
+    );
+
+    createChartOrEmpty(
+        'emprestimosStatusChart',
+        'emprestimosStatusEmpty',
+        {
+            type: 'doughnut',
+            data: {
+                labels: {{ emprestimos_status_labels | tojson }},
+                datasets: [{
+                    label: 'Status',
+                    data: {{ emprestimos_status_data | tojson }},
+                    backgroundColor: ['#0f9f6e', '#f59e0b'],
+                    borderColor: '#ffffff',
+                    borderWidth: 3,
+                    hoverOffset: 8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '62%',
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: {
+                            usePointStyle: true,
+                            boxWidth: 10,
+                            padding: 16
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const value = context.parsed || 0;
+                                return `${context.label}: ${value}`;
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        {{ emprestimos_status_data | tojson }}
+    );
 });
 </script>
-
 {% endblock %}
-
