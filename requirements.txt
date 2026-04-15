@@ -1,8 +1,12 @@
 Flask
 Flask-Login
 Flask-SQLAlchemy
-app
-functools
-models
+Flask-Mail
+email-validator
+itsdangerous
+gunicorn
+python-dotenv
+pytest
+flake8
 reportlab
 werkzeug

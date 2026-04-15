@@ -1,0 +1,38 @@
+{% extends 'base_simples.html' %}
+
+{% block title %}Redefinir senha - OAIBV{% endblock %}
+
+{% block content %}
+<section class="auth-shell">
+    <div class="card auth-card">
+        <div class="auth-header">
+            <span class="auth-badge">
+                <i class="fas fa-key"></i>
+                Redefinicao
+            </span>
+            <h1 class="auth-title">Criar nova senha</h1>
+            <p class="auth-subtitle">
+                Defina uma nova senha para a conta {{ usuario.email }}.
+            </p>
+        </div>
+
+        <div class="auth-body">
+            <form method="POST" class="row g-3">
+                <div class="col-12">
+                    <label for="senha" class="auth-label">Nova senha</label>
+                    <input type="password" class="form-control auth-input" id="senha" name="senha" placeholder="Minimo de 8 caracteres" required>
+                </div>
+
+                <div class="col-12">
+                    <label for="confirmar_senha" class="auth-label">Confirmar nova senha</label>
+                    <input type="password" class="form-control auth-input" id="confirmar_senha" name="confirmar_senha" required>
+                </div>
+
+                <div class="col-12 d-grid">
+                    <button type="submit" class="btn auth-primary-btn text-white">Salvar nova senha</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</section>
+{% endblock %}

@@ -1,0 +1,72 @@
+{% extends 'base_simples.html' %}
+
+{% block title %}Usuarios - OAIBV{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Gestao de Usuarios</h2>
+
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Lista de Usuarios</h5>
+            <a href="{{ url_for('novo_usuario') }}" class="btn btn-success">Cadastrar Novo Usuario</a>
+        </div>
+        <div class="card-body">
+            {% if usuarios %}
+            <div class="table-responsive">
+                <table class="table table-striped align-middle">
+                    <thead>
+                        <tr>
+                            <th>Nome</th>
+                            <th>Usuario</th>
+                            <th>E-mail</th>
+                            <th>Tipo</th>
+                            <th>Status</th>
+                            <th>Acoes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for usuario in usuarios %}
+                        <tr>
+                            <td>{{ usuario.nome }}</td>
+                            <td>{{ usuario.usuario }}</td>
+                            <td>{{ usuario.email or '-' }}</td>
+                            <td>{{ usuario.tipo }}</td>
+                            <td>
+                                {% if usuario.ativo %}
+                                <span class="badge text-bg-success">Ativo</span>
+                                {% else %}
+                                <span class="badge text-bg-warning">Pendente</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="d-flex gap-2">
+                                    {% if not usuario.ativo %}
+                                    <form method="POST" action="{{ url_for('ativar_usuario', id=usuario.id) }}">
+                                        <button type="submit" class="btn btn-sm btn-outline-success" title="Aprovar acesso">
+                                            <i class="fas fa-user-check"></i>
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                    <a href="{{ url_for('editar_usuario', id=usuario.id) }}" class="btn btn-sm btn-outline-primary" title="Editar">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <form method="POST" action="{{ url_for('excluir_usuario', id=usuario.id) }}" onsubmit="return confirm('Deseja realmente excluir este usuario?');">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir">
+                                            <i class="fas fa-trash-alt"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p>Nao ha usuarios cadastrados.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

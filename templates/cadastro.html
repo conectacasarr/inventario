@@ -1,0 +1,60 @@
+{% extends 'base_simples.html' %}
+
+{% block title %}Cadastro - OAIBV{% endblock %}
+
+{% block content %}
+<section class="auth-shell">
+    <div class="card auth-card auth-card-wide">
+        <div class="auth-header">
+            <span class="auth-badge">
+                <i class="fas fa-user-plus"></i>
+                Nova conta
+            </span>
+            <h1 class="auth-title">Criar acesso</h1>
+            <p class="auth-subtitle">
+                Cadastre uma conta para consultar o inventario, registrar movimentacoes
+                e acompanhar os emprestimos autorizados.
+            </p>
+        </div>
+
+        <div class="auth-body">
+            <form method="POST" class="row g-3">
+                <div class="col-12">
+                    <label for="nome" class="auth-label">Nome completo</label>
+                    <input type="text" class="form-control auth-input" id="nome" name="nome" required>
+                </div>
+
+                <div class="col-md-6">
+                    <label for="usuario" class="auth-label">Usuario</label>
+                    <input type="text" class="form-control auth-input" id="usuario" name="usuario" required>
+                </div>
+
+                <div class="col-md-6">
+                    <label for="email" class="auth-label">E-mail</label>
+                    <input type="email" class="form-control auth-input" id="email" name="email" required>
+                </div>
+
+                <div class="col-md-6">
+                    <label for="senha" class="auth-label">Senha</label>
+                    <input type="password" class="form-control auth-input" id="senha" name="senha" placeholder="Minimo de 8 caracteres" required>
+                </div>
+
+                <div class="col-md-6">
+                    <label for="confirmar_senha" class="auth-label">Confirmar senha</label>
+                    <input type="password" class="form-control auth-input" id="confirmar_senha" name="confirmar_senha" required>
+                </div>
+
+                <div class="col-12 d-grid">
+                    <button type="submit" class="btn auth-primary-btn text-white">Criar conta</button>
+                </div>
+            </form>
+
+            <div class="auth-divider">ou</div>
+
+            <div class="text-center">
+                <a href="{{ url_for('login') }}" class="auth-secondary-link">Voltar para o login</a>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

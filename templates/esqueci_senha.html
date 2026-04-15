@@ -1,0 +1,39 @@
+{% extends 'base_simples.html' %}
+
+{% block title %}Recuperar senha - OAIBV{% endblock %}
+
+{% block content %}
+<section class="auth-shell">
+    <div class="card auth-card">
+        <div class="auth-header">
+            <span class="auth-badge">
+                <i class="fas fa-envelope-open-text"></i>
+                Recuperacao
+            </span>
+            <h1 class="auth-title">Esqueci minha senha</h1>
+            <p class="auth-subtitle">
+                Informe o e-mail cadastrado para receber um link seguro de redefinicao.
+            </p>
+        </div>
+
+        <div class="auth-body">
+            <form method="POST" class="row g-3">
+                <div class="col-12">
+                    <label for="email" class="auth-label">E-mail cadastrado</label>
+                    <input type="email" class="form-control auth-input" id="email" name="email" placeholder="nome@dominio.com" required>
+                </div>
+
+                <div class="col-12 d-grid">
+                    <button type="submit" class="btn auth-primary-btn text-white">Enviar link de recuperacao</button>
+                </div>
+            </form>
+
+            <div class="auth-divider">ou</div>
+
+            <div class="text-center">
+                <a href="{{ url_for('login') }}" class="auth-secondary-link">Voltar para o login</a>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

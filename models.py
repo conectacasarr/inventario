@@ -10,8 +10,11 @@ class Usuario(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nome = db.Column(db.String(100), nullable=False)
     usuario = db.Column(db.String(50), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False, index=True)
     senha_hash = db.Column(db.String(128), nullable=False)
     tipo = db.Column(db.String(20), default='comum')  # admin ou comum
+    ativo = db.Column(db.Boolean, default=True, nullable=False)
+    criado_em = db.Column(db.DateTime, default=datetime.now, nullable=False)
     
     def set_senha(self, senha):
         self.senha_hash = generate_password_hash(senha)
@@ -126,4 +129,3 @@ class TentativaLogin(db.Model):
     usuario = db.Column(db.String(50), nullable=False)
     ip = db.Column(db.String(50), nullable=False)
     data = db.Column(db.DateTime, default=datetime.now)
-

@@ -1,0 +1,46 @@
+{% extends 'base_simples.html' %}
+
+{% block title %}Entrar - OAIBV{% endblock %}
+
+{% block content %}
+<section class="auth-shell">
+    <div class="card auth-card">
+        <div class="auth-header">
+            <span class="auth-badge">
+                <i class="fas fa-shield-alt"></i>
+                Acesso seguro
+            </span>
+            <h1 class="auth-title">Inventario OAIBV</h1>
+            <p class="auth-subtitle">
+                Entre com seu usuario ou e-mail para acessar o painel e administrar
+                o inventario com uma experiencia mais profissional.
+            </p>
+        </div>
+
+        <div class="auth-body">
+            <form method="POST" class="row g-3">
+                <div class="col-12">
+                    <label for="usuario" class="auth-label">Usuario ou e-mail</label>
+                    <input type="text" class="form-control auth-input" id="usuario" name="usuario" placeholder="usuario ou nome@dominio.com" required>
+                </div>
+
+                <div class="col-12">
+                    <label for="senha" class="auth-label">Senha</label>
+                    <input type="password" class="form-control auth-input" id="senha" name="senha" placeholder="Digite sua senha" required>
+                </div>
+
+                <div class="col-12 d-grid">
+                    <button type="submit" class="btn auth-primary-btn text-white">Entrar no sistema</button>
+                </div>
+            </form>
+
+            <div class="auth-divider">ou</div>
+
+            <div class="d-flex flex-column gap-2 text-center">
+                <a href="{{ url_for('cadastro') }}" class="auth-secondary-link">Criar uma nova conta</a>
+                <a href="{{ url_for('esqueci_senha') }}" class="auth-secondary-link">Esqueci minha senha</a>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

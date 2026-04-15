@@ -1,8 +1,12 @@
 from flask import Flask, render_template, redirect, url_for, request, flash, session, send_file, make_response
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user, UserMixin
+from flask_mail import Mail, Message
+from dotenv import load_dotenv
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 from datetime import datetime, timedelta, date
+from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
+from email_validator import validate_email, EmailNotValidError
 import os
 import sqlite3
 import re
@@ -16,7 +20,15 @@ from reportlab.lib.units import inch
 from collections import defaultdict
 from reportlab.lib.enums import TA_RIGHT
 import locale
-locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
+
+load_dotenv()
+
+for locale_name in ("pt_BR.UTF-8", "pt_BR.utf8", ""):
+    try:
+        locale.setlocale(locale.LC_ALL, locale_name)
+        break
+    except locale.Error:
+        continue
 
 def formata_brl(valor):
     try:
@@ -35,13 +47,32 @@ def format_date(data):
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret-key")
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=2)
+app.config["MAIL_SERVER"] = os.environ.get("MAIL_SERVER", "smtp.gmail.com")
+app.config["MAIL_PORT"] = int(os.environ.get("MAIL_PORT", 587))
+app.config["MAIL_USE_TLS"] = os.environ.get("MAIL_USE_TLS", "true").lower() == "true"
+app.config["MAIL_USE_SSL"] = os.environ.get("MAIL_USE_SSL", "false").lower() == "true"
+app.config["MAIL_USERNAME"] = os.environ.get("MAIL_USERNAME", "oaibv.diaconato@gmail.com")
+app.config["MAIL_PASSWORD"] = os.environ.get("MAIL_PASSWORD")
+app.config["MAIL_DEFAULT_SENDER"] = os.environ.get("MAIL_DEFAULT_SENDER", "oaibv.diaconato@gmail.com")
+app.config["RESET_PASSWORD_MAX_AGE"] = int(os.environ.get("RESET_PASSWORD_MAX_AGE", 3600))
+app.config["APP_BASE_URL"] = os.environ.get("APP_BASE_URL", "http://localhost:5000")
 
 # Aqui pode adicionar a configuração do SQLAlchemy, se ainda não estiver
-from models import db
-caminho_absoluto = os.path.abspath("instance/oaibv.db")
+from models import db, Usuario
+PROJECT_DIR = os.path.abspath(os.path.dirname(__file__))
+if os.name == "nt":
+    DEFAULT_DATA_DIR = os.path.join(os.environ.get("LOCALAPPDATA", PROJECT_DIR), "OAIBV")
+else:
+    DEFAULT_DATA_DIR = os.path.join(PROJECT_DIR, "instance")
+
+DATABASE = os.environ.get("OAIBV_DB_PATH", os.path.join(DEFAULT_DATA_DIR, "oaibv.db"))
+os.makedirs(os.path.dirname(DATABASE), exist_ok=True)
+
+caminho_absoluto = DATABASE
 app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{caminho_absoluto}"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 db.init_app(app)
+mail = Mail(app)
 
 styles = getSampleStyleSheet()
 
@@ -76,9 +107,6 @@ print(caminho_absoluto)
 
 import sqlite3
 import os
-
-# Caminho absoluto para evitar erros de acesso
-DATABASE = os.path.abspath("instance/oaibv.db")
 
 def get_db():
     db = sqlite3.connect(
@@ -122,6 +150,136 @@ def load_user(user_id):
     if user:
         return User(user["id"], user["nome"], user["usuario"], user["tipo"])
     return None
+
+def get_reset_serializer():
+    return URLSafeTimedSerializer(app.config["SECRET_KEY"])
+
+def get_client_ip():
+    forwarded_for = request.headers.get("X-Forwarded-For", "")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()
+    return request.remote_addr or "0.0.0.0"
+
+def normalizar_email(valor):
+    return (valor or "").strip().lower()
+
+def validar_email_informado(valor):
+    try:
+        return validate_email(normalizar_email(valor), check_deliverability=False).normalized
+    except EmailNotValidError:
+        return None
+
+def senha_atende_requisitos(senha):
+    return bool(senha) and len(senha) >= 8
+
+def gerar_email_placeholder(usuario):
+    base = re.sub(r"[^a-z0-9]+", "-", (usuario or "usuario").strip().lower()).strip("-") or "usuario"
+    return f"{base}@sem-email.local"
+
+def enviar_email_reset(nome, email_destino, link_reset):
+    if not app.config.get("MAIL_SERVER") or not app.config.get("MAIL_DEFAULT_SENDER"):
+        return False, "Servidor de e-mail nao configurado."
+
+    mensagem = Message(
+        subject="Redefinicao de senha - Inventario OAIBV",
+        recipients=[email_destino],
+    )
+    mensagem.body = (
+        f"Ola, {nome}.\n\n"
+        "Recebemos um pedido para redefinir sua senha.\n"
+        f"Acesse este link: {link_reset}\n\n"
+        f"Este link expira em {app.config['RESET_PASSWORD_MAX_AGE'] // 60} minutos.\n"
+        "Se voce nao solicitou esta alteracao, ignore este e-mail."
+    )
+
+    try:
+        mail.send(mensagem)
+        return True, None
+    except Exception as exc:
+        return False, str(exc)
+
+def enviar_email_simples(assunto, email_destino, corpo):
+    if not app.config.get("MAIL_SERVER") or not app.config.get("MAIL_DEFAULT_SENDER"):
+        return False, "Servidor de e-mail nao configurado."
+
+    mensagem = Message(
+        subject=assunto,
+        recipients=[email_destino],
+    )
+    mensagem.body = corpo
+
+    try:
+        mail.send(mensagem)
+        return True, None
+    except Exception as exc:
+        return False, str(exc)
+
+def enviar_email_cadastro_pendente(nome, email_destino):
+    corpo = (
+        f"Ola, {nome}.\n\n"
+        "Recebemos seu cadastro no sistema de inventario da OAIBV.\n"
+        "Seu acesso foi criado e agora aguarda aprovacao de um administrador.\n\n"
+        "Assim que a aprovacao for concluida, voce recebera um novo e-mail informando que ja pode entrar no sistema.\n\n"
+        "Atenciosamente,\n"
+        "Equipe OAIBV"
+    )
+    return enviar_email_simples(
+        "Cadastro recebido - aguardando aprovacao",
+        email_destino,
+        corpo,
+    )
+
+def enviar_email_cadastro_aprovado(nome, email_destino):
+    corpo = (
+        f"Ola, {nome}.\n\n"
+        "Seu cadastro no sistema de inventario da OAIBV foi aprovado por um administrador.\n"
+        "Voce ja pode acessar o sistema com seu usuario ou e-mail e a senha cadastrada.\n\n"
+        f"Link de acesso: {app.config['APP_BASE_URL']}/login\n\n"
+        "Atenciosamente,\n"
+        "Equipe OAIBV"
+    )
+    return enviar_email_simples(
+        "Cadastro aprovado - acesso liberado",
+        email_destino,
+        corpo,
+    )
+
+def migrar_usuarios_auth():
+    conn = get_db()
+    try:
+        colunas = {
+            coluna["name"]: coluna
+            for coluna in conn.execute("PRAGMA table_info(usuarios)").fetchall()
+        }
+
+        if "email" not in colunas:
+            conn.execute("ALTER TABLE usuarios ADD COLUMN email TEXT")
+        if "ativo" not in colunas:
+            conn.execute("ALTER TABLE usuarios ADD COLUMN ativo INTEGER NOT NULL DEFAULT 1")
+        if "criado_em" not in colunas:
+            conn.execute("ALTER TABLE usuarios ADD COLUMN criado_em TIMESTAMP")
+
+        usuarios_sem_email = conn.execute(
+            "SELECT id, usuario FROM usuarios WHERE email IS NULL OR TRIM(email) = ''"
+        ).fetchall()
+        for usuario in usuarios_sem_email:
+            conn.execute(
+                "UPDATE usuarios SET email = ? WHERE id = ?",
+                (gerar_email_placeholder(usuario["usuario"]), usuario["id"]),
+            )
+
+        conn.execute(
+            "UPDATE usuarios SET ativo = 1 WHERE ativo IS NULL"
+        )
+        conn.execute(
+            "UPDATE usuarios SET criado_em = CURRENT_TIMESTAMP WHERE criado_em IS NULL"
+        )
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_usuarios_email ON usuarios(email)"
+        )
+        conn.commit()
+    finally:
+        conn.close()
 
 # Decorador para verificar se o usuário é administrador
 def admin_required(f):
@@ -179,22 +337,163 @@ def login():
         return redirect(url_for("dashboard"))
     
     if request.method == "POST":
-        usuario = request.form.get("usuario")
-        senha = request.form.get("senha")
+        identificador = request.form.get("usuario", "").strip()
+        senha = request.form.get("senha", "")
         
         db = get_db()
-        user = db.execute("SELECT * FROM usuarios WHERE usuario = ?", (usuario,)).fetchone()
+        user = db.execute(
+            """
+            SELECT * FROM usuarios
+            WHERE lower(usuario) = lower(?) OR lower(coalesce(email, '')) = lower(?)
+            """,
+            (identificador, identificador),
+        ).fetchone()
         
-        if user and check_password_hash(user["senha_hash"], senha):
+        if user and int(user["ativo"]) == 1 and check_password_hash(user["senha_hash"], senha):
             user_obj = User(user["id"], user["nome"], user["usuario"], user["tipo"])
             login_user(user_obj)
             registrar_log("Login realizado com sucesso")
             db.commit()
             return redirect(url_for("dashboard"))
+        elif user and int(user["ativo"]) != 1:
+            flash("Seu cadastro foi recebido, mas ainda aguarda aprovacao de um administrador.", "warning")
         else:
-            flash("Usuário ou senha inválidos.", "danger")
+            flash("Usuario, e-mail ou senha invalidos.", "danger")
     
-    return render_template("login_simples.html")
+    return render_template("login_auth.html")
+
+@app.route("/cadastro", methods=["GET", "POST"])
+@app.route("/cadastro/", methods=["GET", "POST"])
+def cadastro():
+    if current_user.is_authenticated:
+        return redirect(url_for("dashboard"))
+
+    if request.method == "POST":
+        nome = request.form.get("nome", "").strip()
+        usuario = request.form.get("usuario", "").strip()
+        email = validar_email_informado(request.form.get("email"))
+        senha = request.form.get("senha", "")
+        confirmar_senha = request.form.get("confirmar_senha", "")
+
+        if not nome or not usuario or not email or not senha:
+            flash("Preencha todos os campos obrigatorios.", "danger")
+            return render_template("cadastro.html")
+
+        if not senha_atende_requisitos(senha):
+            flash("A senha deve ter pelo menos 8 caracteres.", "danger")
+            return render_template("cadastro.html")
+
+        if senha != confirmar_senha:
+            flash("As senhas nao coincidem.", "danger")
+            return render_template("cadastro.html")
+
+        db = get_db()
+        existente = db.execute(
+            """
+            SELECT id FROM usuarios
+            WHERE lower(usuario) = lower(?) OR lower(coalesce(email, '')) = lower(?)
+            """,
+            (usuario, email),
+        ).fetchone()
+
+        if existente:
+            flash("Ja existe uma conta com este usuario ou e-mail.", "danger")
+            return render_template("cadastro.html")
+
+        db.execute(
+            """
+            INSERT INTO usuarios (nome, usuario, email, senha_hash, tipo, ativo, criado_em)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (nome, usuario, email, generate_password_hash(senha), "comum", 0, datetime.now()),
+        )
+        db.commit()
+        enviado, erro = enviar_email_cadastro_pendente(nome, email)
+        if not enviado:
+            print(f"[Email] Falha ao enviar aviso de cadastro pendente para {email}: {erro}")
+        flash("Cadastro enviado com sucesso. Aguarde a aprovacao de um administrador para acessar o sistema.", "success")
+        return redirect(url_for("login"))
+
+    return render_template("cadastro.html")
+
+@app.route("/esqueci-senha", methods=["GET", "POST"])
+@app.route("/esqueci-senha/", methods=["GET", "POST"])
+def esqueci_senha():
+    if current_user.is_authenticated:
+        return redirect(url_for("dashboard"))
+
+    if request.method == "POST":
+        email = normalizar_email(request.form.get("email"))
+
+        if email:
+            db = get_db()
+            usuario = db.execute(
+                "SELECT id, nome, email FROM usuarios WHERE lower(email) = lower(?) AND ativo = 1",
+                (email,),
+            ).fetchone()
+
+            if usuario:
+                token = get_reset_serializer().dumps(
+                    {"user_id": usuario["id"], "email": usuario["email"]},
+                    salt="resetar-senha",
+                )
+                link_reset = url_for("resetar_senha", token=token, _external=True)
+                enviado, erro = enviar_email_reset(usuario["nome"], usuario["email"], link_reset)
+                if not enviado:
+                    print(f"[Email] Falha ao enviar reset para {usuario['email']}: {erro}")
+
+        flash("Se o e-mail existir em nossa base, enviaremos as instrucoes de recuperacao.", "info")
+        return redirect(url_for("login"))
+
+    return render_template("esqueci_senha.html")
+
+@app.route("/resetar-senha/<token>", methods=["GET", "POST"])
+@app.route("/resetar-senha/<token>/", methods=["GET", "POST"])
+def resetar_senha(token):
+    if current_user.is_authenticated:
+        return redirect(url_for("dashboard"))
+
+    try:
+        dados = get_reset_serializer().loads(
+            token,
+            salt="resetar-senha",
+            max_age=app.config["RESET_PASSWORD_MAX_AGE"],
+        )
+    except (BadSignature, SignatureExpired):
+        flash("O link de redefinicao e invalido ou expirou.", "danger")
+        return redirect(url_for("esqueci_senha"))
+
+    db = get_db()
+    usuario = db.execute(
+        "SELECT id, nome, email FROM usuarios WHERE id = ? AND ativo = 1",
+        (dados["user_id"],),
+    ).fetchone()
+
+    if not usuario or normalizar_email(usuario["email"]) != normalizar_email(dados.get("email")):
+        flash("Nao foi possivel validar este pedido de redefinicao.", "danger")
+        return redirect(url_for("esqueci_senha"))
+
+    if request.method == "POST":
+        senha = request.form.get("senha", "")
+        confirmar_senha = request.form.get("confirmar_senha", "")
+
+        if not senha_atende_requisitos(senha):
+            flash("A senha deve ter pelo menos 8 caracteres.", "danger")
+            return render_template("resetar_senha.html", token=token, usuario=usuario)
+
+        if senha != confirmar_senha:
+            flash("As senhas nao coincidem.", "danger")
+            return render_template("resetar_senha.html", token=token, usuario=usuario)
+
+        db.execute(
+            "UPDATE usuarios SET senha_hash = ? WHERE id = ?",
+            (generate_password_hash(senha), usuario["id"]),
+        )
+        db.commit()
+        flash("Senha redefinida com sucesso. Voce ja pode entrar.", "success")
+        return redirect(url_for("login"))
+
+    return render_template("resetar_senha.html", token=token, usuario=usuario)
 
 @app.route("/logout")
 @app.route("/logout/")
@@ -760,7 +1059,7 @@ def emprestimos():
             # Criar o registro principal do empréstimo
             cursor = db.cursor()
             cursor.execute("""
-                INSERT INTO emprestimos (nome, grupo_caseiro, contato, data_emprestimo, usuario_id) 
+                INSERT INTO emprestimos (nome, grupo_id, contato, data_emprestimo, usuario_id) 
                 VALUES (?, ?, ?, ?, ?)
             """, (nome, grupo, contato, datetime.now(), current_user.id))
             emprestimo_id = cursor.lastrowid
@@ -797,22 +1096,24 @@ def emprestimos():
     # Listar empréstimos (GET)
     # Precisa ajustar a consulta para lidar com múltiplos itens
     emprestimos_ativos_raw = db.execute("""
-        SELECT e.id as emprestimo_id, e.nome, e.grupo_caseiro, e.contato, e.data_emprestimo, 
+        SELECT e.id as emprestimo_id, e.nome, g.nome as grupo_caseiro, e.contato, e.data_emprestimo, 
                GROUP_CONCAT(i.tombamento || ' (' || ei.quantidade || 'x) - ' || i.descricao, ', ') as itens_desc
         FROM emprestimos e
         JOIN emprestimo_itens ei ON e.id = ei.emprestimo_id
         JOIN itens i ON ei.item_id = i.id
+        LEFT JOIN grupos g ON e.grupo_id = g.id
         WHERE e.data_devolucao IS NULL
         GROUP BY e.id
         ORDER BY e.data_emprestimo DESC
     """).fetchall()
     
     emprestimos_devolvidos_raw = db.execute("""
-        SELECT e.id as emprestimo_id, e.nome, e.grupo_caseiro, e.contato, e.data_emprestimo, e.data_devolucao,
+        SELECT e.id as emprestimo_id, e.nome, g.nome as grupo_caseiro, e.contato, e.data_emprestimo, e.data_devolucao,
                GROUP_CONCAT(i.tombamento || ' (' || ei.quantidade || 'x) - ' || i.descricao, ', ') as itens_desc
         FROM emprestimos e
         JOIN emprestimo_itens ei ON e.id = ei.emprestimo_id
         JOIN itens i ON ei.item_id = i.id
+        LEFT JOIN grupos g ON e.grupo_id = g.id
         WHERE e.data_devolucao IS NOT NULL
         GROUP BY e.id
         ORDER BY e.data_devolucao DESC
@@ -1008,9 +1309,10 @@ def termo_compromisso(emprestimo_id):
     db = get_db()
 
     emprestimo_base = db.execute("""
-        SELECT e.*, u.nome as usuario_nome
+        SELECT e.*, u.nome as usuario_nome, g.nome as grupo_caseiro
         FROM emprestimos e 
         JOIN usuarios u ON e.usuario_id = u.id
+        LEFT JOIN grupos g ON e.grupo_id = g.id
         WHERE e.id = ?
     """, (emprestimo_id,)).fetchone()
 
@@ -1184,7 +1486,7 @@ def relatorios():
         query_emprestimos = """
             SELECT e.id AS emprestimo_id,
                 e.nome,
-                e.grupo_caseiro,
+                gsol.nome AS grupo_caseiro,
                 e.contato,
                 e.data_emprestimo,
                 e.data_devolucao,
@@ -1198,6 +1500,7 @@ def relatorios():
             JOIN itens i ON ei.item_id = i.id
             LEFT JOIN marcas m ON i.marca_id = m.id
             LEFT JOIN grupos g ON i.grupo_id = g.id
+            LEFT JOIN grupos gsol ON e.grupo_id = gsol.id
             JOIN usuarios u ON e.usuario_id = u.id
         """
          # ✅ Adicione estas linhas AQUI
@@ -1587,7 +1890,36 @@ def exportar_pdf(itens, emprestimos, filtro_tipo, filtro_grupo, filtro_data_inic
 def usuarios():
     db = get_db()
     usuarios = db.execute("SELECT * FROM usuarios ORDER BY nome").fetchall()
-    return render_template("usuarios_simples.html", usuarios=usuarios)
+    return render_template("usuarios_admin.html", usuarios=usuarios)
+
+@app.route("/usuarios/ativar/<int:id>", methods=["POST"])
+@login_required
+@admin_required
+def ativar_usuario(id):
+    db = get_db()
+
+    try:
+        usuario = db.execute("SELECT * FROM usuarios WHERE id = ?", (id,)).fetchone()
+        if not usuario:
+            flash("Usuario nao encontrado.", "danger")
+            return redirect(url_for("usuarios"))
+
+        if int(usuario["ativo"]) == 1:
+            flash("Este usuario ja esta ativo.", "info")
+            return redirect(url_for("usuarios"))
+
+        db.execute("UPDATE usuarios SET ativo = 1 WHERE id = ?", (id,))
+        db.commit()
+        enviado, erro = enviar_email_cadastro_aprovado(usuario["nome"], usuario["email"])
+        if not enviado:
+            print(f"[Email] Falha ao enviar aprovacao para {usuario['email']}: {erro}")
+        registrar_log(f"Usuario aprovado: {usuario['nome']} ({usuario['usuario']})")
+        flash("Usuario aprovado com sucesso.", "success")
+    except Exception as e:
+        db.rollback()
+        flash(f"Erro ao aprovar usuario: {str(e)}", "danger")
+
+    return redirect(url_for("usuarios"))
 
 @app.route("/usuarios/novo", methods=["GET", "POST"])
 @app.route("/usuarios/novo/", methods=["GET", "POST"])
@@ -1597,28 +1929,36 @@ def novo_usuario():
     if request.method == "POST":
         nome = request.form.get("nome")
         usuario = request.form.get("usuario")
+        email = validar_email_informado(request.form.get("email"))
         senha = request.form.get("senha")
         tipo = request.form.get("tipo")
         
-        if not nome or not usuario or not senha:
-            flash("Todos os campos são obrigatórios.", "danger")
+        if not nome or not usuario or not email or not senha:
+            flash("Todos os campos sao obrigatorios.", "danger")
+            return render_template("novo_usuario_simples.html")
+
+        if not senha_atende_requisitos(senha):
+            flash("A senha deve ter pelo menos 8 caracteres.", "danger")
             return render_template("novo_usuario_simples.html")
         
         try:
             db = get_db()
-            # Verificar se usuário já existe
-            user_existente = db.execute("SELECT * FROM usuarios WHERE usuario = ?", (usuario,)).fetchone()
+            # Verificar se usuário ou e-mail já existem
+            user_existente = db.execute(
+                "SELECT * FROM usuarios WHERE lower(usuario) = lower(?) OR lower(coalesce(email, '')) = lower(?)",
+                (usuario, email),
+            ).fetchone()
             if user_existente:
-                flash("Nome de usuário já cadastrado.", "danger")
+                flash("Nome de usuario ou e-mail ja cadastrado.", "danger")
                 return render_template("novo_usuario_simples.html")
             
             # Criar hash da senha
             senha_hash = generate_password_hash(senha)
             
             db.execute("""
-                INSERT INTO usuarios (nome, usuario, senha_hash, tipo) 
-                VALUES (?, ?, ?, ?)
-            """, (nome, usuario, senha_hash, tipo))
+                INSERT INTO usuarios (nome, usuario, email, senha_hash, tipo, ativo, criado_em) 
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (nome, usuario, email, senha_hash, tipo, 1, datetime.now()))
             db.commit()
             
             registrar_log(f"Usuário cadastrado: {nome} ({usuario})")
@@ -1646,19 +1986,26 @@ def editar_usuario(id):
     if request.method == "POST":
         nome = request.form.get("nome")
         usuario_login = request.form.get("usuario")
+        email = validar_email_informado(request.form.get("email"))
         senha = request.form.get("senha")
         tipo = request.form.get("tipo")
         
-        if not nome or not usuario_login:
-            flash("Nome e usuário são obrigatórios.", "danger")
+        if not nome or not usuario_login or not email:
+            flash("Nome, usuario e e-mail sao obrigatorios.", "danger")
             return render_template("editar_usuario_simples.html", usuario=usuario)
         
         try:
-            # Verificar se o novo nome de usuário já existe (se foi alterado)
-            if usuario_login != usuario["usuario"]:
-                user_existente = db.execute("SELECT * FROM usuarios WHERE usuario = ?", (usuario_login,)).fetchone()
+            # Verificar se o novo nome de usuário ou e-mail já existem
+            if usuario_login != usuario["usuario"] or normalizar_email(email) != normalizar_email(usuario["email"]):
+                user_existente = db.execute(
+                    """
+                    SELECT * FROM usuarios
+                    WHERE id != ? AND (lower(usuario) = lower(?) OR lower(coalesce(email, '')) = lower(?))
+                    """,
+                    (id, usuario_login, email),
+                ).fetchone()
                 if user_existente:
-                    flash("Nome de usuário já cadastrado.", "danger")
+                    flash("Nome de usuario ou e-mail ja cadastrado.", "danger")
                     return render_template("editar_usuario_simples.html", usuario=usuario)
             
             # Atualizar usuário
@@ -1667,16 +2014,16 @@ def editar_usuario(id):
                 senha_hash = generate_password_hash(senha)
                 db.execute("""
                     UPDATE usuarios 
-                    SET nome = ?, usuario = ?, senha_hash = ?, tipo = ? 
+                    SET nome = ?, usuario = ?, email = ?, senha_hash = ?, tipo = ? 
                     WHERE id = ?
-                """, (nome, usuario_login, senha_hash, tipo, id))
+                """, (nome, usuario_login, email, senha_hash, tipo, id))
             else:
                 # Se senha não foi fornecida, manter a senha atual
                 db.execute("""
                     UPDATE usuarios 
-                    SET nome = ?, usuario = ?, tipo = ? 
+                    SET nome = ?, usuario = ?, email = ?, tipo = ? 
                     WHERE id = ?
-                """, (nome, usuario_login, tipo, id))
+                """, (nome, usuario_login, email, tipo, id))
             
             db.commit()
             
@@ -1731,73 +2078,33 @@ def logs():
 
 # Criar tabelas se não existirem
 def create_tables():
-    db = get_db()
-    db.execute("""
-        CREATE TABLE IF NOT EXISTS usuarios (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nome TEXT NOT NULL,
-            usuario TEXT NOT NULL UNIQUE,
-            senha_hash TEXT NOT NULL,
-            tipo TEXT NOT NULL
-        )
-    """)
-    
-    db.execute("""
-        CREATE TABLE IF NOT EXISTS itens (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            tombamento TEXT NOT NULL UNIQUE,
-            descricao TEXT NOT NULL,
-            grupo TEXT,
-            marca TEXT,
-            valor REAL, -- Adicionado campo valor
-            quantidade INTEGER DEFAULT 0
-        )
-    """)
-          
-    db.execute("""
-        CREATE TABLE IF NOT EXISTS emprestimos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            item_id INTEGER NOT NULL,
-            nome TEXT NOT NULL,
-            grupo TEXT,
-            contato TEXT,
-            quantidade INTEGER DEFAULT 1,
-            data_emprestimo TIMESTAMP NOT NULL,
-            data_devolucao TIMESTAMP,
-            FOREIGN KEY (item_id) REFERENCES itens (id)
-        )
-    """)
-    
-    db.execute("""
-        CREATE TABLE IF NOT EXISTS logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            usuario_id INTEGER NOT NULL,
-            acao TEXT NOT NULL,
-            data TIMESTAMP NOT NULL,
-            FOREIGN KEY (usuario_id) REFERENCES usuarios (id)
-        )
-    """)
-    
-    # Verificar se existe usuário admin
-    admin = db.execute("SELECT * FROM usuarios WHERE usuario = 'admin'").fetchone()
-    if not admin:
-        # Criar usuário admin padrão
-        senha_hash = generate_password_hash("admin123")
-        db.execute("""
-            INSERT INTO usuarios (nome, usuario, senha_hash, tipo) 
-            VALUES (?, ?, ?, ?)
-        """, ("Administrador", "admin", senha_hash, "admin"))
-    
-    # Adicionar coluna valor se não existir (para compatibilidade)
-    try:
-        db.execute("ALTER TABLE itens ADD COLUMN valor REAL")
-        print("Coluna 'valor' adicionada à tabela 'itens'.")
-    except sqlite3.OperationalError:
-        # Coluna já existe ou outro erro
-        pass
-        
-    db.commit()
+    os.makedirs(os.path.dirname(DATABASE), exist_ok=True)
+    with app.app_context():
+        db.create_all()
 
+    migrar_usuarios_auth()
+
+    conn = get_db()
+    admin = conn.execute("SELECT * FROM usuarios WHERE usuario = 'admin'").fetchone()
+    if not admin:
+        senha_hash = generate_password_hash("admin123")
+        conn.execute(
+            """
+            INSERT INTO usuarios (nome, usuario, email, senha_hash, tipo, ativo, criado_em)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            ("Administrador", "admin", "admin@sem-email.local", senha_hash, "admin", 1, datetime.now()),
+        )
+
+    try:
+        conn.execute("ALTER TABLE itens ADD COLUMN valor REAL")
+        print("Coluna 'valor' adicionada a tabela 'itens'.")
+    except sqlite3.OperationalError:
+        pass
+
+    conn.commit()
+    conn.close()
+    
 if __name__ == "__main__":
     # Criar banco de dados e tabelas se não existirem
     # A função create_tables agora também cria o admin e adiciona a coluna valor
@@ -1805,4 +2112,3 @@ if __name__ == "__main__":
         create_tables()
     
     pass  # debug run removed for safety
-
