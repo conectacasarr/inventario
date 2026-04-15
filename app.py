@@ -196,9 +196,34 @@ def gerar_email_placeholder(usuario):
     base = re.sub(r"[^a-z0-9]+", "-", (usuario or "usuario").strip().lower()).strip("-") or "usuario"
     return f"{base}@sem-email.local"
 
+def email_usa_placeholder(email):
+    return normalizar_email(email).endswith("@sem-email.local")
+
+def email_configurado_corretamente():
+    campos_obrigatorios = (
+        "MAIL_SERVER",
+        "MAIL_USERNAME",
+        "MAIL_PASSWORD",
+        "MAIL_DEFAULT_SENDER",
+    )
+    faltando = [campo for campo in campos_obrigatorios if not app.config.get(campo)]
+    if faltando:
+        return False, f"Configuracao de e-mail incompleta: {', '.join(faltando)}"
+    return True, None
+
+def montar_url_publica(caminho):
+    base_url = (app.config.get("APP_BASE_URL") or "").strip().rstrip("/")
+    caminho = f"/{(caminho or '').lstrip('/')}"
+    if base_url:
+        return f"{base_url}{caminho}"
+    return caminho
+
 def enviar_email_reset(nome, email_destino, link_reset):
-    if not app.config.get("MAIL_SERVER") or not app.config.get("MAIL_DEFAULT_SENDER"):
-        return False, "Servidor de e-mail nao configurado."
+    configurado, erro_config = email_configurado_corretamente()
+    if not configurado:
+        return False, erro_config
+    if email_usa_placeholder(email_destino):
+        return False, "Usuario sem e-mail real cadastrado."
 
     mensagem = Message(
         subject="Redefinicao de senha - Inventario OAIBV",
@@ -219,8 +244,11 @@ def enviar_email_reset(nome, email_destino, link_reset):
         return False, str(exc)
 
 def enviar_email_simples(assunto, email_destino, corpo):
-    if not app.config.get("MAIL_SERVER") or not app.config.get("MAIL_DEFAULT_SENDER"):
-        return False, "Servidor de e-mail nao configurado."
+    configurado, erro_config = email_configurado_corretamente()
+    if not configurado:
+        return False, erro_config
+    if email_usa_placeholder(email_destino):
+        return False, "Usuario sem e-mail real cadastrado."
 
     mensagem = Message(
         subject=assunto,
@@ -254,7 +282,7 @@ def enviar_email_cadastro_aprovado(nome, email_destino):
         f"Ola, {nome}.\n\n"
         "Seu cadastro no sistema de inventario da OAIBV foi aprovado por um administrador.\n"
         "Voce ja pode acessar o sistema com seu usuario ou e-mail e a senha cadastrada.\n\n"
-        f"Link de acesso: {app.config['APP_BASE_URL']}/login\n\n"
+        f"Link de acesso: {montar_url_publica('/login')}\n\n"
         "Atenciosamente,\n"
         "Equipe OAIBV"
     )
@@ -443,24 +471,30 @@ def esqueci_senha():
         return redirect(url_for("dashboard"))
 
     if request.method == "POST":
-        email = normalizar_email(request.form.get("email"))
+        email = validar_email_informado(request.form.get("email"))
 
-        if email:
-            db = get_db()
-            usuario = db.execute(
-                "SELECT id, nome, email FROM usuarios WHERE lower(email) = lower(?) AND ativo = 1",
-                (email,),
-            ).fetchone()
+        if not email:
+            flash("Informe um e-mail valido para recuperar a senha.", "danger")
+            return render_template("esqueci_senha.html")
 
-            if usuario:
-                token = get_reset_serializer().dumps(
-                    {"user_id": usuario["id"], "email": usuario["email"]},
-                    salt="resetar-senha",
-                )
-                link_reset = url_for("resetar_senha", token=token, _external=True)
-                enviado, erro = enviar_email_reset(usuario["nome"], usuario["email"], link_reset)
-                if not enviado:
-                    print(f"[Email] Falha ao enviar reset para {usuario['email']}: {erro}")
+        db = get_db()
+        usuario = db.execute(
+            "SELECT id, nome, email FROM usuarios WHERE lower(email) = lower(?) AND ativo = 1",
+            (email,),
+        ).fetchone()
+
+        if usuario:
+            token = get_reset_serializer().dumps(
+                {"user_id": usuario["id"], "email": usuario["email"]},
+                salt="resetar-senha",
+            )
+            caminho_reset = url_for("resetar_senha", token=token, _external=False)
+            link_reset = montar_url_publica(caminho_reset)
+            enviado, erro = enviar_email_reset(usuario["nome"], usuario["email"], link_reset)
+            if not enviado:
+                print(f"[Email] Falha ao enviar reset para {usuario['email']}: {erro}")
+        else:
+            print(f"[Email] Pedido de reset ignorado para e-mail nao encontrado/ativo: {email}")
 
         flash("Se o e-mail existir em nossa base, enviaremos as instrucoes de recuperacao.", "info")
         return redirect(url_for("login"))
