@@ -488,7 +488,7 @@ def esqueci_senha():
                 {"user_id": usuario["id"], "email": usuario["email"]},
                 salt="resetar-senha",
             )
-            caminho_reset = url_for("resetar_senha", token=token, _external=False)
+            caminho_reset = url_for("resetar_senha_curto", token=token, _external=False)
             link_reset = montar_url_publica(caminho_reset)
             enviado, erro = enviar_email_reset(usuario["nome"], usuario["email"], link_reset)
             if not enviado:
@@ -501,12 +501,10 @@ def esqueci_senha():
 
     return render_template("esqueci_senha.html")
 
+@app.route("/r/<token>", methods=["GET", "POST"], endpoint="resetar_senha_curto")
 @app.route("/resetar-senha/<token>", methods=["GET", "POST"])
 @app.route("/resetar-senha/<token>/", methods=["GET", "POST"])
 def resetar_senha(token):
-    if current_user.is_authenticated:
-        return redirect(url_for("dashboard"))
-
     try:
         dados = get_reset_serializer().loads(
             token,
@@ -544,6 +542,8 @@ def resetar_senha(token):
             (generate_password_hash(senha), usuario["id"]),
         )
         db.commit()
+        if current_user.is_authenticated:
+            logout_user()
         flash("Senha redefinida com sucesso. Voce ja pode entrar.", "success")
         return redirect(url_for("login"))
 
