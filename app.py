@@ -493,10 +493,14 @@ def esqueci_senha():
             enviado, erro = enviar_email_reset(usuario["nome"], usuario["email"], link_reset)
             if not enviado:
                 print(f"[Email] Falha ao enviar reset para {usuario['email']}: {erro}")
+                flash(f"Nao foi possivel enviar o e-mail de recuperacao: {erro}", "danger")
+                return render_template("esqueci_senha.html")
+            flash("E-mail de recuperacao enviado com sucesso.", "success")
         else:
             print(f"[Email] Pedido de reset ignorado para e-mail nao encontrado/ativo: {email}")
+            flash("Nao encontramos um usuario ativo com este e-mail.", "danger")
+            return render_template("esqueci_senha.html")
 
-        flash("Se o e-mail existir em nossa base, enviaremos as instrucoes de recuperacao.", "info")
         return redirect(url_for("login"))
 
     return render_template("esqueci_senha.html")
