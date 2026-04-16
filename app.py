@@ -1068,6 +1068,15 @@ def logout():
 
 @app.route("/conectacasa")
 @app.route("/conectacasa/")
+def conectacasa_publico():
+    conn = get_db()
+    config = conectacasa_obter_config(conn)
+    config["logo_url"] = url_for("static", filename=config["logo_path"]) if config.get("logo_path") else None
+    return render_template("conectacasa_publico.html", config=config)
+
+
+@app.route("/conectacasa/painel")
+@app.route("/conectacasa/painel/")
 @login_required
 def conectacasa_home():
     conn = get_db()
