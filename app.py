@@ -12,6 +12,7 @@ import sqlite3
 import re
 import io
 import tempfile
+import json
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
@@ -140,6 +141,321 @@ def emprestimos_grupo_join_sql(db_conn, alias="e"):
     if emprestimos_tem_grupo_id(db_conn):
         return f"LEFT JOIN grupos gsol ON {alias}.grupo_id = gsol.id"
     return f"LEFT JOIN grupos gsol ON gsol.nome = {alias}.grupo_caseiro"
+
+
+def conectacasa_criar_tabelas():
+    conn = get_db()
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS conectacasa_orcamentos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            codigo TEXT UNIQUE NOT NULL,
+            titulo TEXT NOT NULL,
+            cliente_nome TEXT NOT NULL,
+            cliente_empresa TEXT,
+            cliente_email TEXT,
+            cliente_telefone TEXT,
+            descricao TEXT,
+            observacoes TEXT,
+            status TEXT NOT NULL DEFAULT 'rascunho',
+            validade_dias INTEGER NOT NULL DEFAULT 7,
+            desconto REAL NOT NULL DEFAULT 0,
+            subtotal REAL NOT NULL DEFAULT 0,
+            valor_total REAL NOT NULL DEFAULT 0,
+            itens_json TEXT NOT NULL,
+            criado_por INTEGER,
+            criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            atualizado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (criado_por) REFERENCES usuarios(id)
+        )
+        """
+    )
+    conn.commit()
+
+
+def conectacasa_gerar_codigo(conn):
+    prefixo = datetime.now().strftime("CC-%Y%m%d")
+    ultimo = conn.execute(
+        "SELECT codigo FROM conectacasa_orcamentos WHERE codigo LIKE ? ORDER BY id DESC LIMIT 1",
+        (f"{prefixo}-%",),
+    ).fetchone()
+    sequencia = 1
+    if ultimo and ultimo["codigo"]:
+        try:
+            sequencia = int(ultimo["codigo"].split("-")[-1]) + 1
+        except (ValueError, IndexError):
+            sequencia = 1
+    return f"{prefixo}-{sequencia:03d}"
+
+
+def conectacasa_status_opcoes():
+    return [
+        ("rascunho", "Rascunho"),
+        ("enviado", "Enviado"),
+        ("aprovado", "Aprovado"),
+        ("rejeitado", "Rejeitado"),
+    ]
+
+
+def conectacasa_status_label(status):
+    mapa = dict(conectacasa_status_opcoes())
+    return mapa.get(status, status.title() if status else "Rascunho")
+
+
+def conectacasa_normalizar_item(descricao, quantidade, valor_unitario, unidade):
+    descricao = (descricao or "").strip()
+    unidade = (unidade or "").strip() or "un"
+    if not descricao:
+        return None
+
+    try:
+        quantidade = float((quantidade or "0").replace(",", "."))
+    except ValueError:
+        quantidade = 0
+
+    try:
+        valor_unitario = float((valor_unitario or "0").replace(",", "."))
+    except ValueError:
+        valor_unitario = 0
+
+    quantidade = max(quantidade, 0)
+    valor_unitario = max(valor_unitario, 0)
+    total = round(quantidade * valor_unitario, 2)
+
+    return {
+        "descricao": descricao,
+        "quantidade": quantidade,
+        "unidade": unidade,
+        "valor_unitario": valor_unitario,
+        "total": total,
+    }
+
+
+def conectacasa_itens_do_formulario(form):
+    descricoes = form.getlist("item_descricao[]")
+    quantidades = form.getlist("item_quantidade[]")
+    valores = form.getlist("item_valor[]")
+    unidades = form.getlist("item_unidade[]")
+
+    itens = []
+    for descricao, quantidade, valor_unitario, unidade in zip(descricoes, quantidades, valores, unidades):
+        item = conectacasa_normalizar_item(descricao, quantidade, valor_unitario, unidade)
+        if item:
+            itens.append(item)
+    return itens
+
+
+def conectacasa_calcular_totais(itens, desconto):
+    subtotal = round(sum(item["total"] for item in itens), 2)
+    try:
+        desconto = float((desconto or "0").replace(",", "."))
+    except (ValueError, AttributeError):
+        desconto = 0
+    desconto = max(desconto, 0)
+    valor_total = round(max(subtotal - desconto, 0), 2)
+    return subtotal, desconto, valor_total
+
+
+def conectacasa_carregar_orcamento(conn, orcamento_id):
+    orcamento = conn.execute(
+        """
+        SELECT o.*, u.nome AS criado_por_nome
+        FROM conectacasa_orcamentos o
+        LEFT JOIN usuarios u ON u.id = o.criado_por
+        WHERE o.id = ?
+        """,
+        (orcamento_id,),
+    ).fetchone()
+    if not orcamento:
+        return None
+    dados = dict(orcamento)
+    dados["itens"] = json.loads(dados.get("itens_json") or "[]")
+    dados["status_label"] = conectacasa_status_label(dados.get("status"))
+    return dados
+
+
+def conectacasa_salvar_orcamento(conn, dados_formulario, itens, usuario_id, orcamento_id=None):
+    subtotal, desconto, valor_total = conectacasa_calcular_totais(itens, dados_formulario.get("desconto"))
+    titulo = (dados_formulario.get("titulo") or "").strip()
+    cliente_nome = (dados_formulario.get("cliente_nome") or "").strip()
+    cliente_empresa = (dados_formulario.get("cliente_empresa") or "").strip()
+    cliente_email = normalizar_email(dados_formulario.get("cliente_email"))
+    cliente_telefone = (dados_formulario.get("cliente_telefone") or "").strip()
+    descricao = (dados_formulario.get("descricao") or "").strip()
+    observacoes = (dados_formulario.get("observacoes") or "").strip()
+    status = (dados_formulario.get("status") or "rascunho").strip().lower()
+
+    status_validos = {codigo for codigo, _ in conectacasa_status_opcoes()}
+    if status not in status_validos:
+        status = "rascunho"
+
+    try:
+        validade_dias = int(dados_formulario.get("validade_dias") or 7)
+    except ValueError:
+        validade_dias = 7
+    validade_dias = max(validade_dias, 1)
+
+    if not titulo or not cliente_nome:
+        return False, "Informe o titulo e o nome do cliente.", None
+    if not itens:
+        return False, "Adicione pelo menos um item ao orcamento.", None
+
+    itens_json = json.dumps(itens, ensure_ascii=False)
+
+    if orcamento_id:
+        conn.execute(
+            """
+            UPDATE conectacasa_orcamentos
+            SET titulo = ?, cliente_nome = ?, cliente_empresa = ?, cliente_email = ?, cliente_telefone = ?,
+                descricao = ?, observacoes = ?, status = ?, validade_dias = ?, desconto = ?,
+                subtotal = ?, valor_total = ?, itens_json = ?, atualizado_em = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (
+                titulo,
+                cliente_nome,
+                cliente_empresa,
+                cliente_email,
+                cliente_telefone,
+                descricao,
+                observacoes,
+                status,
+                validade_dias,
+                desconto,
+                subtotal,
+                valor_total,
+                itens_json,
+                orcamento_id,
+            ),
+        )
+        conn.commit()
+        return True, None, orcamento_id
+
+    codigo = conectacasa_gerar_codigo(conn)
+    cursor = conn.execute(
+        """
+        INSERT INTO conectacasa_orcamentos (
+            codigo, titulo, cliente_nome, cliente_empresa, cliente_email, cliente_telefone,
+            descricao, observacoes, status, validade_dias, desconto, subtotal, valor_total,
+            itens_json, criado_por
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            codigo,
+            titulo,
+            cliente_nome,
+            cliente_empresa,
+            cliente_email,
+            cliente_telefone,
+            descricao,
+            observacoes,
+            status,
+            validade_dias,
+            desconto,
+            subtotal,
+            valor_total,
+            itens_json,
+            usuario_id,
+        ),
+    )
+    conn.commit()
+    return True, None, cursor.lastrowid
+
+
+def conectacasa_render_pdf(orcamento):
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=36, bottomMargin=36, leftMargin=36, rightMargin=36)
+    elementos = []
+
+    titulo_style = ParagraphStyle(
+        "ConectaCasaTitulo",
+        parent=styles["Heading1"],
+        fontSize=20,
+        textColor=colors.HexColor("#0f172a"),
+        spaceAfter=12,
+    )
+    subtitulo_style = ParagraphStyle(
+        "ConectaCasaSubtitulo",
+        parent=styles["BodyText"],
+        fontSize=10,
+        textColor=colors.HexColor("#475569"),
+        spaceAfter=8,
+    )
+
+    elementos.append(Paragraph("ConectaCasa", titulo_style))
+    elementos.append(Paragraph(f"Orcamento {orcamento['codigo']} - {orcamento['titulo']}", styles["Heading2"]))
+    elementos.append(Paragraph(f"Cliente: {orcamento['cliente_nome']}", subtitulo_style))
+    if orcamento.get("cliente_empresa"):
+        elementos.append(Paragraph(f"Empresa: {orcamento['cliente_empresa']}", subtitulo_style))
+    if orcamento.get("cliente_email"):
+        elementos.append(Paragraph(f"E-mail: {orcamento['cliente_email']}", subtitulo_style))
+    if orcamento.get("cliente_telefone"):
+        elementos.append(Paragraph(f"Telefone: {orcamento['cliente_telefone']}", subtitulo_style))
+    elementos.append(Paragraph(f"Status: {orcamento['status_label']}", subtitulo_style))
+    elementos.append(Spacer(1, 12))
+
+    tabela_dados = [["Descricao", "Qtd.", "Un.", "Valor unit.", "Total"]]
+    for item in orcamento["itens"]:
+        tabela_dados.append(
+            [
+                item["descricao"],
+                str(item["quantidade"]).replace(".", ","),
+                item["unidade"],
+                formata_brl(item["valor_unitario"]),
+                formata_brl(item["total"]),
+            ]
+        )
+
+    tabela = Table(tabela_dados, colWidths=[220, 45, 45, 90, 90])
+    tabela.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0f172a")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.HexColor("#f8fafc")]),
+                ("ALIGN", (1, 1), (-1, -1), "RIGHT"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("PADDING", (0, 0), (-1, -1), 6),
+            ]
+        )
+    )
+    elementos.append(tabela)
+    elementos.append(Spacer(1, 16))
+
+    resumo = [
+        ["Subtotal", formata_brl(orcamento["subtotal"])],
+        ["Desconto", formata_brl(orcamento["desconto"])],
+        ["Valor final", formata_brl(orcamento["valor_total"])],
+    ]
+    resumo_tabela = Table(resumo, colWidths=[110, 120], hAlign="RIGHT")
+    resumo_tabela.setStyle(
+        TableStyle(
+            [
+                ("FONTNAME", (0, 0), (-1, -1), "Helvetica-Bold"),
+                ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#0f172a")),
+                ("ALIGN", (0, 0), (-1, -1), "RIGHT"),
+                ("LINEABOVE", (0, 2), (-1, 2), 1, colors.HexColor("#0f172a")),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ]
+        )
+    )
+    elementos.append(resumo_tabela)
+
+    if orcamento.get("descricao"):
+        elementos.append(Spacer(1, 18))
+        elementos.append(Paragraph("Escopo", styles["Heading3"]))
+        elementos.append(Paragraph(orcamento["descricao"].replace("\n", "<br/>"), styles["BodyText"]))
+
+    if orcamento.get("observacoes"):
+        elementos.append(Spacer(1, 18))
+        elementos.append(Paragraph("Observacoes", styles["Heading3"]))
+        elementos.append(Paragraph(orcamento["observacoes"].replace("\n", "<br/>"), styles["BodyText"]))
+
+    doc.build(elementos)
+    buffer.seek(0)
+    return buffer
 
 def init_db():
     with app.app_context():
@@ -375,7 +691,7 @@ def format_tombamento(tombamento):
 # Função para obter o ano atual
 @app.context_processor
 def inject_now():
-    return {"now": datetime.now}
+    return {"now": datetime.now, "formata_brl": formata_brl}
 
 # Rotas de autenticação
 @app.route("/login", methods=["GET", "POST"])
@@ -560,6 +876,127 @@ def logout():
     registrar_log("Logout realizado")
     logout_user()
     return redirect(url_for("login"))
+
+
+@app.route("/conectacasa")
+@app.route("/conectacasa/")
+@login_required
+def conectacasa_home():
+    conn = get_db()
+    orcamentos = conn.execute(
+        """
+        SELECT id, codigo, titulo, cliente_nome, cliente_empresa, status, valor_total, atualizado_em
+        FROM conectacasa_orcamentos
+        ORDER BY atualizado_em DESC, id DESC
+        """
+    ).fetchall()
+
+    total_orcamentos = len(orcamentos)
+    total_aprovados = sum(1 for item in orcamentos if item["status"] == "aprovado")
+    valor_pipeline = round(sum(item["valor_total"] or 0 for item in orcamentos), 2)
+
+    return render_template(
+        "conectacasa_lista.html",
+        orcamentos=orcamentos,
+        total_orcamentos=total_orcamentos,
+        total_aprovados=total_aprovados,
+        valor_pipeline=valor_pipeline,
+        conectacasa_status_label=conectacasa_status_label,
+    )
+
+
+@app.route("/conectacasa/novo", methods=["GET", "POST"])
+@app.route("/conectacasa/novo/", methods=["GET", "POST"])
+@login_required
+def conectacasa_novo_orcamento():
+    if request.method == "POST":
+        conn = get_db()
+        itens = conectacasa_itens_do_formulario(request.form)
+        ok, erro, orcamento_id = conectacasa_salvar_orcamento(conn, request.form, itens, current_user.id)
+        if not ok:
+            flash(erro, "danger")
+            return render_template(
+                "conectacasa_form.html",
+                orcamento=request.form,
+                itens=itens or [{"descricao": "", "quantidade": 1, "unidade": "un", "valor_unitario": 0, "total": 0}],
+                status_opcoes=conectacasa_status_opcoes(),
+                modo="novo",
+            )
+        registrar_log(f"ConectaCasa: orcamento criado #{orcamento_id}")
+        flash("Orcamento criado com sucesso.", "success")
+        return redirect(url_for("conectacasa_visualizar_orcamento", orcamento_id=orcamento_id))
+
+    return render_template(
+        "conectacasa_form.html",
+        orcamento={"validade_dias": 7, "status": "rascunho"},
+        itens=[{"descricao": "", "quantidade": 1, "unidade": "un", "valor_unitario": 0, "total": 0}],
+        status_opcoes=conectacasa_status_opcoes(),
+        modo="novo",
+    )
+
+
+@app.route("/conectacasa/orcamentos/<int:orcamento_id>")
+@app.route("/conectacasa/orcamentos/<int:orcamento_id>/")
+@login_required
+def conectacasa_visualizar_orcamento(orcamento_id):
+    conn = get_db()
+    orcamento = conectacasa_carregar_orcamento(conn, orcamento_id)
+    if not orcamento:
+        flash("Orcamento nao encontrado.", "danger")
+        return redirect(url_for("conectacasa_home"))
+    return render_template("conectacasa_visualizar.html", orcamento=orcamento)
+
+
+@app.route("/conectacasa/orcamentos/<int:orcamento_id>/editar", methods=["GET", "POST"])
+@app.route("/conectacasa/orcamentos/<int:orcamento_id>/editar/", methods=["GET", "POST"])
+@login_required
+def conectacasa_editar_orcamento(orcamento_id):
+    conn = get_db()
+    orcamento = conectacasa_carregar_orcamento(conn, orcamento_id)
+    if not orcamento:
+        flash("Orcamento nao encontrado.", "danger")
+        return redirect(url_for("conectacasa_home"))
+
+    if request.method == "POST":
+        itens = conectacasa_itens_do_formulario(request.form)
+        ok, erro, _ = conectacasa_salvar_orcamento(conn, request.form, itens, current_user.id, orcamento_id=orcamento_id)
+        if not ok:
+            flash(erro, "danger")
+            dados = dict(request.form)
+            dados["id"] = orcamento_id
+            return render_template(
+                "conectacasa_form.html",
+                orcamento=dados,
+                itens=itens or orcamento["itens"],
+                status_opcoes=conectacasa_status_opcoes(),
+                modo="editar",
+            )
+        registrar_log(f"ConectaCasa: orcamento editado #{orcamento_id}")
+        flash("Orcamento atualizado com sucesso.", "success")
+        return redirect(url_for("conectacasa_visualizar_orcamento", orcamento_id=orcamento_id))
+
+    return render_template(
+        "conectacasa_form.html",
+        orcamento=orcamento,
+        itens=orcamento["itens"],
+        status_opcoes=conectacasa_status_opcoes(),
+        modo="editar",
+    )
+
+
+@app.route("/conectacasa/orcamentos/<int:orcamento_id>/pdf")
+@app.route("/conectacasa/orcamentos/<int:orcamento_id>/pdf/")
+@login_required
+def conectacasa_orcamento_pdf(orcamento_id):
+    conn = get_db()
+    orcamento = conectacasa_carregar_orcamento(conn, orcamento_id)
+    if not orcamento:
+        flash("Orcamento nao encontrado.", "danger")
+        return redirect(url_for("conectacasa_home"))
+
+    pdf = conectacasa_render_pdf(orcamento)
+    nome_arquivo = f"{orcamento['codigo']}.pdf"
+    return send_file(pdf, as_attachment=True, download_name=nome_arquivo, mimetype="application/pdf")
 
 
 # Rota principal - Dashboard
@@ -2167,6 +2604,7 @@ def create_tables():
         db.create_all()
 
     migrar_usuarios_auth()
+    conectacasa_criar_tabelas()
 
     conn = get_db()
     admin = conn.execute("SELECT * FROM usuarios WHERE usuario = 'admin'").fetchone()

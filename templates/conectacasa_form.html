@@ -1,0 +1,170 @@
+{% extends 'base_conectacasa.html' %}
+
+{% block title %}ConectaCasa - {{ 'Novo orcamento' if modo == 'novo' else 'Editar orcamento' }}{% endblock %}
+
+{% block head_extra %}
+<style>
+    .cc-form-grid label {
+        font-weight: 600;
+        color: #334155;
+        margin-bottom: 0.35rem;
+    }
+
+    .cc-item-card {
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 18px;
+        padding: 1rem;
+        background: #fffdf9;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <span class="cc-badge"><i class="fas fa-pen-ruler"></i> ConectaCasa</span>
+        <h1 class="mt-3 mb-1">{{ 'Novo orcamento' if modo == 'novo' else 'Editar orcamento' }}</h1>
+        <p class="cc-muted mb-0">Monte a proposta, salve para continuar depois e gere os materiais para envio.</p>
+    </div>
+    <a href="{{ url_for('conectacasa_home') }}" class="btn btn-outline-secondary rounded-pill px-4">Voltar</a>
+</div>
+
+<form method="POST" class="cc-panel p-4 p-lg-5">
+    <div class="row g-4 cc-form-grid">
+        <div class="col-md-7">
+            <label for="titulo">Titulo do orcamento</label>
+            <input type="text" class="form-control" id="titulo" name="titulo" value="{{ orcamento.titulo or '' }}" required>
+        </div>
+        <div class="col-md-3">
+            <label for="status">Status</label>
+            <select class="form-select" id="status" name="status">
+                {% for codigo, nome in status_opcoes %}
+                <option value="{{ codigo }}" {% if (orcamento.status or 'rascunho') == codigo %}selected{% endif %}>{{ nome }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label for="validade_dias">Validade (dias)</label>
+            <input type="number" min="1" class="form-control" id="validade_dias" name="validade_dias" value="{{ orcamento.validade_dias or 7 }}">
+        </div>
+
+        <div class="col-md-4">
+            <label for="cliente_nome">Cliente</label>
+            <input type="text" class="form-control" id="cliente_nome" name="cliente_nome" value="{{ orcamento.cliente_nome or '' }}" required>
+        </div>
+        <div class="col-md-4">
+            <label for="cliente_empresa">Empresa</label>
+            <input type="text" class="form-control" id="cliente_empresa" name="cliente_empresa" value="{{ orcamento.cliente_empresa or '' }}">
+        </div>
+        <div class="col-md-4">
+            <label for="cliente_telefone">Telefone</label>
+            <input type="text" class="form-control" id="cliente_telefone" name="cliente_telefone" value="{{ orcamento.cliente_telefone or '' }}">
+        </div>
+
+        <div class="col-md-6">
+            <label for="cliente_email">E-mail</label>
+            <input type="email" class="form-control" id="cliente_email" name="cliente_email" value="{{ orcamento.cliente_email or '' }}">
+        </div>
+        <div class="col-md-6">
+            <label for="desconto">Desconto</label>
+            <input type="text" class="form-control" id="desconto" name="desconto" value="{{ orcamento.desconto or 0 }}">
+        </div>
+
+        <div class="col-12">
+            <label for="descricao">Escopo / descricao</label>
+            <textarea class="form-control" id="descricao" name="descricao" rows="3">{{ orcamento.descricao or '' }}</textarea>
+        </div>
+    </div>
+
+    <hr class="my-4">
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h2 class="h5 mb-1">Itens do orcamento</h2>
+            <p class="cc-muted mb-0">Adicione os produtos ou servicos da proposta.</p>
+        </div>
+        <button type="button" class="btn btn-outline-dark rounded-pill" id="add-item-btn">Adicionar item</button>
+    </div>
+
+    <div id="itens-wrapper" class="d-grid gap-3">
+        {% for item in itens %}
+        <div class="cc-item-card item-row">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-5">
+                    <label>Descricao</label>
+                    <input type="text" class="form-control" name="item_descricao[]" value="{{ item.descricao or '' }}" required>
+                </div>
+                <div class="col-md-2">
+                    <label>Quantidade</label>
+                    <input type="number" step="0.01" min="0" class="form-control" name="item_quantidade[]" value="{{ item.quantidade or 1 }}" required>
+                </div>
+                <div class="col-md-2">
+                    <label>Unidade</label>
+                    <input type="text" class="form-control" name="item_unidade[]" value="{{ item.unidade or 'un' }}">
+                </div>
+                <div class="col-md-2">
+                    <label>Valor unit.</label>
+                    <input type="number" step="0.01" min="0" class="form-control" name="item_valor[]" value="{{ item.valor_unitario or 0 }}" required>
+                </div>
+                <div class="col-md-1 d-grid">
+                    <button type="button" class="btn btn-outline-danger remove-item-btn">X</button>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="mt-4">
+        <label for="observacoes">Observacoes finais</label>
+        <textarea class="form-control" id="observacoes" name="observacoes" rows="4">{{ orcamento.observacoes or '' }}</textarea>
+    </div>
+
+    <div class="d-flex justify-content-end gap-2 mt-4">
+        <a href="{{ url_for('conectacasa_home') }}" class="btn btn-outline-secondary rounded-pill px-4">Cancelar</a>
+        <button type="submit" class="btn cc-btn-primary rounded-pill px-4">Salvar orcamento</button>
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('add-item-btn')?.addEventListener('click', function () {
+    const wrapper = document.getElementById('itens-wrapper');
+    const card = document.createElement('div');
+    card.className = 'cc-item-card item-row';
+    card.innerHTML = `
+        <div class="row g-3 align-items-end">
+            <div class="col-md-5">
+                <label>Descricao</label>
+                <input type="text" class="form-control" name="item_descricao[]" required>
+            </div>
+            <div class="col-md-2">
+                <label>Quantidade</label>
+                <input type="number" step="0.01" min="0" class="form-control" name="item_quantidade[]" value="1" required>
+            </div>
+            <div class="col-md-2">
+                <label>Unidade</label>
+                <input type="text" class="form-control" name="item_unidade[]" value="un">
+            </div>
+            <div class="col-md-2">
+                <label>Valor unit.</label>
+                <input type="number" step="0.01" min="0" class="form-control" name="item_valor[]" value="0" required>
+            </div>
+            <div class="col-md-1 d-grid">
+                <button type="button" class="btn btn-outline-danger remove-item-btn">X</button>
+            </div>
+        </div>
+    `;
+    wrapper.appendChild(card);
+});
+
+document.addEventListener('click', function (event) {
+    if (event.target.classList.contains('remove-item-btn')) {
+        const rows = document.querySelectorAll('.item-row');
+        if (rows.length > 1) {
+            event.target.closest('.item-row').remove();
+        }
+    }
+});
+</script>
+{% endblock %}
