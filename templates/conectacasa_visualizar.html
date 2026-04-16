@@ -126,23 +126,6 @@
         </div>
         {% endif %}
 
-        {% if orcamento.audio_transcricao or orcamento.audio_url %}
-        <div class="mt-4">
-            <h3 class="h6 text-uppercase text-muted">Briefing por audio</h3>
-            {% if orcamento.audio_url %}
-            <audio controls class="w-100 mb-3">
-                <source src="{{ orcamento.audio_url }}">
-            </audio>
-            {% endif %}
-            {% if orcamento.audio_transcricao %}
-            <p class="mb-2">{{ orcamento.audio_transcricao }}</p>
-            {% endif %}
-            {% if orcamento.audio_observacoes %}
-            <p class="mb-0 cc-muted">{{ orcamento.audio_observacoes }}</p>
-            {% endif %}
-        </div>
-        {% endif %}
-
         {% if pix_qr_code %}
         <div class="mt-4 cc-panel p-4" style="background:#fffaf5;">
             <div class="row g-4 align-items-center">

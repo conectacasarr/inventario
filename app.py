@@ -75,9 +75,7 @@ os.makedirs(os.path.dirname(DATABASE), exist_ok=True)
 
 UPLOADS_DIR = os.path.join(PROJECT_DIR, "static", "uploads", "conectacasa")
 LOGO_UPLOAD_DIR = os.path.join(UPLOADS_DIR, "logos")
-AUDIO_UPLOAD_DIR = os.path.join(UPLOADS_DIR, "audios")
 os.makedirs(LOGO_UPLOAD_DIR, exist_ok=True)
-os.makedirs(AUDIO_UPLOAD_DIR, exist_ok=True)
 
 caminho_absoluto = DATABASE
 app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{caminho_absoluto}"
@@ -169,9 +167,6 @@ def conectacasa_criar_tabelas():
             observacoes TEXT,
             status TEXT NOT NULL DEFAULT 'rascunho',
             validade_dias INTEGER NOT NULL DEFAULT 7,
-            audio_path TEXT,
-            audio_transcricao TEXT,
-            audio_observacoes TEXT,
             desconto REAL NOT NULL DEFAULT 0,
             subtotal REAL NOT NULL DEFAULT 0,
             valor_total REAL NOT NULL DEFAULT 0,
@@ -309,19 +304,6 @@ def conectacasa_salvar_logo(arquivo):
     return f"uploads/conectacasa/logos/{nome_arquivo}"
 
 
-def conectacasa_salvar_audio(arquivo):
-    if not arquivo or not arquivo.filename:
-        return None
-    nome_base = secure_filename(arquivo.filename)
-    extensao = os.path.splitext(nome_base)[1].lower()
-    if extensao not in {".mp3", ".wav", ".m4a", ".ogg", ".webm"}:
-        return None
-    nome_arquivo = f"audio-{datetime.now().strftime('%Y%m%d%H%M%S')}{extensao}"
-    caminho = os.path.join(AUDIO_UPLOAD_DIR, nome_arquivo)
-    arquivo.save(caminho)
-    return f"uploads/conectacasa/audios/{nome_arquivo}"
-
-
 def conectacasa_gerar_codigo(conn):
     prefixo = datetime.now().strftime("CC-%Y%m%d")
     ultimo = conn.execute(
@@ -420,7 +402,6 @@ def conectacasa_carregar_orcamento(conn, orcamento_id):
     dados = dict(orcamento)
     dados["itens"] = json.loads(dados.get("itens_json") or "[]")
     dados["status_label"] = conectacasa_status_label(dados.get("status"))
-    dados["audio_url"] = url_for("static", filename=dados["audio_path"]) if dados.get("audio_path") else None
     return dados
 
 
@@ -433,8 +414,6 @@ def conectacasa_salvar_orcamento(conn, dados_formulario, itens, usuario_id, arqu
     cliente_telefone = (dados_formulario.get("cliente_telefone") or "").strip()
     descricao = (dados_formulario.get("descricao") or "").strip()
     observacoes = (dados_formulario.get("observacoes") or "").strip()
-    audio_transcricao = (dados_formulario.get("audio_transcricao") or "").strip()
-    audio_observacoes = (dados_formulario.get("audio_observacoes") or "").strip()
     status = (dados_formulario.get("status") or "rascunho").strip().lower()
 
     status_validos = {codigo for codigo, _ in conectacasa_status_opcoes()}
@@ -453,20 +432,14 @@ def conectacasa_salvar_orcamento(conn, dados_formulario, itens, usuario_id, arqu
         return False, "Adicione pelo menos um item ao orcamento.", None
 
     itens_json = json.dumps(itens, ensure_ascii=False)
-    audio_path = None
-    if arquivos is not None:
-        audio_path = conectacasa_salvar_audio(arquivos.get("audio_arquivo"))
 
     if orcamento_id:
-        atual = conn.execute("SELECT audio_path FROM conectacasa_orcamentos WHERE id = ?", (orcamento_id,)).fetchone()
-        audio_path_final = audio_path or (atual["audio_path"] if atual else None)
         conn.execute(
             """
             UPDATE conectacasa_orcamentos
             SET titulo = ?, cliente_nome = ?, cliente_empresa = ?, cliente_email = ?, cliente_telefone = ?,
                 descricao = ?, observacoes = ?, status = ?, validade_dias = ?, desconto = ?,
-                subtotal = ?, valor_total = ?, itens_json = ?, audio_path = ?, audio_transcricao = ?,
-                audio_observacoes = ?, atualizado_em = CURRENT_TIMESTAMP
+                subtotal = ?, valor_total = ?, itens_json = ?, atualizado_em = CURRENT_TIMESTAMP
             WHERE id = ?
             """,
             (
@@ -483,9 +456,6 @@ def conectacasa_salvar_orcamento(conn, dados_formulario, itens, usuario_id, arqu
                 subtotal,
                 valor_total,
                 itens_json,
-                audio_path_final,
-                audio_transcricao,
-                audio_observacoes,
                 orcamento_id,
             ),
         )
@@ -498,8 +468,8 @@ def conectacasa_salvar_orcamento(conn, dados_formulario, itens, usuario_id, arqu
         INSERT INTO conectacasa_orcamentos (
             codigo, titulo, cliente_nome, cliente_empresa, cliente_email, cliente_telefone,
             descricao, observacoes, status, validade_dias, desconto, subtotal, valor_total,
-            itens_json, audio_path, audio_transcricao, audio_observacoes, criado_por
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            itens_json, criado_por
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             codigo,
@@ -516,9 +486,6 @@ def conectacasa_salvar_orcamento(conn, dados_formulario, itens, usuario_id, arqu
             subtotal,
             valor_total,
             itens_json,
-            audio_path,
-            audio_transcricao,
-            audio_observacoes,
             usuario_id,
         ),
     )
@@ -623,11 +590,6 @@ def conectacasa_render_pdf(orcamento, config):
         elementos.append(Spacer(1, 18))
         elementos.append(Paragraph("Observacoes", styles["Heading3"]))
         elementos.append(Paragraph(orcamento["observacoes"].replace("\n", "<br/>"), styles["BodyText"]))
-
-    if orcamento.get("audio_transcricao"):
-        elementos.append(Spacer(1, 18))
-        elementos.append(Paragraph("Resumo por audio", styles["Heading3"]))
-        elementos.append(Paragraph(orcamento["audio_transcricao"].replace("\n", "<br/>"), styles["BodyText"]))
 
     payload_pix = conectacasa_pix_payload(config, valor=orcamento["valor_total"], txid=orcamento["codigo"], descricao=orcamento["titulo"])
     if payload_pix:
