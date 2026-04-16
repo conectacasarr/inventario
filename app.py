@@ -22,6 +22,7 @@ from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
+from reportlab.lib.utils import ImageReader
 from collections import defaultdict
 from reportlab.lib.enums import TA_RIGHT
 import locale
@@ -507,42 +508,191 @@ def conectacasa_salvar_orcamento(conn, dados_formulario, itens, usuario_id, arqu
 
 def conectacasa_render_pdf(orcamento, config):
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=36, bottomMargin=36, leftMargin=36, rightMargin=36)
+    doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=34, bottomMargin=34, leftMargin=34, rightMargin=34)
     elementos = []
 
+    cor_tinta = colors.HexColor("#1f2937")
+    cor_navy = colors.HexColor("#102132")
+    cor_muted = colors.HexColor("#64748b")
+    cor_line = colors.HexColor("#d7dee7")
+    cor_soft = colors.HexColor("#f8efe3")
+    cor_warm = colors.HexColor("#d97706")
+
+    def carregar_logo_flowable(max_width=110, max_height=72):
+        logo_path = config.get("logo_path")
+        if not logo_path:
+            return None
+        caminho_logo = os.path.join(PROJECT_DIR, "static", logo_path.replace("/", os.sep))
+        if not os.path.exists(caminho_logo):
+            return None
+        try:
+            largura_original, altura_original = ImageReader(caminho_logo).getSize()
+            proporcao = min(max_width / float(largura_original), max_height / float(altura_original))
+            proporcao = min(proporcao, 1.0)
+            largura_final = largura_original * proporcao
+            altura_final = altura_original * proporcao
+            return Image(caminho_logo, width=largura_final, height=altura_final)
+        except Exception:
+            return None
+
+    overline_style = ParagraphStyle(
+        "ConectaCasaOverline",
+        parent=styles["BodyText"],
+        fontSize=9,
+        textColor=cor_warm,
+        spaceAfter=8,
+        fontName="Helvetica-Bold",
+    )
     titulo_style = ParagraphStyle(
         "ConectaCasaTitulo",
         parent=styles["Heading1"],
-        fontSize=20,
-        textColor=colors.HexColor("#0f172a"),
-        spaceAfter=12,
+        fontSize=23,
+        textColor=cor_tinta,
+        leading=28,
+        spaceAfter=8,
     )
     subtitulo_style = ParagraphStyle(
         "ConectaCasaSubtitulo",
         parent=styles["BodyText"],
         fontSize=10,
-        textColor=colors.HexColor("#475569"),
+        textColor=cor_muted,
+        leading=14,
+        spaceAfter=6,
+    )
+    secao_style = ParagraphStyle(
+        "ConectaCasaSecao",
+        parent=styles["Heading3"],
+        fontSize=11,
+        textColor=cor_navy,
         spaceAfter=8,
+        fontName="Helvetica-Bold",
+    )
+    card_title_style = ParagraphStyle(
+        "ConectaCasaCardTitle",
+        parent=styles["BodyText"],
+        fontSize=12,
+        textColor=cor_tinta,
+        spaceAfter=8,
+        fontName="Helvetica-Bold",
+    )
+    resumo_label_style = ParagraphStyle(
+        "ConectaCasaResumoLabel",
+        parent=styles["BodyText"],
+        fontSize=8,
+        textColor=cor_muted,
+        fontName="Helvetica-Bold",
+    )
+    resumo_valor_style = ParagraphStyle(
+        "ConectaCasaResumoValor",
+        parent=styles["BodyText"],
+        fontSize=10,
+        textColor=cor_tinta,
+    )
+    valor_final_style = ParagraphStyle(
+        "ConectaCasaValorFinal",
+        parent=styles["Heading2"],
+        fontSize=19,
+        textColor=cor_navy,
+        fontName="Helvetica-Bold",
+        leading=22,
     )
 
-    logo_path = config.get("logo_path")
-    if logo_path:
-        caminho_logo = os.path.join(PROJECT_DIR, "static", logo_path.replace("/", os.sep))
-        if os.path.exists(caminho_logo):
-            elementos.append(Image(caminho_logo, width=120, height=48))
-            elementos.append(Spacer(1, 8))
+    cabecalho_esquerda = [
+        Paragraph("CONECTACASA", overline_style),
+        Paragraph("Projetos, orcamentos e propostas com visual profissional.", titulo_style),
+        Paragraph(
+            f"Orcamento {orcamento['codigo']} para {orcamento['cliente_nome']}. "
+            f"Documento preparado para apresentacao comercial e aprovacao.",
+            subtitulo_style,
+        ),
+    ]
 
-    elementos.append(Paragraph(config.get("empresa_nome") or "ConectaCasa", titulo_style))
-    elementos.append(Paragraph(f"Orcamento {orcamento['codigo']} - {orcamento['titulo']}", styles["Heading2"]))
-    elementos.append(Paragraph(f"Cliente: {orcamento['cliente_nome']}", subtitulo_style))
+    logo_flowable = carregar_logo_flowable()
+    cabecalho_direita = []
+    if logo_flowable:
+        cabecalho_direita.extend([logo_flowable, Spacer(1, 10)])
+    cabecalho_direita.extend(
+        [
+            Paragraph(config.get("empresa_nome") or "ConectaCasa", card_title_style),
+            Paragraph("Proposta comercial", subtitulo_style),
+        ]
+    )
+
+    cabecalho = Table(
+        [[cabecalho_esquerda, cabecalho_direita]],
+        colWidths=[320, 170],
+        hAlign="LEFT",
+    )
+    cabecalho.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+                ("BOX", (0, 0), (-1, -1), 1, cor_line),
+                ("LEFTPADDING", (0, 0), (-1, -1), 20),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 20),
+                ("TOPPADDING", (0, 0), (-1, -1), 18),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 18),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("BACKGROUND", (1, 0), (1, 0), colors.HexColor("#fcfcfd")),
+            ]
+        )
+    )
+    elementos.append(cabecalho)
+    elementos.append(Spacer(1, 18))
+
+    cliente_bloco = [
+        Paragraph("Cliente", secao_style),
+        Paragraph(f"<b>{orcamento['cliente_nome']}</b>", styles["BodyText"]),
+    ]
     if orcamento.get("cliente_empresa"):
-        elementos.append(Paragraph(f"Empresa: {orcamento['cliente_empresa']}", subtitulo_style))
+        cliente_bloco.append(Paragraph(orcamento["cliente_empresa"], styles["BodyText"]))
     if orcamento.get("cliente_email"):
-        elementos.append(Paragraph(f"E-mail: {orcamento['cliente_email']}", subtitulo_style))
+        cliente_bloco.append(Paragraph(orcamento["cliente_email"], styles["BodyText"]))
     if orcamento.get("cliente_telefone"):
-        elementos.append(Paragraph(f"Telefone: {orcamento['cliente_telefone']}", subtitulo_style))
-    elementos.append(Paragraph(f"Status: {orcamento['status_label']}", subtitulo_style))
-    elementos.append(Spacer(1, 12))
+        cliente_bloco.append(Paragraph(orcamento["cliente_telefone"], styles["BodyText"]))
+
+    resumo_bloco = [
+        Paragraph("Resumo", secao_style),
+        Table(
+            [
+                [Paragraph("Status", resumo_label_style), Paragraph(orcamento["status_label"], resumo_valor_style)],
+                [Paragraph("Validade", resumo_label_style), Paragraph(f"{orcamento['validade_dias']} dias", resumo_valor_style)],
+                [Paragraph("Subtotal", resumo_label_style), Paragraph(formata_brl(orcamento["subtotal"]), resumo_valor_style)],
+                [Paragraph("Desconto", resumo_label_style), Paragraph(formata_brl(orcamento["desconto"]), resumo_valor_style)],
+                [Paragraph("Valor final", resumo_label_style), Paragraph(formata_brl(orcamento["valor_total"]), valor_final_style)],
+            ],
+            colWidths=[70, 120],
+        ),
+    ]
+    resumo_bloco[-1].setStyle(
+        TableStyle(
+            [
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ("TOPPADDING", (0, 0), (-1, -1), 3),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                ("LINEABOVE", (0, 4), (-1, 4), 1, cor_line),
+            ]
+        )
+    )
+
+    resumo_tabela = Table([[cliente_bloco, resumo_bloco]], colWidths=[260, 230], hAlign="LEFT")
+    resumo_tabela.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+                ("BOX", (0, 0), (-1, -1), 1, cor_line),
+                ("LEFTPADDING", (0, 0), (-1, -1), 18),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 18),
+                ("TOPPADDING", (0, 0), (-1, -1), 16),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 16),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ]
+        )
+    )
+    elementos.append(resumo_tabela)
+    elementos.append(Spacer(1, 18))
 
     tabela_dados = [["Descricao", "Qtd.", "Un.", "Valor unit.", "Total"]]
     for item in orcamento["itens"]:
@@ -560,14 +710,17 @@ def conectacasa_render_pdf(orcamento, config):
     tabela.setStyle(
         TableStyle(
             [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0f172a")),
+                ("BACKGROUND", (0, 0), (-1, 0), cor_navy),
                 ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
                 ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
-                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.HexColor("#f8fafc")]),
+                ("GRID", (0, 0), (-1, -1), 0.5, cor_line),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.HexColor("#fbfcfd")]),
                 ("ALIGN", (1, 1), (-1, -1), "RIGHT"),
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("PADDING", (0, 0), (-1, -1), 6),
+                ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                ("TOPPADDING", (0, 0), (-1, -1), 7),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
             ]
         )
     )
@@ -584,9 +737,9 @@ def conectacasa_render_pdf(orcamento, config):
         TableStyle(
             [
                 ("FONTNAME", (0, 0), (-1, -1), "Helvetica-Bold"),
-                ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#0f172a")),
+                ("TEXTCOLOR", (0, 0), (-1, -1), cor_tinta),
                 ("ALIGN", (0, 0), (-1, -1), "RIGHT"),
-                ("LINEABOVE", (0, 2), (-1, 2), 1, colors.HexColor("#0f172a")),
+                ("LINEABOVE", (0, 2), (-1, 2), 1, cor_navy),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
             ]
         )
@@ -595,25 +748,41 @@ def conectacasa_render_pdf(orcamento, config):
 
     if orcamento.get("descricao"):
         elementos.append(Spacer(1, 18))
-        elementos.append(Paragraph("Escopo", styles["Heading3"]))
+        elementos.append(Paragraph("Escopo", secao_style))
         elementos.append(Paragraph(orcamento["descricao"].replace("\n", "<br/>"), styles["BodyText"]))
 
     if orcamento.get("observacoes"):
         elementos.append(Spacer(1, 18))
-        elementos.append(Paragraph("Observacoes", styles["Heading3"]))
+        elementos.append(Paragraph("Observacoes", secao_style))
         elementos.append(Paragraph(orcamento["observacoes"].replace("\n", "<br/>"), styles["BodyText"]))
 
     payload_pix = conectacasa_pix_payload(config, valor=orcamento["valor_total"], txid=orcamento["codigo"], descricao=orcamento["titulo"])
     if payload_pix:
         elementos.append(Spacer(1, 18))
-        elementos.append(Paragraph("Pagamento via PIX", styles["Heading3"]))
-        if config.get("pix_beneficiario"):
-            elementos.append(Paragraph(f"Beneficiario: {config['pix_beneficiario']}", styles["BodyText"]))
-        elementos.append(Paragraph(f"Chave PIX: {config.get('pix_chave', '')}", styles["BodyText"]))
+        elementos.append(Paragraph("Pagamento via PIX", secao_style))
         qr_buffer = conectacasa_qr_code_buffer(payload_pix)
-        if qr_buffer:
-            elementos.append(Spacer(1, 8))
-            elementos.append(Image(qr_buffer, width=130, height=130))
+        pix_info = []
+        if config.get("pix_beneficiario"):
+            pix_info.append(Paragraph(f"<b>Beneficiario:</b> {config['pix_beneficiario']}", styles["BodyText"]))
+        pix_info.append(Paragraph(f"<b>Chave PIX:</b> {config.get('pix_chave', '')}", styles["BodyText"]))
+        pix_info.append(Paragraph(f"<b>Valor:</b> {formata_brl(orcamento['valor_total'])}", styles["BodyText"]))
+        pix_logo = Image(qr_buffer, width=120, height=120) if qr_buffer else Spacer(1, 1)
+        pix_tabela = Table([[pix_info, pix_logo]], colWidths=[340, 120], hAlign="LEFT")
+        pix_tabela.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, -1), cor_soft),
+                    ("BOX", (0, 0), (-1, -1), 1, colors.HexColor("#ead8c4")),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 18),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 18),
+                    ("TOPPADDING", (0, 0), (-1, -1), 16),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 16),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("ALIGN", (1, 0), (1, 0), "CENTER"),
+                ]
+            )
+        )
+        elementos.append(pix_tabela)
 
     doc.build(elementos)
     buffer.seek(0)
