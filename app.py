@@ -190,10 +190,17 @@ def conectacasa_criar_tabelas():
             pix_identificador TEXT,
             pix_descricao TEXT,
             pix_beneficiario TEXT,
+            acesso_usuario TEXT NOT NULL DEFAULT 'admin',
+            acesso_senha_hash TEXT,
             atualizado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
         """
     )
+    colunas_config = get_table_columns(conn, "conectacasa_config")
+    if "acesso_usuario" not in colunas_config:
+        conn.execute("ALTER TABLE conectacasa_config ADD COLUMN acesso_usuario TEXT NOT NULL DEFAULT 'admin'")
+    if "acesso_senha_hash" not in colunas_config:
+        conn.execute("ALTER TABLE conectacasa_config ADD COLUMN acesso_senha_hash TEXT")
     colunas = get_table_columns(conn, "conectacasa_orcamentos")
     if "audio_path" not in colunas:
         conn.execute("ALTER TABLE conectacasa_orcamentos ADD COLUMN audio_path TEXT")
@@ -208,6 +215,12 @@ def conectacasa_criar_tabelas():
         WHERE NOT EXISTS (SELECT 1 FROM conectacasa_config WHERE id = 1)
         """
     )
+    config = conn.execute("SELECT acesso_senha_hash FROM conectacasa_config WHERE id = 1").fetchone()
+    if config and not config["acesso_senha_hash"]:
+        conn.execute(
+            "UPDATE conectacasa_config SET acesso_senha_hash = ? WHERE id = 1",
+            (generate_password_hash("conectacasa123"),),
+        )
     conn.commit()
 
 
@@ -289,7 +302,6 @@ def conectacasa_qr_code_buffer(payload):
 def conectacasa_obter_config(conn):
     config = conn.execute("SELECT * FROM conectacasa_config WHERE id = 1").fetchone()
     return dict(config) if config else {"empresa_nome": "ConectaCasa"}
-
 
 def conectacasa_salvar_logo(arquivo):
     if not arquivo or not arquivo.filename:
@@ -1036,10 +1048,8 @@ def conectacasa_publico():
     config["logo_url"] = url_for("static", filename=config["logo_path"]) if config.get("logo_path") else None
     return render_template("conectacasa_publico.html", config=config)
 
-
 @app.route("/conectacasa/painel")
 @app.route("/conectacasa/painel/")
-@login_required
 def conectacasa_home():
     conn = get_db()
     config = conectacasa_obter_config(conn)
@@ -1068,7 +1078,6 @@ def conectacasa_home():
 
 @app.route("/conectacasa/configuracoes", methods=["GET", "POST"])
 @app.route("/conectacasa/configuracoes/", methods=["GET", "POST"])
-@login_required
 def conectacasa_configuracoes():
     conn = get_db()
     config = conectacasa_obter_config(conn)
@@ -1113,13 +1122,12 @@ def conectacasa_configuracoes():
 
 @app.route("/conectacasa/novo", methods=["GET", "POST"])
 @app.route("/conectacasa/novo/", methods=["GET", "POST"])
-@login_required
 def conectacasa_novo_orcamento():
     conn = get_db()
     config = conectacasa_obter_config(conn)
     if request.method == "POST":
         itens = conectacasa_itens_do_formulario(request.form)
-        ok, erro, orcamento_id = conectacasa_salvar_orcamento(conn, request.form, itens, current_user.id, arquivos=request.files)
+        ok, erro, orcamento_id = conectacasa_salvar_orcamento(conn, request.form, itens, None, arquivos=request.files)
         if not ok:
             flash(erro, "danger")
             return render_template(
@@ -1130,7 +1138,6 @@ def conectacasa_novo_orcamento():
                 config=config,
                 modo="novo",
             )
-        registrar_log(f"ConectaCasa: orcamento criado #{orcamento_id}")
         flash("Orcamento criado com sucesso.", "success")
         return redirect(url_for("conectacasa_visualizar_orcamento", orcamento_id=orcamento_id))
 
@@ -1146,7 +1153,6 @@ def conectacasa_novo_orcamento():
 
 @app.route("/conectacasa/orcamentos/<int:orcamento_id>")
 @app.route("/conectacasa/orcamentos/<int:orcamento_id>/")
-@login_required
 def conectacasa_visualizar_orcamento(orcamento_id):
     conn = get_db()
     orcamento = conectacasa_carregar_orcamento(conn, orcamento_id)
@@ -1167,7 +1173,6 @@ def conectacasa_visualizar_orcamento(orcamento_id):
 
 @app.route("/conectacasa/orcamentos/<int:orcamento_id>/editar", methods=["GET", "POST"])
 @app.route("/conectacasa/orcamentos/<int:orcamento_id>/editar/", methods=["GET", "POST"])
-@login_required
 def conectacasa_editar_orcamento(orcamento_id):
     conn = get_db()
     config = conectacasa_obter_config(conn)
@@ -1178,7 +1183,7 @@ def conectacasa_editar_orcamento(orcamento_id):
 
     if request.method == "POST":
         itens = conectacasa_itens_do_formulario(request.form)
-        ok, erro, _ = conectacasa_salvar_orcamento(conn, request.form, itens, current_user.id, arquivos=request.files, orcamento_id=orcamento_id)
+        ok, erro, _ = conectacasa_salvar_orcamento(conn, request.form, itens, None, arquivos=request.files, orcamento_id=orcamento_id)
         if not ok:
             flash(erro, "danger")
             dados = dict(request.form)
@@ -1191,7 +1196,6 @@ def conectacasa_editar_orcamento(orcamento_id):
                 config=config,
                 modo="editar",
             )
-        registrar_log(f"ConectaCasa: orcamento editado #{orcamento_id}")
         flash("Orcamento atualizado com sucesso.", "success")
         return redirect(url_for("conectacasa_visualizar_orcamento", orcamento_id=orcamento_id))
 
@@ -1207,7 +1211,6 @@ def conectacasa_editar_orcamento(orcamento_id):
 
 @app.route("/conectacasa/orcamentos/<int:orcamento_id>/pdf")
 @app.route("/conectacasa/orcamentos/<int:orcamento_id>/pdf/")
-@login_required
 def conectacasa_orcamento_pdf(orcamento_id):
     conn = get_db()
     orcamento = conectacasa_carregar_orcamento(conn, orcamento_id)
