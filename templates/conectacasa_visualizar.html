@@ -40,6 +40,11 @@
     <div class="cc-quote-header">
         <div class="row g-4">
             <div class="col-lg-8">
+                {% if config.logo_url %}
+                <div class="mb-3">
+                    <img src="{{ config.logo_url }}" alt="{{ config.empresa_nome }}" style="max-width: 180px; max-height: 64px; object-fit: contain;">
+                </div>
+                {% endif %}
                 <div class="small text-uppercase text-white-50 fw-bold mb-2">ConectaCasa</div>
                 <h2 class="h3 mb-2">{{ orcamento.titulo }}</h2>
                 <p class="mb-0 text-white-50">Orcamento {{ orcamento.codigo }} • {{ orcamento.status_label }}</p>
@@ -118,6 +123,39 @@
         <div>
             <h3 class="h6 text-uppercase text-muted">Observacoes</h3>
             <p class="mb-0">{{ orcamento.observacoes }}</p>
+        </div>
+        {% endif %}
+
+        {% if orcamento.audio_transcricao or orcamento.audio_url %}
+        <div class="mt-4">
+            <h3 class="h6 text-uppercase text-muted">Briefing por audio</h3>
+            {% if orcamento.audio_url %}
+            <audio controls class="w-100 mb-3">
+                <source src="{{ orcamento.audio_url }}">
+            </audio>
+            {% endif %}
+            {% if orcamento.audio_transcricao %}
+            <p class="mb-2">{{ orcamento.audio_transcricao }}</p>
+            {% endif %}
+            {% if orcamento.audio_observacoes %}
+            <p class="mb-0 cc-muted">{{ orcamento.audio_observacoes }}</p>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% if pix_qr_code %}
+        <div class="mt-4 cc-panel p-4" style="background:#fffaf5;">
+            <div class="row g-4 align-items-center">
+                <div class="col-md-8">
+                    <h3 class="h5 mb-2">Pagamento via PIX</h3>
+                    {% if config.pix_beneficiario %}<div><strong>Beneficiario:</strong> {{ config.pix_beneficiario }}</div>{% endif %}
+                    <div><strong>Chave:</strong> {{ config.pix_chave }}</div>
+                    <div><strong>Valor:</strong> {{ formata_brl(orcamento.valor_total) }}</div>
+                </div>
+                <div class="col-md-4 text-center">
+                    <img src="{{ pix_qr_code }}" alt="QR Code PIX" style="max-width: 190px; width: 100%;">
+                </div>
+            </div>
         </div>
         {% endif %}
     </div>

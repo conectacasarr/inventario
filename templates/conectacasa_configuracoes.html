@@ -1,0 +1,70 @@
+{% extends 'base_conectacasa.html' %}
+
+{% block title %}ConectaCasa - Configuracoes{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <span class="cc-badge"><i class="fas fa-sliders-h"></i> Configuracoes</span>
+        <h1 class="mt-3 mb-1">Identidade e recebimento</h1>
+        <p class="cc-muted mb-0">Defina a marca da ConectaCasa, os dados de PIX e o material usado nos orcamentos.</p>
+    </div>
+    <a href="{{ url_for('conectacasa_home') }}" class="btn btn-outline-secondary rounded-pill px-4">Voltar</a>
+</div>
+
+<form method="POST" enctype="multipart/form-data" class="cc-panel p-4 p-lg-5">
+    <div class="row g-4">
+        <div class="col-lg-6">
+            <h2 class="h5 mb-3">Marca</h2>
+            <div class="mb-3">
+                <label class="form-label">Nome da empresa</label>
+                <input type="text" class="form-control" name="empresa_nome" value="{{ config.empresa_nome or 'ConectaCasa' }}">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Logo</label>
+                <input type="file" class="form-control" name="logo_arquivo" accept=".png,.jpg,.jpeg,.webp,image/*">
+            </div>
+            {% if config.logo_url %}
+            <div class="cc-panel p-3">
+                <div class="small text-uppercase text-muted fw-bold mb-2">Logo atual</div>
+                <img src="{{ config.logo_url }}" alt="Logo ConectaCasa" style="max-width: 220px; max-height: 96px; object-fit: contain;">
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="col-lg-6">
+            <h2 class="h5 mb-3">PIX</h2>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Nome no PIX</label>
+                    <input type="text" class="form-control" name="pix_nome" value="{{ config.pix_nome or '' }}">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Beneficiario</label>
+                    <input type="text" class="form-control" name="pix_beneficiario" value="{{ config.pix_beneficiario or '' }}">
+                </div>
+                <div class="col-12">
+                    <label class="form-label">Chave PIX</label>
+                    <input type="text" class="form-control" name="pix_chave" value="{{ config.pix_chave or '' }}">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Cidade</label>
+                    <input type="text" class="form-control" name="pix_cidade" value="{{ config.pix_cidade or '' }}">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Identificador</label>
+                    <input type="text" class="form-control" name="pix_identificador" value="{{ config.pix_identificador or '' }}" placeholder="ORCAMENTO">
+                </div>
+                <div class="col-12">
+                    <label class="form-label">Descricao PIX</label>
+                    <input type="text" class="form-control" name="pix_descricao" value="{{ config.pix_descricao or '' }}">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-end mt-4">
+        <button type="submit" class="btn cc-btn-primary rounded-pill px-4">Salvar configuracoes</button>
+    </div>
+</form>
+{% endblock %}

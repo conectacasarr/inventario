@@ -10,3 +10,5 @@ pytest
 flake8
 reportlab
 werkzeug
+qrcode
+Pillow
