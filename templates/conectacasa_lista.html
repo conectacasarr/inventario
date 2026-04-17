@@ -29,14 +29,20 @@
             </div>
             <div class="col-6">
                 <div class="cc-panel p-4 h-100">
-                    <div class="cc-muted small text-uppercase fw-bold">Aprovados</div>
-                    <div class="h2 fw-bold mb-0">{{ total_aprovados }}</div>
+                    <div class="cc-muted small text-uppercase fw-bold">Em orcamento</div>
+                    <div class="h2 fw-bold mb-0">{{ total_em_orcamento }}</div>
                 </div>
             </div>
             <div class="col-6">
                 <div class="cc-panel p-4 h-100">
-                    <div class="cc-muted small text-uppercase fw-bold">Pipeline</div>
-                    <div class="h5 fw-bold mb-0">{{ formata_brl(valor_pipeline) }}</div>
+                    <div class="cc-muted small text-uppercase fw-bold">Valor a receber no mes</div>
+                    <div class="h5 fw-bold mb-0">{{ formata_brl(valor_a_receber) }}</div>
+                </div>
+            </div>
+            <div class="col-12">
+                <div class="cc-panel p-4 h-100">
+                    <div class="cc-muted small text-uppercase fw-bold">Valor recebido no mes</div>
+                    <div class="h4 fw-bold mb-0">{{ formata_brl(valor_recebido) }}</div>
                 </div>
             </div>
         </div>
@@ -47,7 +53,7 @@
     <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
             <h2 class="h4 mb-1">Orcamentos salvos</h2>
-            <p class="cc-muted mb-0">Acesso por caminho dedicado, sem aparecer na navegacao do inventario.</p>
+            <p class="cc-muted mb-0">Somente status enviados entram no valor a receber do mes e apenas finalizados entram no valor recebido do mes.</p>
         </div>
     </div>
 

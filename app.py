@@ -334,16 +334,26 @@ def conectacasa_gerar_codigo(conn):
 
 def conectacasa_status_opcoes():
     return [
-        ("rascunho", "Rascunho"),
-        ("enviado", "Enviado"),
-        ("aprovado", "Aprovado"),
+        ("orcamento", "Orcamento"),
+        ("enviado", "Enviado / a receber"),
+        ("finalizado", "Finalizado / recebido"),
         ("rejeitado", "Rejeitado"),
     ]
 
 
+def conectacasa_status_normalizado(status):
+    status = (status or "").strip().lower()
+    mapa_legado = {
+        "rascunho": "orcamento",
+        "aprovado": "finalizado",
+    }
+    return mapa_legado.get(status, status or "orcamento")
+
+
 def conectacasa_status_label(status):
     mapa = dict(conectacasa_status_opcoes())
-    return mapa.get(status, status.title() if status else "Rascunho")
+    status = conectacasa_status_normalizado(status)
+    return mapa.get(status, status.title() if status else "Orcamento")
 
 
 def conectacasa_normalizar_item(descricao, quantidade, valor_unitario, unidade):
@@ -413,6 +423,7 @@ def conectacasa_carregar_orcamento(conn, orcamento_id):
     if not orcamento:
         return None
     dados = dict(orcamento)
+    dados["status"] = conectacasa_status_normalizado(dados.get("status"))
     dados["itens"] = json.loads(dados.get("itens_json") or "[]")
     dados["status_label"] = conectacasa_status_label(dados.get("status"))
     return dados
@@ -427,11 +438,11 @@ def conectacasa_salvar_orcamento(conn, dados_formulario, itens, usuario_id, arqu
     cliente_telefone = (dados_formulario.get("cliente_telefone") or "").strip()
     descricao = (dados_formulario.get("descricao") or "").strip()
     observacoes = (dados_formulario.get("observacoes") or "").strip()
-    status = (dados_formulario.get("status") or "rascunho").strip().lower()
+    status = conectacasa_status_normalizado(dados_formulario.get("status") or "orcamento")
 
     status_validos = {codigo for codigo, _ in conectacasa_status_opcoes()}
     if status not in status_validos:
-        status = "rascunho"
+        status = "orcamento"
 
     try:
         validade_dias = int(dados_formulario.get("validade_dias") or 7)
@@ -1222,7 +1233,7 @@ def conectacasa_publico():
 def conectacasa_home():
     conn = get_db()
     config = conectacasa_obter_config(conn)
-    orcamentos = conn.execute(
+    orcamentos_raw = conn.execute(
         """
         SELECT id, codigo, titulo, cliente_nome, cliente_empresa, status, valor_total, atualizado_em
         FROM conectacasa_orcamentos
@@ -1230,16 +1241,41 @@ def conectacasa_home():
         """
     ).fetchall()
 
+    orcamentos = []
+    for item in orcamentos_raw:
+        item_dict = dict(item)
+        item_dict["status"] = conectacasa_status_normalizado(item_dict.get("status"))
+        orcamentos.append(item_dict)
+
+    agora = datetime.now()
+
+    def no_mes_atual(valor_data):
+        if not valor_data:
+            return False
+        try:
+            data_ref = datetime.fromisoformat(str(valor_data))
+        except ValueError:
+            return False
+        return data_ref.year == agora.year and data_ref.month == agora.month
+
     total_orcamentos = len(orcamentos)
-    total_aprovados = sum(1 for item in orcamentos if item["status"] == "aprovado")
-    valor_pipeline = round(sum(item["valor_total"] or 0 for item in orcamentos), 2)
+    total_em_orcamento = sum(1 for item in orcamentos if item["status"] == "orcamento")
+    valor_a_receber = round(
+        sum(item["valor_total"] or 0 for item in orcamentos if item["status"] == "enviado" and no_mes_atual(item["atualizado_em"])),
+        2,
+    )
+    valor_recebido = round(
+        sum(item["valor_total"] or 0 for item in orcamentos if item["status"] == "finalizado" and no_mes_atual(item["atualizado_em"])),
+        2,
+    )
 
     return render_template(
         "conectacasa_lista.html",
         orcamentos=orcamentos,
         total_orcamentos=total_orcamentos,
-        total_aprovados=total_aprovados,
-        valor_pipeline=valor_pipeline,
+        total_em_orcamento=total_em_orcamento,
+        valor_a_receber=valor_a_receber,
+        valor_recebido=valor_recebido,
         config=config,
         conectacasa_status_label=conectacasa_status_label,
     )
@@ -1312,7 +1348,7 @@ def conectacasa_novo_orcamento():
 
     return render_template(
         "conectacasa_form.html",
-        orcamento={"validade_dias": 7, "status": "rascunho"},
+        orcamento={"validade_dias": 7, "status": "orcamento", "desconto": 0, "subtotal": 0, "valor_total": 0},
         itens=[{"descricao": "", "quantidade": 1, "unidade": "un", "valor_unitario": 0, "total": 0}],
         status_opcoes=conectacasa_status_opcoes(),
         config=config,
