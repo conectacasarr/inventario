@@ -60,6 +60,19 @@
                     <label class="form-label">Descricao PIX</label>
                     <input type="text" class="form-control" name="pix_descricao" value="{{ config.pix_descricao or '' }}">
                 </div>
+                <div class="col-12">
+                    <label class="form-label">Imagem do PIX</label>
+                    <input type="file" class="form-control" name="pix_imagem_arquivo" accept=".png,.jpg,.jpeg,.webp,image/*">
+                    <div class="form-text">Envie a imagem do QR Code do PIX exatamente como voce quer mostrar no orcamento.</div>
+                </div>
+                {% if config.pix_imagem_url %}
+                <div class="col-12">
+                    <div class="cc-panel p-3">
+                        <div class="small text-uppercase text-muted fw-bold mb-2">Imagem atual do PIX</div>
+                        <img src="{{ config.pix_imagem_url }}" alt="PIX ConectaCasa" style="max-width: 220px; max-height: 220px; object-fit: contain;">
+                    </div>
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>

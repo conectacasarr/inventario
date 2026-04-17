@@ -14,9 +14,6 @@ import re
 import io
 import tempfile
 import json
-import base64
-import unicodedata
-import qrcode
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
@@ -76,7 +73,9 @@ os.makedirs(os.path.dirname(DATABASE), exist_ok=True)
 
 UPLOADS_DIR = os.path.join(PROJECT_DIR, "static", "uploads", "conectacasa")
 LOGO_UPLOAD_DIR = os.path.join(UPLOADS_DIR, "logos")
+PIX_UPLOAD_DIR = os.path.join(UPLOADS_DIR, "pix")
 os.makedirs(LOGO_UPLOAD_DIR, exist_ok=True)
+os.makedirs(PIX_UPLOAD_DIR, exist_ok=True)
 
 caminho_absoluto = DATABASE
 app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{caminho_absoluto}"
@@ -185,6 +184,7 @@ def conectacasa_criar_tabelas():
             id INTEGER PRIMARY KEY CHECK (id = 1),
             empresa_nome TEXT NOT NULL DEFAULT 'ConectaCasa',
             logo_path TEXT,
+            pix_imagem_path TEXT,
             pix_nome TEXT,
             pix_chave TEXT,
             pix_cidade TEXT,
@@ -202,6 +202,8 @@ def conectacasa_criar_tabelas():
         conn.execute("ALTER TABLE conectacasa_config ADD COLUMN acesso_usuario TEXT NOT NULL DEFAULT 'admin'")
     if "acesso_senha_hash" not in colunas_config:
         conn.execute("ALTER TABLE conectacasa_config ADD COLUMN acesso_senha_hash TEXT")
+    if "pix_imagem_path" not in colunas_config:
+        conn.execute("ALTER TABLE conectacasa_config ADD COLUMN pix_imagem_path TEXT")
     colunas = get_table_columns(conn, "conectacasa_orcamentos")
     if "audio_path" not in colunas:
         conn.execute("ALTER TABLE conectacasa_orcamentos ADD COLUMN audio_path TEXT")
@@ -225,106 +227,38 @@ def conectacasa_criar_tabelas():
     conn.commit()
 
 
-def conectacasa_somente_ascii_maiusculo(valor, tamanho_maximo=None):
-    texto = unicodedata.normalize("NFKD", (valor or "").strip())
-    texto = "".join(ch for ch in texto if not unicodedata.combining(ch))
-    texto = re.sub(r"[^A-Za-z0-9 $%*+\-./:]", "", texto).upper()
-    if tamanho_maximo:
-        texto = texto[:tamanho_maximo]
-    return texto
-
-
-def conectacasa_normalizar_pix_chave(valor):
-    chave = re.sub(r"\s+", "", (valor or "").strip())
-    somente_digitos = re.sub(r"\D", "", chave)
-    if len(somente_digitos) in {11, 14}:
-        return somente_digitos
-    return chave
-
-
-def conectacasa_emv(campo, valor):
-    return f"{campo}{len(valor):02d}{valor}"
-
-
-def conectacasa_crc16(payload):
-    polinomio = 0x1021
-    resultado = 0xFFFF
-    for caractere in payload:
-        resultado ^= ord(caractere) << 8
-        for _ in range(8):
-            if resultado & 0x8000:
-                resultado = ((resultado << 1) ^ polinomio) & 0xFFFF
-            else:
-                resultado = (resultado << 1) & 0xFFFF
-    return f"{resultado:04X}"
-
-
-def conectacasa_pix_payload(config, valor=None, txid="ORCAMENTO", descricao=None):
-    chave = conectacasa_normalizar_pix_chave(config.get("pix_chave"))
-    if not chave:
-        return None
-
-    nome = conectacasa_somente_ascii_maiusculo(config.get("pix_nome") or config.get("empresa_nome") or "CONECTACASA", 25)
-    cidade = conectacasa_somente_ascii_maiusculo(config.get("pix_cidade") or "MANAUS", 15) or "MANAUS"
-    descricao = conectacasa_somente_ascii_maiusculo(descricao or config.get("pix_descricao") or "", 99)
-    identificador_base = conectacasa_somente_ascii_maiusculo(config.get("pix_identificador") or "ORCAMENTO", 12) or "ORCAMENTO"
-    txid_base = conectacasa_somente_ascii_maiusculo(txid or "ORCAMENTO", 12) or "ORCAMENTO"
-    txid = conectacasa_somente_ascii_maiusculo(f"{identificador_base}{txid_base}", 25) or txid_base
-
-    gui = conectacasa_emv("00", "BR.GOV.BCB.PIX")
-    gui += conectacasa_emv("01", chave)
-    if descricao:
-        gui += conectacasa_emv("02", descricao)
-
-    payload = ""
-    payload += conectacasa_emv("00", "01")
-    payload += conectacasa_emv("26", gui)
-    payload += conectacasa_emv("52", "0000")
-    payload += conectacasa_emv("53", "986")
-    if valor is not None:
-        payload += conectacasa_emv("54", f"{float(valor):.2f}")
-    payload += conectacasa_emv("58", "BR")
-    payload += conectacasa_emv("59", nome)
-    payload += conectacasa_emv("60", cidade)
-    payload += conectacasa_emv("62", conectacasa_emv("05", txid))
-    payload_sem_crc = payload + "6304"
-    return payload_sem_crc + conectacasa_crc16(payload_sem_crc)
-
-
-def conectacasa_qr_code_data_uri(payload):
-    if not payload:
-        return None
-    imagem = qrcode.make(payload)
-    buffer = io.BytesIO()
-    imagem.save(buffer, format="PNG")
-    return "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode("ascii")
-
-
-def conectacasa_qr_code_buffer(payload):
-    if not payload:
-        return None
-    imagem = qrcode.make(payload)
-    buffer = io.BytesIO()
-    imagem.save(buffer, format="PNG")
-    buffer.seek(0)
-    return buffer
-
-
 def conectacasa_obter_config(conn):
     config = conn.execute("SELECT * FROM conectacasa_config WHERE id = 1").fetchone()
     return dict(config) if config else {"empresa_nome": "ConectaCasa"}
 
-def conectacasa_salvar_logo(arquivo):
+def conectacasa_preparar_urls_config(config):
+    if not config:
+        return {"empresa_nome": "ConectaCasa"}
+    config = dict(config)
+    config["logo_url"] = url_for("static", filename=config["logo_path"]) if config.get("logo_path") else None
+    config["pix_imagem_url"] = url_for("static", filename=config["pix_imagem_path"]) if config.get("pix_imagem_path") else None
+    return config
+
+
+def conectacasa_salvar_upload_imagem(arquivo, diretorio, prefixo, caminho_relativo):
     if not arquivo or not arquivo.filename:
         return None
     nome_base = secure_filename(arquivo.filename)
     extensao = os.path.splitext(nome_base)[1].lower()
     if extensao not in {".png", ".jpg", ".jpeg", ".webp"}:
         return None
-    nome_arquivo = f"logo-{datetime.now().strftime('%Y%m%d%H%M%S')}{extensao}"
-    caminho = os.path.join(LOGO_UPLOAD_DIR, nome_arquivo)
+    nome_arquivo = f"{prefixo}-{datetime.now().strftime('%Y%m%d%H%M%S')}{extensao}"
+    caminho = os.path.join(diretorio, nome_arquivo)
     arquivo.save(caminho)
-    return f"uploads/conectacasa/logos/{nome_arquivo}"
+    return f"{caminho_relativo}/{nome_arquivo}"
+
+
+def conectacasa_salvar_logo(arquivo):
+    return conectacasa_salvar_upload_imagem(arquivo, LOGO_UPLOAD_DIR, "logo", "uploads/conectacasa/logos")
+
+
+def conectacasa_salvar_pix_imagem(arquivo):
+    return conectacasa_salvar_upload_imagem(arquivo, PIX_UPLOAD_DIR, "pix", "uploads/conectacasa/pix")
 
 
 def conectacasa_gerar_codigo(conn):
@@ -539,11 +473,11 @@ def conectacasa_render_pdf(orcamento, config):
     cor_soft = colors.HexColor("#f8efe3")
     cor_warm = colors.HexColor("#d97706")
 
-    def carregar_logo_flowable(max_width=110, max_height=72):
-        logo_path = config.get("logo_path")
-        if not logo_path:
+    def carregar_logo_flowable(relative_path=None, max_width=110, max_height=72):
+        imagem_path = relative_path if relative_path is not None else config.get("logo_path")
+        if not imagem_path:
             return None
-        caminho_logo = os.path.join(PROJECT_DIR, "static", logo_path.replace("/", os.sep))
+        caminho_logo = os.path.join(PROJECT_DIR, "static", imagem_path.replace("/", os.sep))
         if not os.path.exists(caminho_logo):
             return None
         try:
@@ -777,18 +711,15 @@ def conectacasa_render_pdf(orcamento, config):
         elementos.append(Paragraph("Observacoes", secao_style))
         elementos.append(Paragraph(orcamento["observacoes"].replace("\n", "<br/>"), styles["BodyText"]))
 
-    payload_pix = conectacasa_pix_payload(config, valor=orcamento["valor_total"], txid=orcamento["codigo"], descricao=orcamento["titulo"])
-    if payload_pix:
+    pix_imagem = carregar_logo_flowable(config.get("pix_imagem_path"), max_width=120, max_height=120)
+    if pix_imagem:
         elementos.append(Spacer(1, 18))
         elementos.append(Paragraph("Pagamento via PIX", secao_style))
-        qr_buffer = conectacasa_qr_code_buffer(payload_pix)
         pix_info = []
         if config.get("pix_beneficiario"):
             pix_info.append(Paragraph(f"<b>Beneficiario:</b> {config['pix_beneficiario']}", styles["BodyText"]))
-        pix_info.append(Paragraph(f"<b>Chave PIX:</b> {config.get('pix_chave', '')}", styles["BodyText"]))
         pix_info.append(Paragraph(f"<b>Valor:</b> {formata_brl(orcamento['valor_total'])}", styles["BodyText"]))
-        pix_logo = Image(qr_buffer, width=120, height=120) if qr_buffer else Spacer(1, 1)
-        pix_tabela = Table([[pix_info, pix_logo]], colWidths=[340, 120], hAlign="LEFT")
+        pix_tabela = Table([[pix_info, pix_imagem]], colWidths=[340, 120], hAlign="LEFT")
         pix_tabela.setStyle(
             TableStyle(
                 [
@@ -1234,8 +1165,7 @@ def logout():
 @app.route("/conectacasa/")
 def conectacasa_publico():
     conn = get_db()
-    config = conectacasa_obter_config(conn)
-    config["logo_url"] = url_for("static", filename=config["logo_path"]) if config.get("logo_path") else None
+    config = conectacasa_preparar_urls_config(conectacasa_obter_config(conn))
     return render_template("conectacasa_publico.html", config=config)
 
 @app.route("/conectacasa/painel")
@@ -1299,6 +1229,7 @@ def conectacasa_configuracoes():
 
     if request.method == "POST":
         logo_path = conectacasa_salvar_logo(request.files.get("logo_arquivo")) or config.get("logo_path")
+        pix_imagem_path = conectacasa_salvar_pix_imagem(request.files.get("pix_imagem_arquivo")) or config.get("pix_imagem_path")
         dados = {
             "empresa_nome": (request.form.get("empresa_nome") or "ConectaCasa").strip(),
             "pix_nome": (request.form.get("pix_nome") or "").strip(),
@@ -1308,17 +1239,19 @@ def conectacasa_configuracoes():
             "pix_descricao": (request.form.get("pix_descricao") or "").strip(),
             "pix_beneficiario": (request.form.get("pix_beneficiario") or "").strip(),
             "logo_path": logo_path,
+            "pix_imagem_path": pix_imagem_path,
         }
         conn.execute(
             """
             UPDATE conectacasa_config
-            SET empresa_nome = ?, logo_path = ?, pix_nome = ?, pix_chave = ?, pix_cidade = ?,
+            SET empresa_nome = ?, logo_path = ?, pix_imagem_path = ?, pix_nome = ?, pix_chave = ?, pix_cidade = ?,
                 pix_identificador = ?, pix_descricao = ?, pix_beneficiario = ?, atualizado_em = CURRENT_TIMESTAMP
             WHERE id = 1
             """,
             (
                 dados["empresa_nome"],
                 dados["logo_path"],
+                dados["pix_imagem_path"],
                 dados["pix_nome"],
                 dados["pix_chave"],
                 dados["pix_cidade"],
@@ -1331,7 +1264,7 @@ def conectacasa_configuracoes():
         flash("Configuracoes da ConectaCasa atualizadas.", "success")
         return redirect(url_for("conectacasa_configuracoes"))
 
-    config["logo_url"] = url_for("static", filename=config["logo_path"]) if config.get("logo_path") else None
+    config = conectacasa_preparar_urls_config(config)
     return render_template("conectacasa_configuracoes.html", config=config)
 
 
@@ -1374,15 +1307,11 @@ def conectacasa_visualizar_orcamento(orcamento_id):
     if not orcamento:
         flash("Orcamento nao encontrado.", "danger")
         return redirect(url_for("conectacasa_home"))
-    config = conectacasa_obter_config(conn)
-    config["logo_url"] = url_for("static", filename=config["logo_path"]) if config.get("logo_path") else None
-    payload_pix = conectacasa_pix_payload(config, valor=orcamento["valor_total"], txid=orcamento["codigo"], descricao=orcamento["titulo"])
+    config = conectacasa_preparar_urls_config(conectacasa_obter_config(conn))
     return render_template(
         "conectacasa_visualizar.html",
         orcamento=orcamento,
         config=config,
-        pix_payload=payload_pix,
-        pix_qr_code=conectacasa_qr_code_data_uri(payload_pix),
     )
 
 
