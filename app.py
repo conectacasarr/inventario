@@ -234,6 +234,14 @@ def conectacasa_somente_ascii_maiusculo(valor, tamanho_maximo=None):
     return texto
 
 
+def conectacasa_normalizar_pix_chave(valor):
+    chave = re.sub(r"\s+", "", (valor or "").strip())
+    somente_digitos = re.sub(r"\D", "", chave)
+    if len(somente_digitos) in {11, 14}:
+        return somente_digitos
+    return chave
+
+
 def conectacasa_emv(campo, valor):
     return f"{campo}{len(valor):02d}{valor}"
 
@@ -252,14 +260,16 @@ def conectacasa_crc16(payload):
 
 
 def conectacasa_pix_payload(config, valor=None, txid="ORCAMENTO", descricao=None):
-    chave = (config.get("pix_chave") or "").strip()
+    chave = conectacasa_normalizar_pix_chave(config.get("pix_chave"))
     if not chave:
         return None
 
     nome = conectacasa_somente_ascii_maiusculo(config.get("pix_nome") or config.get("empresa_nome") or "CONECTACASA", 25)
-    cidade = conectacasa_somente_ascii_maiusculo(config.get("pix_cidade") or "MANAUS", 15)
+    cidade = conectacasa_somente_ascii_maiusculo(config.get("pix_cidade") or "MANAUS", 15) or "MANAUS"
     descricao = conectacasa_somente_ascii_maiusculo(descricao or config.get("pix_descricao") or "", 99)
-    txid = conectacasa_somente_ascii_maiusculo(config.get("pix_identificador") or txid or "ORCAMENTO", 25) or "ORCAMENTO"
+    identificador_base = conectacasa_somente_ascii_maiusculo(config.get("pix_identificador") or "ORCAMENTO", 12) or "ORCAMENTO"
+    txid_base = conectacasa_somente_ascii_maiusculo(txid or "ORCAMENTO", 12) or "ORCAMENTO"
+    txid = conectacasa_somente_ascii_maiusculo(f"{identificador_base}{txid_base}", 25) or txid_base
 
     gui = conectacasa_emv("00", "BR.GOV.BCB.PIX")
     gui += conectacasa_emv("01", chave)

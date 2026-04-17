@@ -134,6 +134,13 @@
                     {% if config.pix_beneficiario %}<div><strong>Beneficiario:</strong> {{ config.pix_beneficiario }}</div>{% endif %}
                     <div><strong>Chave:</strong> {{ config.pix_chave }}</div>
                     <div><strong>Valor:</strong> {{ formata_brl(orcamento.valor_total) }}</div>
+                    {% if pix_payload %}
+                    <div class="mt-3">
+                        <label class="form-label small text-uppercase text-muted fw-bold">PIX copia e cola</label>
+                        <textarea class="form-control" id="pix-copia-cola" rows="4" readonly>{{ pix_payload }}</textarea>
+                        <button type="button" class="btn btn-sm btn-outline-dark mt-2" id="copiar-pix-btn">Copiar codigo PIX</button>
+                    </div>
+                    {% endif %}
                 </div>
                 <div class="col-md-4 text-center">
                     <img src="{{ pix_qr_code }}" alt="QR Code PIX" style="max-width: 190px; width: 100%;">
@@ -154,6 +161,16 @@ document.getElementById('baixar-imagem-btn')?.addEventListener('click', async fu
     link.download = '{{ orcamento.codigo }}.png';
     link.href = canvas.toDataURL('image/png');
     link.click();
+});
+
+document.getElementById('copiar-pix-btn')?.addEventListener('click', async function () {
+    const campo = document.getElementById('pix-copia-cola');
+    if (!campo) return;
+    await navigator.clipboard.writeText(campo.value);
+    this.textContent = 'Codigo PIX copiado';
+    setTimeout(() => {
+        this.textContent = 'Copiar codigo PIX';
+    }, 1800);
 });
 </script>
 {% endblock %}
