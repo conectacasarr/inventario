@@ -80,6 +80,17 @@
             letter-spacing: 0.05em;
             text-transform: uppercase;
         }
+
+        .cc-nav-link {
+            color: rgba(255, 255, 255, 0.72);
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .cc-nav-link:hover,
+        .cc-nav-link:focus {
+            color: #fff;
+        }
     </style>
     {% block head_extra %}{% endblock %}
 </head>
@@ -88,7 +99,9 @@
         <div class="container">
             <a class="cc-brand" href="{{ url_for('conectacasa_home') }}">Conecta<span>Casa</span></a>
             <div class="ms-auto d-flex align-items-center gap-3 text-white-50">
+                <a href="{{ url_for('conectacasa_home') }}" class="cc-nav-link">Painel</a>
                 <a href="{{ url_for('conectacasa_configuracoes') }}" class="btn btn-sm btn-outline-light rounded-pill px-3">Configuracoes</a>
+                <a href="{{ url_for('conectacasa_logout') }}" class="cc-nav-link">Sair</a>
             </div>
         </div>
     </nav>

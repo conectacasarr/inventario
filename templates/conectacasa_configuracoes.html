@@ -75,6 +75,21 @@
                 {% endif %}
             </div>
         </div>
+
+        <div class="col-lg-6">
+            <h2 class="h5 mb-3">Acesso interno</h2>
+            <div class="row g-3">
+                <div class="col-12">
+                    <label class="form-label">Usuario da ConectaCasa</label>
+                    <input type="text" class="form-control" name="acesso_usuario" value="{{ config.acesso_usuario or 'admin' }}" required>
+                </div>
+                <div class="col-12">
+                    <label class="form-label">Nova senha</label>
+                    <input type="password" class="form-control" name="acesso_senha" placeholder="Deixe em branco para manter a senha atual">
+                    <div class="form-text">Esse login e independente do inventario e protege apenas a area interna da ConectaCasa.</div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div class="d-flex justify-content-end mt-4">

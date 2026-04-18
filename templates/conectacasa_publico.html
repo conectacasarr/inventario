@@ -62,12 +62,34 @@
             letter-spacing: 0.04em;
             text-transform: uppercase;
         }
+
+        .cc-public-hero-title {
+            font-size: clamp(2.8rem, 4vw, 4.7rem);
+            line-height: 1.02;
+            letter-spacing: -0.04em;
+            color: var(--cc-navy);
+        }
+
+        .cc-contact-card {
+            border-radius: 24px;
+            border: 1px solid var(--cc-line);
+            background: rgba(255, 255, 255, 0.88);
+            box-shadow: 0 24px 50px rgba(15, 23, 42, 0.08);
+        }
+
+        .cc-feature {
+            border: 1px solid var(--cc-line);
+            border-radius: 20px;
+            padding: 1rem 1.1rem;
+            background: rgba(255, 255, 255, 0.9);
+        }
     </style>
 </head>
 <body>
     <header class="cc-public-nav">
         <div class="container d-flex justify-content-between align-items-center">
             <a href="{{ url_for('conectacasa_publico') }}" class="cc-public-brand">{{ config.empresa_nome or 'ConectaCasa' }}</a>
+            <a href="{{ url_for('conectacasa_login') }}" class="btn btn-outline-dark rounded-pill px-4">Area interna</a>
         </div>
     </header>
 
@@ -76,29 +98,50 @@
             <div class="row g-5 align-items-center">
                 <div class="col-lg-7">
                     <span class="cc-pill"><i class="fas fa-house-user"></i> ConectaCasa</span>
-                    <h1 class="display-5 fw-bold mt-3 mb-3">Projetos, orcamentos e apresentacoes comerciais com visual profissional.</h1>
+                    <h1 class="cc-public-hero-title fw-bold mt-3 mb-3">Seguranca, infraestrutura e orcamentos profissionais para sua casa ou empresa.</h1>
                     <p class="lead text-secondary mb-4">
-                        Uma frente comercial dedicada para montar propostas, apresentar valores,
-                        incluir PIX, logo da empresa e organizar o atendimento com mais clareza.
+                        Atendemos projetos com mais clareza, proposta organizada e apresentacao profissional,
+                        facilitando desde o primeiro contato ate a aprovacao do servico.
                     </p>
-                    <div class="d-flex flex-wrap gap-2">
-                        <a href="{{ url_for('conectacasa_home') }}" class="btn btn-dark rounded-pill px-4 py-2">Entrar na area interna</a>
+                    <div class="d-flex flex-wrap gap-3">
+                        <a href="https://wa.me/5595991519900" target="_blank" rel="noopener noreferrer" class="btn btn-dark rounded-pill px-4 py-2">
+                            <i class="fab fa-whatsapp me-2"></i>Falar no WhatsApp
+                        </a>
+                        <a href="{{ url_for('conectacasa_login') }}" class="btn btn-outline-dark rounded-pill px-4 py-2">Area interna</a>
+                    </div>
+                    <div class="row g-3 mt-4">
+                        <div class="col-md-6">
+                            <div class="cc-feature h-100">
+                                <div class="fw-bold mb-2">Atendimento direto</div>
+                                <div class="text-secondary">Solicite seu atendimento e receba uma proposta comercial organizada, com os itens e valores de forma clara.</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="cc-feature h-100">
+                                <div class="fw-bold mb-2">Propostas profissionais</div>
+                                <div class="text-secondary">Apresentacao pronta para WhatsApp, PDF para envio e acompanhamento comercial com mais praticidade.</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="col-lg-5">
-                    <div class="bg-white border rounded-4 p-4 h-100">
+                    <div class="cc-contact-card p-4 h-100">
                         {% if config.logo_url %}
                         <div class="mb-4 text-center">
-                            <img src="{{ config.logo_url }}" alt="{{ config.empresa_nome }}" style="max-width: 220px; max-height: 90px; object-fit: contain;">
+                            <img src="{{ config.logo_url }}" alt="{{ config.empresa_nome }}" style="max-width: 220px; max-height: 96px; object-fit: contain;">
                         </div>
                         {% endif %}
-                        <h2 class="h5 mb-3">O que ja fica disponivel</h2>
+                        <h2 class="h4 mb-3">Como podemos ajudar</h2>
                         <ul class="mb-0">
-                            <li>Orcamentos salvos para editar depois</li>
-                            <li>Exportacao em PDF e imagem</li>
-                            <li>PIX com QR Code</li>
-                            <li>Configuracoes proprias da marca e recebimento</li>
+                            <li>Projetos e instalacoes com proposta formal</li>
+                            <li>Atendimento residencial e comercial</li>
+                            <li>Envio agil por WhatsApp com apresentacao profissional</li>
+                            <li>Contato rapido para tirar duvidas e aprovar o servico</li>
                         </ul>
+                        <div class="mt-4 pt-3 border-top">
+                            <div class="small text-uppercase text-muted fw-bold mb-2">Contato</div>
+                            <a href="https://wa.me/5595991519900" target="_blank" rel="noopener noreferrer" class="text-decoration-none fw-bold fs-5">+55 95 99151-9900</a>
+                        </div>
                     </div>
                 </div>
             </div>

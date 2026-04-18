@@ -19,6 +19,41 @@
     .cc-quote-body {
         padding: 2rem;
     }
+
+    .cc-share-canvas {
+        position: fixed;
+        left: -10000px;
+        top: 0;
+        width: 1080px;
+        padding: 56px;
+        background:
+            radial-gradient(circle at top right, rgba(217, 119, 6, 0.12), transparent 25rem),
+            linear-gradient(180deg, #fffefb 0%, #f6efe5 100%);
+        color: #102132;
+        z-index: -1;
+    }
+
+    .cc-share-card {
+        border-radius: 36px;
+        border: 1px solid rgba(15, 23, 42, 0.08);
+        background: rgba(255, 255, 255, 0.96);
+        box-shadow: 0 32px 60px rgba(15, 23, 42, 0.12);
+        overflow: hidden;
+    }
+
+    .cc-share-header {
+        padding: 44px 48px 28px;
+        background: linear-gradient(135deg, #102132 0%, #163047 100%);
+        color: #fff;
+    }
+
+    .cc-share-body {
+        padding: 40px 48px 48px;
+    }
+
+    .cc-share-items li + li {
+        margin-top: 10px;
+    }
 </style>
 {% endblock %}
 
@@ -32,7 +67,7 @@
     <div class="d-flex gap-2">
         <a href="{{ url_for('conectacasa_editar_orcamento', orcamento_id=orcamento.id) }}" class="btn btn-outline-dark rounded-pill px-4">Editar</a>
         <a href="{{ url_for('conectacasa_orcamento_pdf', orcamento_id=orcamento.id) }}" class="btn btn-outline-secondary rounded-pill px-4">PDF</a>
-        <button type="button" class="btn cc-btn-primary rounded-pill px-4" id="baixar-imagem-btn">Imagem</button>
+        <button type="button" class="btn cc-btn-primary rounded-pill px-4" id="baixar-imagem-btn">Imagem para WhatsApp</button>
     </div>
 </div>
 
@@ -133,7 +168,7 @@
                     <h3 class="h5 mb-2">Pagamento via PIX</h3>
                     {% if config.pix_beneficiario %}<div><strong>Beneficiario:</strong> {{ config.pix_beneficiario }}</div>{% endif %}
                     <div><strong>Valor:</strong> {{ formata_brl(orcamento.valor_total) }}</div>
-                    <div class="mt-3 text-muted">Escaneie o QR Code ao lado para concluir o pagamento via PIX. Se desejar, envie o comprovante para agilizar a confirmacao.</div>
+                    <div class="mt-3 text-muted">Para confirmar este orcamento, utilize o QR Code ao lado e, se desejar, envie o comprovante para agilizar o atendimento.</div>
                 </div>
                 <div class="col-md-4 text-center">
                     <img src="{{ config.pix_imagem_url }}" alt="Imagem do PIX" style="max-width: 220px; width: 100%; object-fit: contain;">
@@ -143,12 +178,67 @@
         {% endif %}
     </div>
 </div>
+
+<div class="cc-share-canvas" id="orcamento-share-card">
+    <div class="cc-share-card">
+        <div class="cc-share-header">
+            <div class="d-flex justify-content-between align-items-start gap-4">
+                <div>
+                    {% if config.logo_url %}
+                    <div class="mb-3">
+                        <img src="{{ config.logo_url }}" alt="{{ config.empresa_nome }}" style="max-width: 220px; max-height: 84px; object-fit: contain;">
+                    </div>
+                    {% endif %}
+                    <div class="small text-uppercase fw-bold opacity-75 mb-2">{{ config.empresa_nome or 'ConectaCasa' }}</div>
+                    <div style="font-size: 44px; line-height: 1.05; font-weight: 800;">{{ orcamento.titulo }}</div>
+                    <div class="mt-3 fs-4 opacity-75">{{ orcamento.cliente_nome }}</div>
+                </div>
+                <div class="text-end">
+                    <div class="small text-uppercase fw-bold opacity-75 mb-2">Valor final</div>
+                    <div style="font-size: 44px; font-weight: 800;">{{ formata_brl(orcamento.valor_total) }}</div>
+                    <div class="mt-3">
+                        <span class="badge rounded-pill text-bg-light px-3 py-2">{{ orcamento.status_label }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="cc-share-body">
+            <div class="row g-4">
+                <div class="col-7">
+                    <div class="small text-uppercase fw-bold text-muted mb-3">Itens principais</div>
+                    <ul class="list-unstyled cc-share-items mb-0">
+                        {% for item in orcamento.itens[:6] %}
+                        <li class="d-flex justify-content-between gap-3">
+                            <span>{{ item.descricao }}</span>
+                            <strong>{{ formata_brl(item.total) }}</strong>
+                        </li>
+                        {% endfor %}
+                        {% if orcamento.itens|length > 6 %}
+                        <li class="text-muted">+ {{ (orcamento.itens|length) - 6 }} itens adicionais no orcamento completo</li>
+                        {% endif %}
+                    </ul>
+                </div>
+                <div class="col-5">
+                    <div class="small text-uppercase fw-bold text-muted mb-3">Resumo</div>
+                    <div class="d-flex justify-content-between mb-2"><span>Subtotal</span><strong>{{ formata_brl(orcamento.subtotal) }}</strong></div>
+                    <div class="d-flex justify-content-between mb-2"><span>Desconto</span><strong>{{ formata_brl(orcamento.desconto) }}</strong></div>
+                    <div class="d-flex justify-content-between mb-4"><span>Validade</span><strong>{{ orcamento.validade_dias }} dias</strong></div>
+                    <div class="p-4 rounded-4" style="background:#fff8ef;">
+                        <div class="fw-bold mb-2">Contato rapido</div>
+                        <div class="mb-2">WhatsApp: +55 95 99151-9900</div>
+                        <div class="text-muted">Resumo preparado para compartilhar no celular sem ficar comprido demais.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
 document.getElementById('baixar-imagem-btn')?.addEventListener('click', async function () {
-    const alvo = document.getElementById('orcamento-canvas');
+    const alvo = document.getElementById('orcamento-share-card');
     const canvas = await html2canvas(alvo, {scale: 2, backgroundColor: '#ffffff'});
     const link = document.createElement('a');
     link.download = '{{ orcamento.codigo }}.png';

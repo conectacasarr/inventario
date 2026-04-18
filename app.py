@@ -240,6 +240,20 @@ def conectacasa_preparar_urls_config(config):
     return config
 
 
+def conectacasa_autenticado():
+    return bool(session.get("conectacasa_auth"))
+
+
+def conectacasa_required(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        if conectacasa_autenticado():
+            return func(*args, **kwargs)
+        return redirect(url_for("conectacasa_login", next=request.path))
+
+    return wrapper
+
+
 def conectacasa_salvar_upload_imagem(arquivo, diretorio, prefixo, caminho_relativo):
     if not arquivo or not arquivo.filename:
         return None
@@ -279,8 +293,8 @@ def conectacasa_gerar_codigo(conn):
 def conectacasa_status_opcoes():
     return [
         ("orcamento", "Orcamento"),
-        ("enviado", "Enviado / a receber"),
-        ("finalizado", "Finalizado / recebido"),
+        ("enviado", "Enviado"),
+        ("finalizado", "Finalizado"),
         ("rejeitado", "Rejeitado"),
     ]
 
@@ -298,6 +312,44 @@ def conectacasa_status_label(status):
     mapa = dict(conectacasa_status_opcoes())
     status = conectacasa_status_normalizado(status)
     return mapa.get(status, status.title() if status else "Orcamento")
+
+
+def conectacasa_data_referencia(valor_data):
+    if not valor_data:
+        return None
+    try:
+        return datetime.fromisoformat(str(valor_data))
+    except ValueError:
+        return None
+
+
+def conectacasa_mes_valido(valor):
+    try:
+        return datetime.strptime((valor or "").strip(), "%Y-%m").strftime("%Y-%m")
+    except ValueError:
+        return None
+
+
+def conectacasa_mes_label(valor):
+    nomes_meses = [
+        "janeiro",
+        "fevereiro",
+        "marco",
+        "abril",
+        "maio",
+        "junho",
+        "julho",
+        "agosto",
+        "setembro",
+        "outubro",
+        "novembro",
+        "dezembro",
+    ]
+    mes_normalizado = conectacasa_mes_valido(valor)
+    if not mes_normalizado:
+        return valor or ""
+    data_ref = datetime.strptime(mes_normalizado, "%Y-%m")
+    return f"{nomes_meses[data_ref.month - 1]} de {data_ref.year}"
 
 
 def conectacasa_normalizar_item(descricao, quantidade, valor_unitario, unidade):
@@ -1168,14 +1220,54 @@ def conectacasa_publico():
     config = conectacasa_preparar_urls_config(conectacasa_obter_config(conn))
     return render_template("conectacasa_publico.html", config=config)
 
+
+@app.route("/conectacasa/entrar", methods=["GET", "POST"])
+@app.route("/conectacasa/entrar/", methods=["GET", "POST"])
+def conectacasa_login():
+    if conectacasa_autenticado():
+        return redirect(url_for("conectacasa_home"))
+
+    conn = get_db()
+    config = conectacasa_preparar_urls_config(conectacasa_obter_config(conn))
+    proximo = request.args.get("next") or request.form.get("next") or url_for("conectacasa_home")
+
+    if request.method == "POST":
+        usuario = (request.form.get("usuario") or "").strip()
+        senha = request.form.get("senha") or ""
+        config_bruta = conectacasa_obter_config(conn)
+        usuario_salvo = (config_bruta.get("acesso_usuario") or "admin").strip()
+        senha_hash = config_bruta.get("acesso_senha_hash") or ""
+
+        if usuario == usuario_salvo and senha_hash and check_password_hash(senha_hash, senha):
+            session["conectacasa_auth"] = True
+            session["conectacasa_user"] = usuario_salvo
+            session.permanent = True
+            if proximo.startswith("/conectacasa"):
+                return redirect(proximo)
+            return redirect(url_for("conectacasa_home"))
+
+        flash("Usuario ou senha invalidos.", "danger")
+
+    return render_template("conectacasa_login.html", config=config, proximo=proximo)
+
+
+@app.route("/conectacasa/sair")
+@app.route("/conectacasa/sair/")
+def conectacasa_logout():
+    session.pop("conectacasa_auth", None)
+    session.pop("conectacasa_user", None)
+    return redirect(url_for("conectacasa_publico"))
+
+
 @app.route("/conectacasa/painel")
 @app.route("/conectacasa/painel/")
+@conectacasa_required
 def conectacasa_home():
     conn = get_db()
-    config = conectacasa_obter_config(conn)
+    config = conectacasa_preparar_urls_config(conectacasa_obter_config(conn))
     orcamentos_raw = conn.execute(
         """
-        SELECT id, codigo, titulo, cliente_nome, cliente_empresa, status, valor_total, atualizado_em
+        SELECT id, codigo, titulo, cliente_nome, cliente_empresa, status, valor_total, criado_em, atualizado_em
         FROM conectacasa_orcamentos
         ORDER BY atualizado_em DESC, id DESC
         """
@@ -1185,44 +1277,52 @@ def conectacasa_home():
     for item in orcamentos_raw:
         item_dict = dict(item)
         item_dict["status"] = conectacasa_status_normalizado(item_dict.get("status"))
+        data_referencia = conectacasa_data_referencia(item_dict.get("atualizado_em")) or conectacasa_data_referencia(item_dict.get("criado_em"))
+        item_dict["referencia_data"] = data_referencia
+        item_dict["mes_referencia"] = data_referencia.strftime("%Y-%m") if data_referencia else datetime.now().strftime("%Y-%m")
         orcamentos.append(item_dict)
 
-    agora = datetime.now()
+    meses_disponiveis = sorted({item["mes_referencia"] for item in orcamentos if item.get("mes_referencia")}, reverse=True)
+    mes_atual = datetime.now().strftime("%Y-%m")
+    if not meses_disponiveis:
+        meses_disponiveis = [mes_atual]
 
-    def no_mes_atual(valor_data):
-        if not valor_data:
-            return False
-        try:
-            data_ref = datetime.fromisoformat(str(valor_data))
-        except ValueError:
-            return False
-        return data_ref.year == agora.year and data_ref.month == agora.month
+    mes_selecionado = conectacasa_mes_valido(request.args.get("mes")) or mes_atual
+    if mes_selecionado not in meses_disponiveis:
+        mes_selecionado = meses_disponiveis[0]
 
-    total_orcamentos = len(orcamentos)
-    total_em_orcamento = sum(1 for item in orcamentos if item["status"] == "orcamento")
+    orcamentos_filtrados = [item for item in orcamentos if item.get("mes_referencia") == mes_selecionado]
+
+    total_orcamentos = len(orcamentos_filtrados)
+    total_em_orcamento = sum(1 for item in orcamentos_filtrados if item["status"] == "orcamento")
     valor_a_receber = round(
-        sum(item["valor_total"] or 0 for item in orcamentos if item["status"] == "enviado" and no_mes_atual(item["atualizado_em"])),
+        sum(item["valor_total"] or 0 for item in orcamentos_filtrados if item["status"] == "enviado"),
         2,
     )
     valor_recebido = round(
-        sum(item["valor_total"] or 0 for item in orcamentos if item["status"] == "finalizado" and no_mes_atual(item["atualizado_em"])),
+        sum(item["valor_total"] or 0 for item in orcamentos_filtrados if item["status"] == "finalizado"),
         2,
     )
 
     return render_template(
         "conectacasa_lista.html",
-        orcamentos=orcamentos,
+        orcamentos=orcamentos_filtrados,
         total_orcamentos=total_orcamentos,
         total_em_orcamento=total_em_orcamento,
         valor_a_receber=valor_a_receber,
         valor_recebido=valor_recebido,
         config=config,
         conectacasa_status_label=conectacasa_status_label,
+        status_opcoes=conectacasa_status_opcoes(),
+        mes_selecionado=mes_selecionado,
+        mes_selecionado_label=conectacasa_mes_label(mes_selecionado),
+        meses_disponiveis=[{"valor": mes, "label": conectacasa_mes_label(mes)} for mes in meses_disponiveis],
     )
 
 
 @app.route("/conectacasa/configuracoes", methods=["GET", "POST"])
 @app.route("/conectacasa/configuracoes/", methods=["GET", "POST"])
+@conectacasa_required
 def conectacasa_configuracoes():
     conn = get_db()
     config = conectacasa_obter_config(conn)
@@ -1238,14 +1338,18 @@ def conectacasa_configuracoes():
             "pix_identificador": (request.form.get("pix_identificador") or "").strip(),
             "pix_descricao": (request.form.get("pix_descricao") or "").strip(),
             "pix_beneficiario": (request.form.get("pix_beneficiario") or "").strip(),
+            "acesso_usuario": (request.form.get("acesso_usuario") or config.get("acesso_usuario") or "admin").strip() or "admin",
             "logo_path": logo_path,
             "pix_imagem_path": pix_imagem_path,
         }
+        nova_senha = (request.form.get("acesso_senha") or "").strip()
+        senha_hash = generate_password_hash(nova_senha) if nova_senha else config.get("acesso_senha_hash")
         conn.execute(
             """
             UPDATE conectacasa_config
             SET empresa_nome = ?, logo_path = ?, pix_imagem_path = ?, pix_nome = ?, pix_chave = ?, pix_cidade = ?,
-                pix_identificador = ?, pix_descricao = ?, pix_beneficiario = ?, atualizado_em = CURRENT_TIMESTAMP
+                pix_identificador = ?, pix_descricao = ?, pix_beneficiario = ?, acesso_usuario = ?, acesso_senha_hash = ?,
+                atualizado_em = CURRENT_TIMESTAMP
             WHERE id = 1
             """,
             (
@@ -1258,9 +1362,12 @@ def conectacasa_configuracoes():
                 dados["pix_identificador"],
                 dados["pix_descricao"],
                 dados["pix_beneficiario"],
+                dados["acesso_usuario"],
+                senha_hash,
             ),
         )
         conn.commit()
+        session["conectacasa_user"] = dados["acesso_usuario"]
         flash("Configuracoes da ConectaCasa atualizadas.", "success")
         return redirect(url_for("conectacasa_configuracoes"))
 
@@ -1270,9 +1377,10 @@ def conectacasa_configuracoes():
 
 @app.route("/conectacasa/novo", methods=["GET", "POST"])
 @app.route("/conectacasa/novo/", methods=["GET", "POST"])
+@conectacasa_required
 def conectacasa_novo_orcamento():
     conn = get_db()
-    config = conectacasa_obter_config(conn)
+    config = conectacasa_preparar_urls_config(conectacasa_obter_config(conn))
     if request.method == "POST":
         itens = conectacasa_itens_do_formulario(request.form)
         ok, erro, orcamento_id = conectacasa_salvar_orcamento(conn, request.form, itens, None, arquivos=request.files)
@@ -1301,6 +1409,7 @@ def conectacasa_novo_orcamento():
 
 @app.route("/conectacasa/orcamentos/<int:orcamento_id>")
 @app.route("/conectacasa/orcamentos/<int:orcamento_id>/")
+@conectacasa_required
 def conectacasa_visualizar_orcamento(orcamento_id):
     conn = get_db()
     orcamento = conectacasa_carregar_orcamento(conn, orcamento_id)
@@ -1317,9 +1426,10 @@ def conectacasa_visualizar_orcamento(orcamento_id):
 
 @app.route("/conectacasa/orcamentos/<int:orcamento_id>/editar", methods=["GET", "POST"])
 @app.route("/conectacasa/orcamentos/<int:orcamento_id>/editar/", methods=["GET", "POST"])
+@conectacasa_required
 def conectacasa_editar_orcamento(orcamento_id):
     conn = get_db()
-    config = conectacasa_obter_config(conn)
+    config = conectacasa_preparar_urls_config(conectacasa_obter_config(conn))
     orcamento = conectacasa_carregar_orcamento(conn, orcamento_id)
     if not orcamento:
         flash("Orcamento nao encontrado.", "danger")
@@ -1353,8 +1463,42 @@ def conectacasa_editar_orcamento(orcamento_id):
     )
 
 
+@app.route("/conectacasa/orcamentos/<int:orcamento_id>/status", methods=["POST"])
+@app.route("/conectacasa/orcamentos/<int:orcamento_id>/status/", methods=["POST"])
+@conectacasa_required
+def conectacasa_atualizar_status(orcamento_id):
+    conn = get_db()
+    orcamento = conn.execute("SELECT id FROM conectacasa_orcamentos WHERE id = ?", (orcamento_id,)).fetchone()
+    if not orcamento:
+        flash("Orcamento nao encontrado.", "danger")
+        return redirect(url_for("conectacasa_home"))
+
+    status = conectacasa_status_normalizado(request.form.get("status"))
+    status_validos = {codigo for codigo, _ in conectacasa_status_opcoes()}
+    if status not in status_validos:
+        flash("Status invalido.", "danger")
+        return redirect(url_for("conectacasa_home"))
+
+    conn.execute(
+        """
+        UPDATE conectacasa_orcamentos
+        SET status = ?, atualizado_em = CURRENT_TIMESTAMP
+        WHERE id = ?
+        """,
+        (status, orcamento_id),
+    )
+    conn.commit()
+    flash(f"Status atualizado para {conectacasa_status_label(status)}.", "success")
+
+    mes = conectacasa_mes_valido(request.form.get("mes"))
+    if mes:
+        return redirect(url_for("conectacasa_home", mes=mes))
+    return redirect(url_for("conectacasa_home"))
+
+
 @app.route("/conectacasa/orcamentos/<int:orcamento_id>/pdf")
 @app.route("/conectacasa/orcamentos/<int:orcamento_id>/pdf/")
+@conectacasa_required
 def conectacasa_orcamento_pdf(orcamento_id):
     conn = get_db()
     orcamento = conectacasa_carregar_orcamento(conn, orcamento_id)
