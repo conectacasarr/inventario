@@ -295,6 +295,7 @@ def conectacasa_status_opcoes():
         ("orcamento", "Orcamento"),
         ("enviado", "Enviado"),
         ("aceito", "Aceito"),
+        ("finalizado", "Finalizado"),
         ("rejeitado", "Rejeitado"),
     ]
 
@@ -304,7 +305,6 @@ def conectacasa_status_normalizado(status):
     mapa_legado = {
         "rascunho": "orcamento",
         "aprovado": "aceito",
-        "finalizado": "aceito",
     }
     return mapa_legado.get(status, status or "orcamento")
 
@@ -1296,7 +1296,7 @@ def conectacasa_home():
         2,
     )
     valor_recebido = round(
-        sum(item["valor_total"] or 0 for item in orcamentos_filtrados if item["status"] == "aceito"),
+        sum(item["valor_total"] or 0 for item in orcamentos_filtrados if item["status"] == "finalizado"),
         2,
     )
 
