@@ -1292,7 +1292,11 @@ def conectacasa_home():
     total_orcamentos = len(orcamentos_filtrados)
     total_em_orcamento = sum(1 for item in orcamentos_filtrados if item["status"] == "orcamento")
     valor_a_receber = round(
-        sum(item["valor_total"] or 0 for item in orcamentos_filtrados if item["status"] == "enviado"),
+        sum(
+            item["valor_total"] or 0
+            for item in orcamentos_filtrados
+            if item["status"] in {"enviado", "aceito"}
+        ),
         2,
     )
     valor_recebido = round(
