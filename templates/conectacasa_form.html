@@ -48,17 +48,13 @@
             <label for="titulo">Titulo do orcamento</label>
             <input type="text" class="form-control" id="titulo" name="titulo" value="{{ orcamento.titulo or '' }}" required>
         </div>
-        <div class="col-md-3">
+        <div class="col-md-5">
             <label for="status">Status</label>
             <select class="form-select" id="status" name="status">
                 {% for codigo, nome in status_opcoes %}
                 <option value="{{ codigo }}" {% if (orcamento.status or 'orcamento') == codigo %}selected{% endif %}>{{ nome }}</option>
                 {% endfor %}
             </select>
-        </div>
-        <div class="col-md-2">
-            <label for="validade_dias">Validade (dias)</label>
-            <input type="number" min="1" class="form-control" id="validade_dias" name="validade_dias" value="{{ orcamento.validade_dias or 7 }}">
         </div>
 
         <div class="col-md-4">

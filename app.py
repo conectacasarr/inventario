@@ -294,7 +294,7 @@ def conectacasa_status_opcoes():
     return [
         ("orcamento", "Orcamento"),
         ("enviado", "Enviado"),
-        ("finalizado", "Finalizado"),
+        ("aceito", "Aceito"),
         ("rejeitado", "Rejeitado"),
     ]
 
@@ -303,7 +303,8 @@ def conectacasa_status_normalizado(status):
     status = (status or "").strip().lower()
     mapa_legado = {
         "rascunho": "orcamento",
-        "aprovado": "finalizado",
+        "aprovado": "aceito",
+        "finalizado": "aceito",
     }
     return mapa_legado.get(status, status or "orcamento")
 
@@ -440,11 +441,7 @@ def conectacasa_salvar_orcamento(conn, dados_formulario, itens, usuario_id, arqu
     if status not in status_validos:
         status = "orcamento"
 
-    try:
-        validade_dias = int(dados_formulario.get("validade_dias") or 7)
-    except ValueError:
-        validade_dias = 7
-    validade_dias = max(validade_dias, 1)
+    validade_dias = 7
 
     if not titulo or not cliente_nome:
         return False, "Informe o titulo e o nome do cliente.", None
@@ -663,7 +660,6 @@ def conectacasa_render_pdf(orcamento, config):
         Table(
             [
                 [Paragraph("Status", resumo_label_style), Paragraph(orcamento["status_label"], resumo_valor_style)],
-                [Paragraph("Validade", resumo_label_style), Paragraph(f"{orcamento['validade_dias']} dias", resumo_valor_style)],
                 [Paragraph("Subtotal", resumo_label_style), Paragraph(formata_brl(orcamento["subtotal"]), resumo_valor_style)],
                 [Paragraph("Desconto", resumo_label_style), Paragraph(formata_brl(orcamento["desconto"]), resumo_valor_style)],
                 [Paragraph("Valor final", resumo_label_style), Paragraph(formata_brl(orcamento["valor_total"]), valor_final_style)],
@@ -1300,7 +1296,7 @@ def conectacasa_home():
         2,
     )
     valor_recebido = round(
-        sum(item["valor_total"] or 0 for item in orcamentos_filtrados if item["status"] == "finalizado"),
+        sum(item["valor_total"] or 0 for item in orcamentos_filtrados if item["status"] == "aceito"),
         2,
     )
 
@@ -1399,7 +1395,7 @@ def conectacasa_novo_orcamento():
 
     return render_template(
         "conectacasa_form.html",
-        orcamento={"validade_dias": 7, "status": "orcamento", "desconto": 0, "subtotal": 0, "valor_total": 0},
+        orcamento={"status": "orcamento", "desconto": 0, "subtotal": 0, "valor_total": 0},
         itens=[{"descricao": "", "quantidade": 1, "unidade": "un", "valor_unitario": 0, "total": 0}],
         status_opcoes=conectacasa_status_opcoes(),
         config=config,
