@@ -223,9 +223,9 @@
                     <div class="d-flex justify-content-between mb-2"><span>Desconto</span><strong>{{ formata_brl(orcamento.desconto) }}</strong></div>
                     <div class="d-flex justify-content-between mb-4"><span>Status</span><strong>{{ orcamento.status_label }}</strong></div>
                     <div class="p-4 rounded-4" style="background:#fff8ef;">
-                        <div class="fw-bold mb-2">Contato rapido</div>
+                        <div class="fw-bold mb-2">Fale conosco</div>
                         <div class="mb-2">WhatsApp: +55 95 99151-9900</div>
-                        <div class="text-muted">Resumo preparado para compartilhar no celular sem ficar comprido demais.</div>
+                        <div class="text-muted">Estamos a disposicao para confirmar este orcamento e esclarecer qualquer duvida.</div>
                     </div>
                 </div>
             </div>
@@ -310,7 +310,7 @@ enviarWhatsappBtn?.addEventListener('click', async function () {
         window.open(linkWhatsapp, '_blank');
 
         if (imagemCopiada) {
-            alert('Abrimos o WhatsApp e copiamos a imagem do orcamento. Basta colar na conversa do cliente.');
+            alert('WhatsApp aberto. A imagem do orcamento foi copiada para voce colar na conversa.');
             return;
         }
 
@@ -319,11 +319,11 @@ enviarWhatsappBtn?.addEventListener('click', async function () {
         link.href = URL.createObjectURL(blob);
         link.click();
         setTimeout(() => URL.revokeObjectURL(link.href), 1000);
-        alert('Abrimos o WhatsApp. Como este navegador nao permite enviar a imagem direto, o arquivo foi baixado para voce anexar na conversa.');
+        alert('WhatsApp aberto. Se a imagem nao seguir automaticamente, anexe o arquivo do orcamento na conversa.');
     } catch (error) {
         console.error(error);
         window.open(linkWhatsapp, '_blank');
-        alert('Abrimos o WhatsApp com a mensagem do cliente. Se a imagem nao for compartilhada automaticamente, voce pode enviar manualmente.');
+        alert('WhatsApp aberto. Se a imagem nao seguir automaticamente, envie o arquivo do orcamento manualmente.');
     } finally {
         enviarWhatsappBtn.disabled = false;
         enviarWhatsappBtn.textContent = textoOriginal;
