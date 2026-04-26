@@ -67,7 +67,7 @@
     <div class="d-flex gap-2">
         <a href="{{ url_for('conectacasa_editar_orcamento', orcamento_id=orcamento.id) }}" class="btn btn-outline-dark rounded-pill px-4">Editar</a>
         <a href="{{ url_for('conectacasa_orcamento_pdf', orcamento_id=orcamento.id) }}" class="btn btn-outline-secondary rounded-pill px-4">PDF</a>
-        <button type="button" class="btn cc-btn-primary rounded-pill px-4" id="baixar-imagem-btn">Imagem para WhatsApp</button>
+        <button type="button" class="btn cc-btn-primary rounded-pill px-4" id="enviar-whatsapp-btn">Enviar no WhatsApp</button>
     </div>
 </div>
 
@@ -236,13 +236,98 @@
 
 {% block scripts %}
 <script>
-document.getElementById('baixar-imagem-btn')?.addEventListener('click', async function () {
+const enviarWhatsappBtn = document.getElementById('enviar-whatsapp-btn');
+
+function normalizarTelefoneWhatsapp(telefoneBruto) {
+    const numeros = (telefoneBruto || '').replace(/\D/g, '');
+    if (!numeros) {
+        return '';
+    }
+    if (numeros.startsWith('55') && numeros.length >= 12) {
+        return numeros;
+    }
+    if (numeros.length >= 10) {
+        return `55${numeros}`;
+    }
+    return numeros;
+}
+
+async function gerarImagemOrcamentoBlob() {
     const alvo = document.getElementById('orcamento-share-card');
     const canvas = await html2canvas(alvo, {scale: 2, backgroundColor: '#ffffff'});
-    const link = document.createElement('a');
-    link.download = '{{ orcamento.codigo }}.png';
-    link.href = canvas.toDataURL('image/png');
-    link.click();
+    return await new Promise((resolve, reject) => {
+        canvas.toBlob(function (blob) {
+            if (blob) {
+                resolve(blob);
+                return;
+            }
+            reject(new Error('Nao foi possivel gerar a imagem do orcamento.'));
+        }, 'image/png');
+    });
+}
+
+function montarLinkWhatsapp(telefone, mensagem) {
+    const base = telefone ? `https://wa.me/${telefone}` : 'https://wa.me/';
+    return `${base}?text=${encodeURIComponent(mensagem)}`;
+}
+
+enviarWhatsappBtn?.addEventListener('click', async function () {
+    const telefone = normalizarTelefoneWhatsapp({{ (orcamento.cliente_telefone or '')|tojson }});
+    const mensagem = `Ola, {{ orcamento.cliente_nome }}! Segue o orcamento {{ orcamento.codigo }} da ConectaCasa no valor de {{ formata_brl(orcamento.valor_total) }}.`;
+    const linkWhatsapp = montarLinkWhatsapp(telefone, mensagem);
+
+    const textoOriginal = enviarWhatsappBtn.textContent;
+    enviarWhatsappBtn.disabled = true;
+    enviarWhatsappBtn.textContent = 'Preparando...';
+
+    try {
+        const blob = await gerarImagemOrcamentoBlob();
+        const arquivo = new File([blob], '{{ orcamento.codigo }}.png', { type: 'image/png' });
+
+        if (navigator.canShare && navigator.canShare({ files: [arquivo] })) {
+            await navigator.share({
+                files: [arquivo],
+                title: 'Orcamento {{ orcamento.codigo }}',
+                text: mensagem,
+            });
+            return;
+        }
+
+        let imagemCopiada = false;
+        if (navigator.clipboard && window.ClipboardItem) {
+            try {
+                await navigator.clipboard.write([
+                    new ClipboardItem({
+                        'image/png': blob,
+                    }),
+                ]);
+                imagemCopiada = true;
+            } catch (error) {
+                imagemCopiada = false;
+            }
+        }
+
+        window.open(linkWhatsapp, '_blank');
+
+        if (imagemCopiada) {
+            alert('Abrimos o WhatsApp e copiamos a imagem do orcamento. Basta colar na conversa do cliente.');
+            return;
+        }
+
+        const link = document.createElement('a');
+        link.download = '{{ orcamento.codigo }}.png';
+        link.href = URL.createObjectURL(blob);
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+        alert('Abrimos o WhatsApp. Como este navegador nao permite enviar a imagem direto, o arquivo foi baixado para voce anexar na conversa.');
+    } catch (error) {
+        console.error(error);
+        window.open(linkWhatsapp, '_blank');
+        alert('Abrimos o WhatsApp com a mensagem do cliente. Se a imagem nao for compartilhada automaticamente, voce pode enviar manualmente.');
+    } finally {
+        enviarWhatsappBtn.disabled = false;
+        enviarWhatsappBtn.textContent = textoOriginal;
+    }
 });
 </script>
 {% endblock %}
