@@ -1243,6 +1243,8 @@ def destino_pos_login_com_next(user):
             return proximo
         if proximo.startswith("/igrejaemboavista/editar") and usuario_pode_editar_igreja(user):
             return proximo
+    if host_eh_igreja() and (usuario_pode_acessar_inventario(user) or usuario_pode_editar_igreja(user)):
+        return igreja_path("/")
     return destino_pos_login(user)
 
 @login_manager.user_loader
