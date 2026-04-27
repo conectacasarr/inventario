@@ -65,8 +65,8 @@
         <p class="cc-muted mb-0">{{ orcamento.cliente_nome }}{% if orcamento.cliente_empresa %} • {{ orcamento.cliente_empresa }}{% endif %}</p>
     </div>
     <div class="d-flex gap-2">
-        <a href="{{ url_for('conectacasa_editar_orcamento', orcamento_id=orcamento.id) }}" class="btn btn-outline-dark rounded-pill px-4">Editar</a>
-        <a href="{{ url_for('conectacasa_orcamento_pdf', orcamento_id=orcamento.id) }}" class="btn btn-outline-secondary rounded-pill px-4">PDF</a>
+        <a href="{{ conectacasa_path('/orcamentos/' ~ orcamento.id ~ '/editar') }}" class="btn btn-outline-dark rounded-pill px-4">Editar</a>
+        <a href="{{ conectacasa_path('/orcamentos/' ~ orcamento.id ~ '/pdf') }}" class="btn btn-outline-secondary rounded-pill px-4">PDF</a>
         <button type="button" class="btn cc-btn-primary rounded-pill px-4" id="enviar-whatsapp-btn">Enviar no WhatsApp</button>
     </div>
 </div>

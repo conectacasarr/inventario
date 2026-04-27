@@ -97,11 +97,11 @@
 <body>
     <nav class="navbar navbar-expand-lg cc-topbar">
         <div class="container">
-            <a class="cc-brand" href="{{ url_for('conectacasa_home') }}">Conecta<span>Casa</span></a>
+            <a class="cc-brand" href="{{ conectacasa_path('/painel') }}">Conecta<span>Casa</span></a>
             <div class="ms-auto d-flex align-items-center gap-3 text-white-50">
-                <a href="{{ url_for('conectacasa_home') }}" class="cc-nav-link">Painel</a>
-                <a href="{{ url_for('conectacasa_configuracoes') }}" class="btn btn-sm btn-outline-light rounded-pill px-3">Configuracoes</a>
-                <a href="{{ url_for('conectacasa_logout') }}" class="cc-nav-link">Sair</a>
+                <a href="{{ conectacasa_path('/painel') }}" class="cc-nav-link">Painel</a>
+                <a href="{{ conectacasa_path('/configuracoes') }}" class="btn btn-sm btn-outline-light rounded-pill px-3">Configuracoes</a>
+                <a href="{{ conectacasa_path('/sair') }}" class="cc-nav-link">Sair</a>
             </div>
         </div>
     </nav>

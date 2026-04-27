@@ -20,7 +20,7 @@
                         </select>
                     </div>
                 </form>
-                <a href="{{ url_for('conectacasa_novo_orcamento') }}" class="btn cc-btn-primary rounded-pill px-4 py-2">
+                <a href="{{ conectacasa_path('/novo') }}" class="btn cc-btn-primary rounded-pill px-4 py-2">
                     <i class="fas fa-plus me-2"></i>Novo orcamento
                 </a>
             </div>
@@ -95,7 +95,7 @@
                     </td>
                     <td>{{ orcamento.cliente_nome }}</td>
                     <td>
-                        <form method="POST" action="{{ url_for('conectacasa_atualizar_status', orcamento_id=orcamento.id) }}" class="d-flex align-items-center gap-2 cc-status-form">
+                        <form method="POST" action="{{ conectacasa_path('/orcamentos/' ~ orcamento.id ~ '/status') }}" class="d-flex align-items-center gap-2 cc-status-form">
                             <input type="hidden" name="mes" value="{{ mes_selecionado }}">
                             <select class="form-select form-select-sm" name="status">
                                 {% for codigo, nome in status_opcoes %}
@@ -108,8 +108,8 @@
                     <td>{{ orcamento.atualizado_em }}</td>
                     <td class="text-end fw-semibold">{{ formata_brl(orcamento.valor_total or 0) }}</td>
                     <td class="text-end">
-                        <a href="{{ url_for('conectacasa_visualizar_orcamento', orcamento_id=orcamento.id) }}" class="btn btn-sm btn-outline-dark">Abrir</a>
-                        <a href="{{ url_for('conectacasa_editar_orcamento', orcamento_id=orcamento.id) }}" class="btn btn-sm btn-outline-secondary">Editar</a>
+                        <a href="{{ conectacasa_path('/orcamentos/' ~ orcamento.id) }}" class="btn btn-sm btn-outline-dark">Abrir</a>
+                        <a href="{{ conectacasa_path('/orcamentos/' ~ orcamento.id ~ '/editar') }}" class="btn btn-sm btn-outline-secondary">Editar</a>
                     </td>
                 </tr>
                 {% endfor %}

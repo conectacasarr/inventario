@@ -9,7 +9,7 @@
             <h1 class="mb-1">Portal da Igreja</h1>
             <p class="text-secondary mb-0">Edite o conteudo publico da igreja sem precisar mexer em codigo.</p>
         </div>
-        <a href="{{ url_for('igreja_publico') }}" target="_blank" class="btn btn-outline-primary">
+        <a href="{{ igreja_path('/') }}" target="_blank" class="btn btn-outline-primary">
             <i class="fas fa-external-link-alt me-2"></i>Ver site publico
         </a>
     </div>
@@ -79,7 +79,7 @@
                     <h5 class="mb-0">Novo aviso</h5>
                 </div>
                 <div class="card-body">
-                    <form method="POST" action="{{ url_for('igreja_aviso_novo') }}">
+                    <form method="POST" action="{{ igreja_path('/avisos/novo') }}">
                         <div class="mb-3">
                             <label for="novo_titulo" class="form-label">Titulo</label>
                             <input type="text" class="form-control" id="novo_titulo" name="titulo" required>
@@ -119,7 +119,7 @@
                     {% if avisos %}
                         <div class="d-flex flex-column gap-3">
                             {% for aviso in avisos %}
-                            <form method="POST" action="{{ url_for('igreja_aviso_editar', aviso_id=aviso.id) }}" class="border rounded-4 p-3 bg-light-subtle">
+                            <form method="POST" action="{{ igreja_path('/avisos/' ~ aviso.id ~ '/editar') }}" class="border rounded-4 p-3 bg-light-subtle">
                                 <div class="mb-2">
                                     <label class="form-label">Titulo</label>
                                     <input type="text" class="form-control" name="titulo" value="{{ aviso.titulo }}" required>
@@ -148,7 +148,7 @@
                                     </div>
                                 </div>
                                 <div class="text-end mt-2">
-                                    <button type="submit" formaction="{{ url_for('igreja_aviso_excluir', aviso_id=aviso.id) }}" formmethod="POST" class="btn btn-sm btn-outline-danger" onclick="return confirm('Deseja remover este aviso?');">
+                                    <button type="submit" formaction="{{ igreja_path('/avisos/' ~ aviso.id ~ '/excluir') }}" formmethod="POST" class="btn btn-sm btn-outline-danger" onclick="return confirm('Deseja remover este aviso?');">
                                         Excluir
                                     </button>
                                 </div>

@@ -82,10 +82,10 @@
 <body>
     <header class="py-4">
         <div class="container d-flex justify-content-between align-items-center">
-            <a href="{{ url_for('igreja_publico') }}" class="ibv-brand">{{ config.nome_site or 'Igreja em Boa Vista' }}</a>
+            <a href="{{ igreja_path('/') }}" class="ibv-brand">{{ config.nome_site or 'Igreja em Boa Vista' }}</a>
             <div class="d-flex gap-2">
                 {% if current_user.is_authenticated and current_user.pode_editar_igreja %}
-                <a href="{{ url_for('igreja_admin') }}" class="btn btn-outline-dark rounded-pill px-4">
+                <a href="{{ igreja_path('/editar') }}" class="btn btn-outline-dark rounded-pill px-4">
                     <i class="fas fa-pen me-2"></i>Editar portal
                 </a>
                 {% endif %}

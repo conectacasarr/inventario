@@ -1,4 +1,4 @@
-from flask import Flask, render_template, redirect, url_for, request, flash, session, send_file, make_response
+from flask import Flask, render_template, redirect, url_for, request, flash, session, send_file, make_response, abort
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user, UserMixin
 from flask_mail import Mail, Message
 from dotenv import load_dotenv
@@ -14,6 +14,7 @@ import re
 import io
 import tempfile
 import json
+from urllib.parse import quote
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
@@ -59,6 +60,8 @@ app.config["MAIL_PASSWORD"] = os.environ.get("MAIL_PASSWORD")
 app.config["MAIL_DEFAULT_SENDER"] = os.environ.get("MAIL_DEFAULT_SENDER", "oaibv.diaconato@gmail.com")
 app.config["RESET_PASSWORD_MAX_AGE"] = int(os.environ.get("RESET_PASSWORD_MAX_AGE", 3600))
 app.config["APP_BASE_URL"] = os.environ.get("APP_BASE_URL", "http://localhost:5000")
+app.config["CONECTACASA_PUBLIC_HOST"] = os.environ.get("CONECTACASA_PUBLIC_HOST", "conectacasa.oaibv.com.br").strip().lower()
+app.config["IGREJA_PUBLIC_HOST"] = os.environ.get("IGREJA_PUBLIC_HOST", "igrejaemboavista.oaibv.com.br").strip().lower()
 
 # Aqui pode adicionar a configuração do SQLAlchemy, se ainda não estiver
 from models import db, Usuario
@@ -133,6 +136,57 @@ def get_db():
 
 def get_table_columns(db_conn, table_name):
     return {row["name"] for row in db_conn.execute(f"PRAGMA table_info({table_name})").fetchall()}
+
+
+def request_host_base():
+    return (request.host or "").split(":")[0].strip().lower()
+
+
+def host_eh_conectacasa(host=None):
+    host = (host or request_host_base()).strip().lower()
+    esperado = (app.config.get("CONECTACASA_PUBLIC_HOST") or "").strip().lower()
+    return bool(esperado and host == esperado)
+
+
+def host_eh_igreja(host=None):
+    host = (host or request_host_base()).strip().lower()
+    esperado = (app.config.get("IGREJA_PUBLIC_HOST") or "").strip().lower()
+    return bool(esperado and host == esperado)
+
+
+def url_no_host(host, caminho="/"):
+    caminho = "/" if not caminho else f"/{str(caminho).lstrip('/')}"
+    host_atual = request_host_base()
+    if host and host_atual == host:
+        return caminho
+    esquema = request.headers.get("X-Forwarded-Proto", request.scheme or "https")
+    return f"{esquema}://{host}{caminho}"
+
+
+def conectacasa_path(caminho="/"):
+    caminho = "/" if not caminho else f"/{str(caminho).lstrip('/')}"
+    if host_eh_conectacasa():
+        return caminho
+    if caminho == "/":
+        return "/conectacasa"
+    return f"/conectacasa{caminho}"
+
+
+def igreja_path(caminho="/"):
+    caminho = "/" if not caminho else f"/{str(caminho).lstrip('/')}"
+    if host_eh_igreja():
+        return caminho
+    if caminho == "/":
+        return "/igrejaemboavista"
+    return f"/igrejaemboavista{caminho}"
+
+
+def conectacasa_request_permitida():
+    return host_eh_conectacasa() or request.path.startswith("/conectacasa")
+
+
+def igreja_request_permitida():
+    return host_eh_igreja() or request.path.startswith("/igrejaemboavista")
 
 
 def emprestimos_tem_grupo_id(db_conn):
@@ -387,9 +441,11 @@ def conectacasa_autenticado():
 def conectacasa_required(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
+        if not conectacasa_request_permitida():
+            abort(404)
         if conectacasa_autenticado():
             return func(*args, **kwargs)
-        return redirect(url_for("conectacasa_login", next=request.path))
+        return redirect(f"{conectacasa_path('/entrar')}?next={quote(request.path)}")
 
     return wrapper
 
@@ -965,7 +1021,10 @@ def destino_pos_login(user):
     if usuario_pode_acessar_inventario(user):
         return url_for("dashboard")
     if usuario_pode_editar_igreja(user):
-        return url_for("igreja_admin")
+        host_igreja = (app.config.get("IGREJA_PUBLIC_HOST") or "").strip().lower()
+        if host_igreja:
+            return url_no_host(host_igreja, "/editar")
+        return igreja_path("/editar")
     return None
 
 @login_manager.user_loader
@@ -1214,7 +1273,14 @@ def format_tombamento(tombamento):
 # Função para obter o ano atual
 @app.context_processor
 def inject_now():
-    return {"now": datetime.now, "formata_brl": formata_brl}
+    return {
+        "now": datetime.now,
+        "formata_brl": formata_brl,
+        "conectacasa_path": conectacasa_path,
+        "igreja_path": igreja_path,
+        "host_eh_conectacasa": host_eh_conectacasa,
+        "host_eh_igreja": host_eh_igreja,
+    }
 
 
 INVENTARIO_ENDPOINTS = {
@@ -1448,26 +1514,34 @@ def resetar_senha(token):
 def logout():
     registrar_log("Logout realizado")
     logout_user()
+    if host_eh_igreja():
+        return redirect(igreja_path("/"))
     return redirect(url_for("login"))
 
 
 @app.route("/conectacasa")
 @app.route("/conectacasa/")
 def conectacasa_publico():
+    if not conectacasa_request_permitida():
+        abort(404)
     conn = get_db()
     config = conectacasa_preparar_urls_config(conectacasa_obter_config(conn))
     return render_template("conectacasa_publico.html", config=config)
 
 
+@app.route("/entrar", methods=["GET", "POST"])
+@app.route("/entrar/", methods=["GET", "POST"])
 @app.route("/conectacasa/entrar", methods=["GET", "POST"])
 @app.route("/conectacasa/entrar/", methods=["GET", "POST"])
 def conectacasa_login():
+    if not conectacasa_request_permitida():
+        abort(404)
     if conectacasa_autenticado():
-        return redirect(url_for("conectacasa_home"))
+        return redirect(conectacasa_path("/painel"))
 
     conn = get_db()
     config = conectacasa_preparar_urls_config(conectacasa_obter_config(conn))
-    proximo = request.args.get("next") or request.form.get("next") or url_for("conectacasa_home")
+    proximo = request.args.get("next") or request.form.get("next") or conectacasa_path("/painel")
 
     if request.method == "POST":
         usuario = (request.form.get("usuario") or "").strip()
@@ -1480,23 +1554,29 @@ def conectacasa_login():
             session["conectacasa_auth"] = True
             session["conectacasa_user"] = usuario_salvo
             session.permanent = True
-            if proximo.startswith("/conectacasa"):
+            if proximo.startswith("/conectacasa") or (host_eh_conectacasa() and proximo.startswith("/")):
                 return redirect(proximo)
-            return redirect(url_for("conectacasa_home"))
+            return redirect(conectacasa_path("/painel"))
 
         flash("Usuario ou senha invalidos.", "danger")
 
     return render_template("conectacasa_login.html", config=config, proximo=proximo)
 
 
+@app.route("/sair")
+@app.route("/sair/")
 @app.route("/conectacasa/sair")
 @app.route("/conectacasa/sair/")
 def conectacasa_logout():
+    if not conectacasa_request_permitida():
+        abort(404)
     session.pop("conectacasa_auth", None)
     session.pop("conectacasa_user", None)
-    return redirect(url_for("conectacasa_publico"))
+    return redirect(conectacasa_path("/"))
 
 
+@app.route("/painel")
+@app.route("/painel/")
 @app.route("/conectacasa/painel")
 @app.route("/conectacasa/painel/")
 @conectacasa_required
@@ -1562,6 +1642,8 @@ def conectacasa_home():
     )
 
 
+@app.route("/configuracoes", methods=["GET", "POST"])
+@app.route("/configuracoes/", methods=["GET", "POST"])
 @app.route("/conectacasa/configuracoes", methods=["GET", "POST"])
 @app.route("/conectacasa/configuracoes/", methods=["GET", "POST"])
 @conectacasa_required
@@ -1611,12 +1693,14 @@ def conectacasa_configuracoes():
         conn.commit()
         session["conectacasa_user"] = dados["acesso_usuario"]
         flash("Configuracoes da ConectaCasa atualizadas.", "success")
-        return redirect(url_for("conectacasa_configuracoes"))
+        return redirect(conectacasa_path("/configuracoes"))
 
     config = conectacasa_preparar_urls_config(config)
     return render_template("conectacasa_configuracoes.html", config=config)
 
 
+@app.route("/novo", methods=["GET", "POST"])
+@app.route("/novo/", methods=["GET", "POST"])
 @app.route("/conectacasa/novo", methods=["GET", "POST"])
 @app.route("/conectacasa/novo/", methods=["GET", "POST"])
 @conectacasa_required
@@ -1637,7 +1721,7 @@ def conectacasa_novo_orcamento():
                 modo="novo",
             )
         flash("Orcamento criado com sucesso.", "success")
-        return redirect(url_for("conectacasa_visualizar_orcamento", orcamento_id=orcamento_id))
+        return redirect(conectacasa_path(f"/orcamentos/{orcamento_id}"))
 
     return render_template(
         "conectacasa_form.html",
@@ -1649,6 +1733,8 @@ def conectacasa_novo_orcamento():
     )
 
 
+@app.route("/orcamentos/<int:orcamento_id>")
+@app.route("/orcamentos/<int:orcamento_id>/")
 @app.route("/conectacasa/orcamentos/<int:orcamento_id>")
 @app.route("/conectacasa/orcamentos/<int:orcamento_id>/")
 @conectacasa_required
@@ -1657,7 +1743,7 @@ def conectacasa_visualizar_orcamento(orcamento_id):
     orcamento = conectacasa_carregar_orcamento(conn, orcamento_id)
     if not orcamento:
         flash("Orcamento nao encontrado.", "danger")
-        return redirect(url_for("conectacasa_home"))
+        return redirect(conectacasa_path("/painel"))
     config = conectacasa_preparar_urls_config(conectacasa_obter_config(conn))
     return render_template(
         "conectacasa_visualizar.html",
@@ -1666,6 +1752,8 @@ def conectacasa_visualizar_orcamento(orcamento_id):
     )
 
 
+@app.route("/orcamentos/<int:orcamento_id>/editar", methods=["GET", "POST"])
+@app.route("/orcamentos/<int:orcamento_id>/editar/", methods=["GET", "POST"])
 @app.route("/conectacasa/orcamentos/<int:orcamento_id>/editar", methods=["GET", "POST"])
 @app.route("/conectacasa/orcamentos/<int:orcamento_id>/editar/", methods=["GET", "POST"])
 @conectacasa_required
@@ -1675,7 +1763,7 @@ def conectacasa_editar_orcamento(orcamento_id):
     orcamento = conectacasa_carregar_orcamento(conn, orcamento_id)
     if not orcamento:
         flash("Orcamento nao encontrado.", "danger")
-        return redirect(url_for("conectacasa_home"))
+        return redirect(conectacasa_path("/painel"))
 
     if request.method == "POST":
         itens = conectacasa_itens_do_formulario(request.form)
@@ -1693,7 +1781,7 @@ def conectacasa_editar_orcamento(orcamento_id):
                 modo="editar",
             )
         flash("Orcamento atualizado com sucesso.", "success")
-        return redirect(url_for("conectacasa_visualizar_orcamento", orcamento_id=orcamento_id))
+        return redirect(conectacasa_path(f"/orcamentos/{orcamento_id}"))
 
     return render_template(
         "conectacasa_form.html",
@@ -1705,6 +1793,8 @@ def conectacasa_editar_orcamento(orcamento_id):
     )
 
 
+@app.route("/orcamentos/<int:orcamento_id>/status", methods=["POST"])
+@app.route("/orcamentos/<int:orcamento_id>/status/", methods=["POST"])
 @app.route("/conectacasa/orcamentos/<int:orcamento_id>/status", methods=["POST"])
 @app.route("/conectacasa/orcamentos/<int:orcamento_id>/status/", methods=["POST"])
 @conectacasa_required
@@ -1713,13 +1803,13 @@ def conectacasa_atualizar_status(orcamento_id):
     orcamento = conn.execute("SELECT id FROM conectacasa_orcamentos WHERE id = ?", (orcamento_id,)).fetchone()
     if not orcamento:
         flash("Orcamento nao encontrado.", "danger")
-        return redirect(url_for("conectacasa_home"))
+        return redirect(conectacasa_path("/painel"))
 
     status = conectacasa_status_normalizado(request.form.get("status"))
     status_validos = {codigo for codigo, _ in conectacasa_status_opcoes()}
     if status not in status_validos:
         flash("Status invalido.", "danger")
-        return redirect(url_for("conectacasa_home"))
+        return redirect(conectacasa_path("/painel"))
 
     conn.execute(
         """
@@ -1734,10 +1824,12 @@ def conectacasa_atualizar_status(orcamento_id):
 
     mes = conectacasa_mes_valido(request.form.get("mes"))
     if mes:
-        return redirect(url_for("conectacasa_home", mes=mes))
-    return redirect(url_for("conectacasa_home"))
+        return redirect(f"{conectacasa_path('/painel')}?mes={mes}")
+    return redirect(conectacasa_path("/painel"))
 
 
+@app.route("/orcamentos/<int:orcamento_id>/pdf")
+@app.route("/orcamentos/<int:orcamento_id>/pdf/")
 @app.route("/conectacasa/orcamentos/<int:orcamento_id>/pdf")
 @app.route("/conectacasa/orcamentos/<int:orcamento_id>/pdf/")
 @conectacasa_required
@@ -1746,7 +1838,7 @@ def conectacasa_orcamento_pdf(orcamento_id):
     orcamento = conectacasa_carregar_orcamento(conn, orcamento_id)
     if not orcamento:
         flash("Orcamento nao encontrado.", "danger")
-        return redirect(url_for("conectacasa_home"))
+        return redirect(conectacasa_path("/painel"))
 
     config = conectacasa_obter_config(conn)
     pdf = conectacasa_render_pdf(orcamento, config)
@@ -1757,69 +1849,96 @@ def conectacasa_orcamento_pdf(orcamento_id):
 @app.route("/igrejaemboavista")
 @app.route("/igrejaemboavista/")
 def igreja_publico():
+    if not igreja_request_permitida():
+        abort(404)
     conn = get_db()
     config = igreja_obter_config(conn)
     avisos = igreja_listar_avisos(conn, somente_ativos=True)
     return render_template("igrejaemboavista_publico.html", config=config, avisos=avisos)
 
 
+@app.route("/editar", methods=["GET", "POST"])
+@app.route("/editar/", methods=["GET", "POST"])
 @app.route("/igrejaemboavista/editar", methods=["GET", "POST"])
 @app.route("/igrejaemboavista/editar/", methods=["GET", "POST"])
 @login_required
 @igreja_edit_required
 def igreja_admin():
+    if not igreja_request_permitida():
+        abort(404)
     conn = get_db()
 
     if request.method == "POST":
         igreja_salvar_config(conn, request.form)
         flash("Conteudo do portal atualizado com sucesso.", "success")
-        return redirect(url_for("igreja_admin"))
+        return redirect(igreja_path("/editar"))
 
     config = igreja_obter_config(conn)
     avisos = igreja_listar_avisos(conn)
     return render_template("igrejaemboavista_admin.html", config=config, avisos=avisos)
 
 
+@app.route("/avisos/novo", methods=["POST"])
+@app.route("/avisos/novo/", methods=["POST"])
 @app.route("/igrejaemboavista/avisos/novo", methods=["POST"])
 @app.route("/igrejaemboavista/avisos/novo/", methods=["POST"])
 @login_required
 @igreja_edit_required
 def igreja_aviso_novo():
+    if not igreja_request_permitida():
+        abort(404)
     conn = get_db()
     igreja_salvar_aviso(conn, request.form)
     flash("Aviso criado com sucesso.", "success")
-    return redirect(url_for("igreja_admin"))
+    return redirect(igreja_path("/editar"))
 
 
+@app.route("/avisos/<int:aviso_id>/editar", methods=["POST"])
+@app.route("/avisos/<int:aviso_id>/editar/", methods=["POST"])
 @app.route("/igrejaemboavista/avisos/<int:aviso_id>/editar", methods=["POST"])
 @app.route("/igrejaemboavista/avisos/<int:aviso_id>/editar/", methods=["POST"])
 @login_required
 @igreja_edit_required
 def igreja_aviso_editar(aviso_id):
+    if not igreja_request_permitida():
+        abort(404)
     conn = get_db()
     igreja_salvar_aviso(conn, request.form, aviso_id=aviso_id)
     flash("Aviso atualizado com sucesso.", "success")
-    return redirect(url_for("igreja_admin"))
+    return redirect(igreja_path("/editar"))
 
 
+@app.route("/avisos/<int:aviso_id>/excluir", methods=["POST"])
+@app.route("/avisos/<int:aviso_id>/excluir/", methods=["POST"])
 @app.route("/igrejaemboavista/avisos/<int:aviso_id>/excluir", methods=["POST"])
 @app.route("/igrejaemboavista/avisos/<int:aviso_id>/excluir/", methods=["POST"])
 @login_required
 @igreja_edit_required
 def igreja_aviso_excluir(aviso_id):
+    if not igreja_request_permitida():
+        abort(404)
     conn = get_db()
     conn.execute("DELETE FROM igreja_avisos WHERE id = ?", (aviso_id,))
     conn.commit()
     flash("Aviso removido com sucesso.", "success")
-    return redirect(url_for("igreja_admin"))
+    return redirect(igreja_path("/editar"))
 
 
 # Rota principal - Dashboard
 @app.route("/")
 @app.route("/dashboard")
 @app.route("/dashboard/")
-@login_required
 def dashboard():
+    if host_eh_conectacasa():
+        return conectacasa_publico()
+    if host_eh_igreja():
+        return igreja_publico()
+    if not current_user.is_authenticated:
+        return login_manager.unauthorized()
+    if not usuario_pode_acessar_inventario(current_user):
+        destino = destino_pos_login(current_user)
+        return redirect(destino or url_for("logout"))
+
     db = get_db()
     total_itens = db.execute("SELECT COUNT(*) as count FROM itens").fetchone()["count"]
     total_emprestado = db.execute("SELECT COUNT(*) as count FROM emprestimos WHERE data_devolucao IS NULL").fetchone()["count"]

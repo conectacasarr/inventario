@@ -39,7 +39,7 @@
         <h1 class="mt-3 mb-1">{{ 'Novo orcamento' if modo == 'novo' else 'Editar orcamento' }}</h1>
         <p class="cc-muted mb-0">Monte a proposta, salve para continuar depois e gere os materiais para envio.</p>
     </div>
-    <a href="{{ url_for('conectacasa_home') }}" class="btn btn-outline-secondary rounded-pill px-4">Voltar</a>
+    <a href="{{ conectacasa_path('/painel') }}" class="btn btn-outline-secondary rounded-pill px-4">Voltar</a>
 </div>
 
 <form method="POST" enctype="multipart/form-data" class="cc-panel p-4 p-lg-5" id="orcamento-form">
@@ -160,7 +160,7 @@
     </div>
 
     <div class="d-flex justify-content-end gap-2 mt-4">
-        <a href="{{ url_for('conectacasa_home') }}" class="btn btn-outline-secondary rounded-pill px-4">Cancelar</a>
+        <a href="{{ conectacasa_path('/painel') }}" class="btn btn-outline-secondary rounded-pill px-4">Cancelar</a>
         <button type="submit" class="btn cc-btn-primary rounded-pill px-4">Salvar orcamento</button>
     </div>
 </form>
