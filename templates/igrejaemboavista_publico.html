@@ -33,6 +33,11 @@
             font-size: 1.35rem;
         }
 
+        .ibv-header-meta {
+            color: rgba(15, 40, 84, 0.62);
+            font-size: 0.92rem;
+        }
+
         .ibv-shell {
             background: rgba(255, 255, 255, 0.9);
             border: 1px solid var(--ibv-line);
@@ -72,6 +77,14 @@
             color: var(--ibv-blue-dark);
             font-size: 1.65rem;
             font-weight: 800;
+        }
+
+        .ibv-subtle-title {
+            color: rgba(15, 40, 84, 0.56);
+            font-size: 0.82rem;
+            font-weight: 800;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
         }
 
         .ibv-link-btn {
@@ -129,15 +142,45 @@
             background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(250, 252, 255, 0.96));
             box-shadow: 0 14px 36px rgba(15, 40, 84, 0.05);
         }
+
+        .ibv-top-tabs-shell {
+            position: relative;
+            overflow: hidden;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(244, 229, 200, 0.72));
+            border: 1px solid rgba(21, 58, 122, 0.08);
+            border-radius: 26px;
+            box-shadow: 0 18px 42px rgba(15, 40, 84, 0.05);
+        }
+
+        .ibv-hero-panel {
+            background: linear-gradient(135deg, rgba(15, 40, 84, 0.03), rgba(229, 178, 74, 0.1));
+            border: 1px solid rgba(21, 58, 122, 0.08);
+            border-radius: 30px;
+            padding: 1.25rem;
+        }
+
+        .ibv-social-card {
+            border-radius: 22px;
+            padding: 1.15rem;
+            border: 1px solid rgba(21, 58, 122, 0.08);
+            background: rgba(255, 255, 255, 0.9);
+        }
+
+        .ibv-social-card .btn {
+            border-radius: 999px;
+        }
     </style>
 </head>
 <body>
     <header class="py-4">
         <div class="container d-flex justify-content-between align-items-center">
-            <a href="{{ igreja_path('/') }}" class="ibv-brand">{{ config.nome_site or 'Igreja em Boa Vista' }}</a>
+            <div>
+                <a href="{{ igreja_path('/') }}" class="ibv-brand">{{ config.nome_site or 'Igreja em Boa Vista' }}</a>
+                <div class="ibv-header-meta mt-1">Portal oficial</div>
+            </div>
             <div class="ibv-header-actions">
                 {% if current_user.is_authenticated and current_user.pode_acessar_inventario %}
-                <a href="{{ url_for('dashboard') }}" class="btn btn-outline-dark rounded-pill px-4">
+                <a href="{{ url_for('inventario') }}" class="btn btn-outline-dark rounded-pill px-4">
                     <i class="fas fa-boxes me-2"></i>Inventario
                 </a>
                 {% endif %}
@@ -146,21 +189,25 @@
                     <i class="fas fa-pen me-2"></i>Editar portal
                 </a>
                 {% elif not current_user.is_authenticated %}
-                <a href="{{ url_for('login') }}" class="btn btn-outline-primary rounded-pill px-4">
+                <a href="{{ url_for('login', next=url_for('inventario')) }}" class="btn btn-outline-primary rounded-pill px-4">
                     <i class="fas fa-sign-in-alt me-2"></i>Entrar
                 </a>
                 {% endif %}
-                <a href="{{ config.instagram_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-primary rounded-pill px-4">
-                    <i class="fab fa-instagram me-2"></i>Instagram
-                </a>
-                <a href="{{ config.youtube_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-primary rounded-pill px-4">
-                    <i class="fab fa-youtube me-2"></i>YouTube
-                </a>
             </div>
         </div>
     </header>
 
     <main class="container pb-5">
+        <section class="ibv-top-tabs-shell p-3 p-lg-4 mb-4" id="conteudo-portal">
+            <div class="ibv-subtle-title mb-3">Navegacao</div>
+            <div class="ibv-tab-nav">
+                <button type="button" class="ibv-tab-button active" data-ibv-tab="avisos">Avisos</button>
+                <button type="button" class="ibv-tab-button" data-ibv-tab="apostilas">{{ config.apostilas_titulo or 'Apostilas' }}</button>
+                <button type="button" class="ibv-tab-button" data-ibv-tab="historia">{{ config.historia_titulo or 'Historia da Igreja em Boa Vista' }}</button>
+                <button type="button" class="ibv-tab-button" data-ibv-tab="ensinos">{{ config.ensinos_titulo or 'Ensinos' }}</button>
+            </div>
+        </section>
+
         <section class="ibv-shell p-4 p-lg-5 mb-4">
             <div class="row g-4 align-items-center">
                 <div class="col-lg-7">
@@ -178,27 +225,34 @@
                     </div>
                 </div>
                 <div class="col-lg-5">
-                    <div class="ibv-clean-card p-4 h-100 d-flex flex-column justify-content-center">
-                        <h2 class="h4 mb-4 text-dark">Canais oficiais</h2>
-                        <div class="d-grid gap-3">
-                            <a href="{{ config.youtube_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-danger rounded-pill">
-                                <i class="fab fa-youtube me-2"></i>Acessar YouTube
-                            </a>
-                            <a href="{{ config.instagram_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-dark rounded-pill">
-                                <i class="fab fa-instagram me-2"></i>Acessar Instagram
-                            </a>
+                    <div class="ibv-hero-panel h-100">
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <div class="ibv-social-card">
+                                    <div class="ibv-subtle-title mb-2">Agenda</div>
+                                    <div class="fw-bold text-dark mb-2">{{ config.agenda_titulo or 'Agenda' }}</div>
+                                    <div class="text-secondary" style="white-space: pre-line;">{{ config.agenda_texto or '' }}</div>
+                                </div>
+                            </div>
+                            <div class="col-sm-6">
+                                <div class="ibv-social-card h-100">
+                                    <div class="fw-bold text-dark mb-3">YouTube</div>
+                                    <a href="{{ config.youtube_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-danger w-100">
+                                        <i class="fab fa-youtube me-2"></i>Acessar
+                                    </a>
+                                </div>
+                            </div>
+                            <div class="col-sm-6">
+                                <div class="ibv-social-card h-100">
+                                    <div class="fw-bold text-dark mb-3">Instagram</div>
+                                    <a href="{{ config.instagram_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-dark w-100">
+                                        <i class="fab fa-instagram me-2"></i>Acessar
+                                    </a>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
-        </section>
-
-        <section class="ibv-card p-4 mb-4" id="conteudo-portal">
-            <div class="ibv-tab-nav">
-                <button type="button" class="ibv-tab-button active" data-ibv-tab="avisos">Avisos</button>
-                <button type="button" class="ibv-tab-button" data-ibv-tab="apostilas">{{ config.apostilas_titulo or 'Apostilas' }}</button>
-                <button type="button" class="ibv-tab-button" data-ibv-tab="historia">{{ config.historia_titulo or 'Historia da Igreja em Boa Vista' }}</button>
-                <button type="button" class="ibv-tab-button" data-ibv-tab="ensinos">{{ config.ensinos_titulo or 'Ensinos' }}</button>
             </div>
         </section>
 

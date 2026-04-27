@@ -1216,13 +1216,34 @@ def usuario_pode_editar_igreja(user):
 
 def destino_pos_login(user):
     if usuario_pode_acessar_inventario(user):
-        return url_for("dashboard")
+        return url_for("inventario")
     if usuario_pode_editar_igreja(user):
         host_igreja = (app.config.get("IGREJA_PUBLIC_HOST") or "").strip().lower()
         if host_igreja:
             return url_no_host(host_igreja, "/editar")
         return igreja_path("/editar")
     return None
+
+
+def login_next_seguro():
+    proximo = (request.args.get("next") or request.form.get("next") or "").strip()
+    if not proximo:
+        return None
+    if proximo.startswith("/") and not proximo.startswith("//"):
+        return proximo
+    return None
+
+
+def destino_pos_login_com_next(user):
+    proximo = login_next_seguro()
+    if proximo:
+        if proximo.startswith("/inventario") and usuario_pode_acessar_inventario(user):
+            return proximo
+        if proximo.startswith("/editar") and usuario_pode_editar_igreja(user):
+            return proximo
+        if proximo.startswith("/igrejaemboavista/editar") and usuario_pode_editar_igreja(user):
+            return proximo
+    return destino_pos_login(user)
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -1523,7 +1544,7 @@ def aplicar_permissoes_de_acesso():
 @app.route("/login/", methods=["GET", "POST"])
 def login():
     if current_user.is_authenticated:
-        return redirect(destino_pos_login(current_user) or url_for("logout"))
+        return redirect(destino_pos_login_com_next(current_user) or url_for("logout"))
     
     if request.method == "POST":
         identificador = request.form.get("usuario", "").strip()
@@ -1547,10 +1568,10 @@ def login():
                 user["pode_acessar_inventario"] if "pode_acessar_inventario" in user.keys() else 1,
                 user["pode_editar_igreja"] if "pode_editar_igreja" in user.keys() else 0,
             )
-            destino = destino_pos_login(user_obj)
+            destino = destino_pos_login_com_next(user_obj)
             if not destino:
                 flash("Seu usuario esta ativo, mas ainda nao possui acessos liberados.", "warning")
-                return render_template("login_auth.html")
+                return render_template("login_auth.html", next_url=login_next_seguro())
             login_user(user_obj)
             registrar_log("Login realizado com sucesso")
             db.commit()
@@ -1560,7 +1581,7 @@ def login():
         else:
             flash("Usuario, e-mail ou senha invalidos.", "danger")
     
-    return render_template("login_auth.html")
+    return render_template("login_auth.html", next_url=login_next_seguro())
 
 @app.route("/cadastro", methods=["GET", "POST"])
 @app.route("/cadastro/", methods=["GET", "POST"])
