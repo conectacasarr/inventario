@@ -240,6 +240,146 @@ def conectacasa_preparar_urls_config(config):
     return config
 
 
+def igreja_criar_tabelas():
+    conn = get_db()
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS igreja_config (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            nome_site TEXT NOT NULL DEFAULT 'Igreja em Boa Vista',
+            hero_titulo TEXT NOT NULL DEFAULT 'Igreja em Boa Vista',
+            hero_subtitulo TEXT NOT NULL DEFAULT 'Avisos, programacao e canais oficiais da igreja em um so lugar.',
+            mensagem_boas_vindas TEXT,
+            agenda_titulo TEXT NOT NULL DEFAULT 'Agenda e horarios',
+            agenda_texto TEXT,
+            youtube_url TEXT,
+            instagram_url TEXT,
+            pix_cnpj TEXT,
+            pix_texto TEXT,
+            atualizado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS igreja_avisos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            titulo TEXT NOT NULL,
+            descricao TEXT NOT NULL,
+            link_url TEXT,
+            ordem INTEGER NOT NULL DEFAULT 0,
+            ativo INTEGER NOT NULL DEFAULT 1,
+            criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            atualizado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO igreja_config (
+            id, nome_site, hero_titulo, hero_subtitulo, mensagem_boas_vindas,
+            agenda_titulo, agenda_texto, youtube_url, instagram_url, pix_cnpj, pix_texto
+        )
+        SELECT
+            1,
+            'Igreja em Boa Vista',
+            'Igreja em Boa Vista',
+            'Avisos, programacao e canais oficiais da igreja em um so lugar.',
+            'Acompanhe os avisos da igreja, nossos canais oficiais e a area de contribuicao.',
+            'Agenda e horarios',
+            'Atualize aqui os horarios de cultos, reunioes e eventos da semana.',
+            'https://www.youtube.com/@igrejaemboavista',
+            'https://www.instagram.com/igrejaemboavista?igsh=MWR1aXR6NzNuNm1kNw%3D%3D',
+            '09.148.629/0001-58',
+            'Sua contribuicao ajuda a manter os trabalhos e projetos da igreja.'
+        WHERE NOT EXISTS (SELECT 1 FROM igreja_config WHERE id = 1)
+        """
+    )
+    conn.commit()
+    conn.close()
+
+
+def igreja_obter_config(conn):
+    config = conn.execute("SELECT * FROM igreja_config WHERE id = 1").fetchone()
+    return dict(config) if config else {}
+
+
+def igreja_listar_avisos(conn, somente_ativos=False):
+    query = "SELECT * FROM igreja_avisos"
+    params = []
+    if somente_ativos:
+        query += " WHERE ativo = 1"
+    query += " ORDER BY ordem ASC, atualizado_em DESC, id DESC"
+    return [dict(item) for item in conn.execute(query, params).fetchall()]
+
+
+def igreja_salvar_config(conn, form):
+    conn.execute(
+        """
+        UPDATE igreja_config
+        SET nome_site = ?,
+            hero_titulo = ?,
+            hero_subtitulo = ?,
+            mensagem_boas_vindas = ?,
+            agenda_titulo = ?,
+            agenda_texto = ?,
+            youtube_url = ?,
+            instagram_url = ?,
+            pix_cnpj = ?,
+            pix_texto = ?,
+            atualizado_em = CURRENT_TIMESTAMP
+        WHERE id = 1
+        """,
+        (
+            (form.get("nome_site") or "").strip() or "Igreja em Boa Vista",
+            (form.get("hero_titulo") or "").strip() or "Igreja em Boa Vista",
+            (form.get("hero_subtitulo") or "").strip() or "Avisos, programacao e canais oficiais da igreja em um so lugar.",
+            (form.get("mensagem_boas_vindas") or "").strip(),
+            (form.get("agenda_titulo") or "").strip() or "Agenda e horarios",
+            (form.get("agenda_texto") or "").strip(),
+            (form.get("youtube_url") or "").strip(),
+            (form.get("instagram_url") or "").strip(),
+            (form.get("pix_cnpj") or "").strip(),
+            (form.get("pix_texto") or "").strip(),
+        ),
+    )
+    conn.commit()
+
+
+def igreja_salvar_aviso(conn, form, aviso_id=None):
+    titulo = (form.get("titulo") or "").strip()
+    descricao = (form.get("descricao") or "").strip()
+    link_url = (form.get("link_url") or "").strip()
+    try:
+        ordem = int(form.get("ordem") or 0)
+    except ValueError:
+        ordem = 0
+    ativo = 1 if form.get("ativo") == "1" else 0
+
+    if not titulo or not descricao:
+        return False, "Titulo e descricao do aviso sao obrigatorios."
+
+    if aviso_id:
+        conn.execute(
+            """
+            UPDATE igreja_avisos
+            SET titulo = ?, descricao = ?, link_url = ?, ordem = ?, ativo = ?, atualizado_em = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (titulo, descricao, link_url, ordem, ativo, aviso_id),
+        )
+    else:
+        conn.execute(
+            """
+            INSERT INTO igreja_avisos (titulo, descricao, link_url, ordem, ativo)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (titulo, descricao, link_url, ordem, ativo),
+        )
+    conn.commit()
+    return True, None
+
+
 def conectacasa_autenticado():
     return bool(session.get("conectacasa_auth"))
 
@@ -804,18 +944,43 @@ login_manager.login_message = None
 
 # Classe de usuário para o Flask-Login
 class User(UserMixin):
-    def __init__(self, id, nome, usuario, tipo):
+    def __init__(self, id, nome, usuario, tipo, pode_acessar_inventario=1, pode_editar_igreja=0):
         self.id = id
         self.nome = nome
         self.usuario = usuario
         self.tipo = tipo
+        self.pode_acessar_inventario = bool(int(pode_acessar_inventario or 0))
+        self.pode_editar_igreja = bool(int(pode_editar_igreja or 0))
+
+
+def usuario_pode_acessar_inventario(user):
+    return bool(getattr(user, "tipo", "") == "admin" or getattr(user, "pode_acessar_inventario", False))
+
+
+def usuario_pode_editar_igreja(user):
+    return bool(getattr(user, "tipo", "") == "admin" or getattr(user, "pode_editar_igreja", False))
+
+
+def destino_pos_login(user):
+    if usuario_pode_acessar_inventario(user):
+        return url_for("dashboard")
+    if usuario_pode_editar_igreja(user):
+        return url_for("igreja_admin")
+    return None
 
 @login_manager.user_loader
 def load_user(user_id):
     db = get_db()
     user = db.execute("SELECT * FROM usuarios WHERE id = ?", (user_id,)).fetchone()
     if user:
-        return User(user["id"], user["nome"], user["usuario"], user["tipo"])
+        return User(
+            user["id"],
+            user["nome"],
+            user["usuario"],
+            user["tipo"],
+            user["pode_acessar_inventario"] if "pode_acessar_inventario" in user.keys() else 1,
+            user["pode_editar_igreja"] if "pode_editar_igreja" in user.keys() else 0,
+        )
     return None
 
 def get_reset_serializer():
@@ -953,6 +1118,10 @@ def migrar_usuarios_auth():
             conn.execute("ALTER TABLE usuarios ADD COLUMN ativo INTEGER NOT NULL DEFAULT 1")
         if "criado_em" not in colunas:
             conn.execute("ALTER TABLE usuarios ADD COLUMN criado_em TIMESTAMP")
+        if "pode_acessar_inventario" not in colunas:
+            conn.execute("ALTER TABLE usuarios ADD COLUMN pode_acessar_inventario INTEGER NOT NULL DEFAULT 1")
+        if "pode_editar_igreja" not in colunas:
+            conn.execute("ALTER TABLE usuarios ADD COLUMN pode_editar_igreja INTEGER NOT NULL DEFAULT 0")
 
         usuarios_sem_email = conn.execute(
             "SELECT id, usuario FROM usuarios WHERE email IS NULL OR TRIM(email) = ''"
@@ -970,6 +1139,15 @@ def migrar_usuarios_auth():
             "UPDATE usuarios SET criado_em = CURRENT_TIMESTAMP WHERE criado_em IS NULL"
         )
         conn.execute(
+            "UPDATE usuarios SET pode_acessar_inventario = 1 WHERE pode_acessar_inventario IS NULL"
+        )
+        conn.execute(
+            "UPDATE usuarios SET pode_editar_igreja = 0 WHERE pode_editar_igreja IS NULL"
+        )
+        conn.execute(
+            "UPDATE usuarios SET pode_editar_igreja = 1 WHERE usuario = 'admin'"
+        )
+        conn.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_usuarios_email ON usuarios(email)"
         )
         conn.commit()
@@ -980,9 +1158,23 @@ def migrar_usuarios_auth():
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated or current_user.tipo != "admin":
+        if not current_user.is_authenticated or current_user.tipo != "admin" or not usuario_pode_acessar_inventario(current_user):
             flash("Acesso restrito a administradores.", "danger")
-            return redirect(url_for("dashboard"))
+            destino = destino_pos_login(current_user) if current_user.is_authenticated else url_for("login")
+            return redirect(destino or url_for("login"))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def igreja_edit_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated:
+            return redirect(url_for("login"))
+        if not usuario_pode_editar_igreja(current_user):
+            flash("Voce nao tem permissao para editar o portal da igreja.", "danger")
+            destino = destino_pos_login(current_user)
+            return redirect(destino or url_for("login"))
         return f(*args, **kwargs)
     return decorated_function
 
@@ -1024,12 +1216,51 @@ def format_tombamento(tombamento):
 def inject_now():
     return {"now": datetime.now, "formata_brl": formata_brl}
 
+
+INVENTARIO_ENDPOINTS = {
+    "dashboard",
+    "inventario",
+    "novo_item",
+    "editar_item",
+    "excluir_item",
+    "grupos_marcas",
+    "emprestimos",
+    "devolver_emprestimo",
+    "desfazer_devolucao",
+    "excluir_emprestimo",
+    "termo_compromisso",
+    "relatorios",
+    "usuarios",
+    "ativar_usuario",
+    "novo_usuario",
+    "editar_usuario",
+    "excluir_usuario",
+    "logs",
+}
+
+
+@app.before_request
+def aplicar_permissoes_de_acesso():
+    if not current_user.is_authenticated:
+        return None
+
+    endpoint = request.endpoint or ""
+    if endpoint in INVENTARIO_ENDPOINTS and not usuario_pode_acessar_inventario(current_user):
+        flash("Seu usuario nao tem acesso ao inventario.", "warning")
+        destino = destino_pos_login(current_user)
+        return redirect(destino or url_for("logout"))
+
+    if endpoint.startswith("igreja_") and endpoint != "igreja_publico" and not usuario_pode_editar_igreja(current_user):
+        flash("Seu usuario nao tem permissao para editar o portal da igreja.", "warning")
+        destino = destino_pos_login(current_user)
+        return redirect(destino or url_for("logout"))
+
 # Rotas de autenticação
 @app.route("/login", methods=["GET", "POST"])
 @app.route("/login/", methods=["GET", "POST"])
 def login():
     if current_user.is_authenticated:
-        return redirect(url_for("dashboard"))
+        return redirect(destino_pos_login(current_user) or url_for("logout"))
     
     if request.method == "POST":
         identificador = request.form.get("usuario", "").strip()
@@ -1045,11 +1276,22 @@ def login():
         ).fetchone()
         
         if user and int(user["ativo"]) == 1 and check_password_hash(user["senha_hash"], senha):
-            user_obj = User(user["id"], user["nome"], user["usuario"], user["tipo"])
+            user_obj = User(
+                user["id"],
+                user["nome"],
+                user["usuario"],
+                user["tipo"],
+                user["pode_acessar_inventario"] if "pode_acessar_inventario" in user.keys() else 1,
+                user["pode_editar_igreja"] if "pode_editar_igreja" in user.keys() else 0,
+            )
+            destino = destino_pos_login(user_obj)
+            if not destino:
+                flash("Seu usuario esta ativo, mas ainda nao possui acessos liberados.", "warning")
+                return render_template("login_auth.html")
             login_user(user_obj)
             registrar_log("Login realizado com sucesso")
             db.commit()
-            return redirect(url_for("dashboard"))
+            return redirect(destino)
         elif user and int(user["ativo"]) != 1:
             flash("Seu cadastro foi recebido, mas ainda aguarda aprovacao de um administrador.", "warning")
         else:
@@ -1061,7 +1303,7 @@ def login():
 @app.route("/cadastro/", methods=["GET", "POST"])
 def cadastro():
     if current_user.is_authenticated:
-        return redirect(url_for("dashboard"))
+        return redirect(destino_pos_login(current_user) or url_for("logout"))
 
     if request.method == "POST":
         nome = request.form.get("nome", "").strip()
@@ -1097,10 +1339,10 @@ def cadastro():
 
         db.execute(
             """
-            INSERT INTO usuarios (nome, usuario, email, senha_hash, tipo, ativo, criado_em)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO usuarios (nome, usuario, email, senha_hash, tipo, ativo, criado_em, pode_acessar_inventario, pode_editar_igreja)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (nome, usuario, email, generate_password_hash(senha), "comum", 0, datetime.now()),
+            (nome, usuario, email, generate_password_hash(senha), "comum", 0, datetime.now(), 1, 0),
         )
         db.commit()
         enviado, erro = enviar_email_cadastro_pendente(nome, email)
@@ -1115,7 +1357,7 @@ def cadastro():
 @app.route("/esqueci-senha/", methods=["GET", "POST"])
 def esqueci_senha():
     if current_user.is_authenticated:
-        return redirect(url_for("dashboard"))
+        return redirect(destino_pos_login(current_user) or url_for("logout"))
 
     if request.method == "POST":
         email = validar_email_informado(request.form.get("email"))
@@ -1510,6 +1752,66 @@ def conectacasa_orcamento_pdf(orcamento_id):
     pdf = conectacasa_render_pdf(orcamento, config)
     nome_arquivo = f"{orcamento['codigo']}.pdf"
     return send_file(pdf, as_attachment=True, download_name=nome_arquivo, mimetype="application/pdf")
+
+
+@app.route("/igrejaemboavista")
+@app.route("/igrejaemboavista/")
+def igreja_publico():
+    conn = get_db()
+    config = igreja_obter_config(conn)
+    avisos = igreja_listar_avisos(conn, somente_ativos=True)
+    return render_template("igrejaemboavista_publico.html", config=config, avisos=avisos)
+
+
+@app.route("/igrejaemboavista/editar", methods=["GET", "POST"])
+@app.route("/igrejaemboavista/editar/", methods=["GET", "POST"])
+@login_required
+@igreja_edit_required
+def igreja_admin():
+    conn = get_db()
+
+    if request.method == "POST":
+        igreja_salvar_config(conn, request.form)
+        flash("Conteudo do portal atualizado com sucesso.", "success")
+        return redirect(url_for("igreja_admin"))
+
+    config = igreja_obter_config(conn)
+    avisos = igreja_listar_avisos(conn)
+    return render_template("igrejaemboavista_admin.html", config=config, avisos=avisos)
+
+
+@app.route("/igrejaemboavista/avisos/novo", methods=["POST"])
+@app.route("/igrejaemboavista/avisos/novo/", methods=["POST"])
+@login_required
+@igreja_edit_required
+def igreja_aviso_novo():
+    conn = get_db()
+    igreja_salvar_aviso(conn, request.form)
+    flash("Aviso criado com sucesso.", "success")
+    return redirect(url_for("igreja_admin"))
+
+
+@app.route("/igrejaemboavista/avisos/<int:aviso_id>/editar", methods=["POST"])
+@app.route("/igrejaemboavista/avisos/<int:aviso_id>/editar/", methods=["POST"])
+@login_required
+@igreja_edit_required
+def igreja_aviso_editar(aviso_id):
+    conn = get_db()
+    igreja_salvar_aviso(conn, request.form, aviso_id=aviso_id)
+    flash("Aviso atualizado com sucesso.", "success")
+    return redirect(url_for("igreja_admin"))
+
+
+@app.route("/igrejaemboavista/avisos/<int:aviso_id>/excluir", methods=["POST"])
+@app.route("/igrejaemboavista/avisos/<int:aviso_id>/excluir/", methods=["POST"])
+@login_required
+@igreja_edit_required
+def igreja_aviso_excluir(aviso_id):
+    conn = get_db()
+    conn.execute("DELETE FROM igreja_avisos WHERE id = ?", (aviso_id,))
+    conn.commit()
+    flash("Aviso removido com sucesso.", "success")
+    return redirect(url_for("igreja_admin"))
 
 
 # Rota principal - Dashboard
@@ -2966,6 +3268,8 @@ def novo_usuario():
         email = validar_email_informado(request.form.get("email"))
         senha = request.form.get("senha")
         tipo = request.form.get("tipo")
+        pode_acessar_inventario = 1 if request.form.get("pode_acessar_inventario") == "1" else 0
+        pode_editar_igreja = 1 if request.form.get("pode_editar_igreja") == "1" else 0
         
         if not nome or not usuario or not email or not senha:
             flash("Todos os campos sao obrigatorios.", "danger")
@@ -2990,9 +3294,9 @@ def novo_usuario():
             senha_hash = generate_password_hash(senha)
             
             db.execute("""
-                INSERT INTO usuarios (nome, usuario, email, senha_hash, tipo, ativo, criado_em) 
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (nome, usuario, email, senha_hash, tipo, 1, datetime.now()))
+                INSERT INTO usuarios (nome, usuario, email, senha_hash, tipo, ativo, criado_em, pode_acessar_inventario, pode_editar_igreja) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (nome, usuario, email, senha_hash, tipo, 1, datetime.now(), pode_acessar_inventario, pode_editar_igreja))
             db.commit()
             
             registrar_log(f"Usuário cadastrado: {nome} ({usuario})")
@@ -3023,6 +3327,8 @@ def editar_usuario(id):
         email = validar_email_informado(request.form.get("email"))
         senha = request.form.get("senha")
         tipo = request.form.get("tipo")
+        pode_acessar_inventario = 1 if request.form.get("pode_acessar_inventario") == "1" else 0
+        pode_editar_igreja = 1 if request.form.get("pode_editar_igreja") == "1" else 0
         
         if not nome or not usuario_login or not email:
             flash("Nome, usuario e e-mail sao obrigatorios.", "danger")
@@ -3048,16 +3354,16 @@ def editar_usuario(id):
                 senha_hash = generate_password_hash(senha)
                 db.execute("""
                     UPDATE usuarios 
-                    SET nome = ?, usuario = ?, email = ?, senha_hash = ?, tipo = ? 
+                    SET nome = ?, usuario = ?, email = ?, senha_hash = ?, tipo = ?, pode_acessar_inventario = ?, pode_editar_igreja = ? 
                     WHERE id = ?
-                """, (nome, usuario_login, email, senha_hash, tipo, id))
+                """, (nome, usuario_login, email, senha_hash, tipo, pode_acessar_inventario, pode_editar_igreja, id))
             else:
                 # Se senha não foi fornecida, manter a senha atual
                 db.execute("""
                     UPDATE usuarios 
-                    SET nome = ?, usuario = ?, email = ?, tipo = ? 
+                    SET nome = ?, usuario = ?, email = ?, tipo = ?, pode_acessar_inventario = ?, pode_editar_igreja = ? 
                     WHERE id = ?
-                """, (nome, usuario_login, email, tipo, id))
+                """, (nome, usuario_login, email, tipo, pode_acessar_inventario, pode_editar_igreja, id))
             
             db.commit()
             
@@ -3118,6 +3424,7 @@ def create_tables():
 
     migrar_usuarios_auth()
     conectacasa_criar_tabelas()
+    igreja_criar_tabelas()
 
     conn = get_db()
     admin = conn.execute("SELECT * FROM usuarios WHERE usuario = 'admin'").fetchone()
@@ -3125,10 +3432,18 @@ def create_tables():
         senha_hash = generate_password_hash("admin123")
         conn.execute(
             """
-            INSERT INTO usuarios (nome, usuario, email, senha_hash, tipo, ativo, criado_em)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO usuarios (nome, usuario, email, senha_hash, tipo, ativo, criado_em, pode_acessar_inventario, pode_editar_igreja)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            ("Administrador", "admin", "admin@sem-email.local", senha_hash, "admin", 1, datetime.now()),
+            ("Administrador", "admin", "admin@sem-email.local", senha_hash, "admin", 1, datetime.now(), 1, 1),
+        )
+    else:
+        conn.execute(
+            """
+            UPDATE usuarios
+            SET pode_acessar_inventario = 1, pode_editar_igreja = 1
+            WHERE usuario = 'admin'
+            """
         )
 
     try:

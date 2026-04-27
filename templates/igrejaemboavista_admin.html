@@ -1,0 +1,166 @@
+{% extends 'base_simples.html' %}
+
+{% block title %}Portal da Igreja - OAIBV{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
+        <div>
+            <h1 class="mb-1">Portal da Igreja</h1>
+            <p class="text-secondary mb-0">Edite o conteudo publico da igreja sem precisar mexer em codigo.</p>
+        </div>
+        <a href="{{ url_for('igreja_publico') }}" target="_blank" class="btn btn-outline-primary">
+            <i class="fas fa-external-link-alt me-2"></i>Ver site publico
+        </a>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-7">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">Conteudo principal</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <div class="mb-3">
+                            <label for="nome_site" class="form-label">Nome do site</label>
+                            <input type="text" class="form-control" id="nome_site" name="nome_site" value="{{ config.nome_site or '' }}" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="hero_titulo" class="form-label">Titulo principal</label>
+                            <input type="text" class="form-control" id="hero_titulo" name="hero_titulo" value="{{ config.hero_titulo or '' }}" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="hero_subtitulo" class="form-label">Subtitulo</label>
+                            <textarea class="form-control" id="hero_subtitulo" name="hero_subtitulo" rows="3" required>{{ config.hero_subtitulo or '' }}</textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="mensagem_boas_vindas" class="form-label">Mensagem de boas-vindas</label>
+                            <textarea class="form-control" id="mensagem_boas_vindas" name="mensagem_boas_vindas" rows="3">{{ config.mensagem_boas_vindas or '' }}</textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="agenda_titulo" class="form-label">Titulo da agenda</label>
+                            <input type="text" class="form-control" id="agenda_titulo" name="agenda_titulo" value="{{ config.agenda_titulo or '' }}" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="agenda_texto" class="form-label">Agenda e horarios</label>
+                            <textarea class="form-control" id="agenda_texto" name="agenda_texto" rows="6">{{ config.agenda_texto or '' }}</textarea>
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="youtube_url" class="form-label">Link do YouTube</label>
+                                <input type="url" class="form-control" id="youtube_url" name="youtube_url" value="{{ config.youtube_url or '' }}">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="instagram_url" class="form-label">Link do Instagram</label>
+                                <input type="url" class="form-control" id="instagram_url" name="instagram_url" value="{{ config.instagram_url or '' }}">
+                            </div>
+                        </div>
+                        <hr class="my-4">
+                        <div class="mb-3">
+                            <label for="pix_cnpj" class="form-label">PIX para contribuicao</label>
+                            <input type="text" class="form-control" id="pix_cnpj" name="pix_cnpj" value="{{ config.pix_cnpj or '' }}">
+                        </div>
+                        <div class="mb-3">
+                            <label for="pix_texto" class="form-label">Texto da contribuicao</label>
+                            <textarea class="form-control" id="pix_texto" name="pix_texto" rows="3">{{ config.pix_texto or '' }}</textarea>
+                        </div>
+                        <div class="d-flex justify-content-end">
+                            <button type="submit" class="btn btn-primary">Salvar conteudo</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-5">
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">Novo aviso</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('igreja_aviso_novo') }}">
+                        <div class="mb-3">
+                            <label for="novo_titulo" class="form-label">Titulo</label>
+                            <input type="text" class="form-control" id="novo_titulo" name="titulo" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="novo_descricao" class="form-label">Descricao</label>
+                            <textarea class="form-control" id="novo_descricao" name="descricao" rows="4" required></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="novo_link_url" class="form-label">Link opcional</label>
+                            <input type="url" class="form-control" id="novo_link_url" name="link_url">
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-6">
+                                <label for="novo_ordem" class="form-label">Ordem</label>
+                                <input type="number" class="form-control" id="novo_ordem" name="ordem" value="0">
+                            </div>
+                            <div class="col-6 d-flex align-items-end">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="novo_ativo" name="ativo" value="1" checked>
+                                    <label class="form-check-label" for="novo_ativo">Publicado</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="d-grid mt-4">
+                            <button type="submit" class="btn btn-dark">Adicionar aviso</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">Avisos cadastrados</h5>
+                </div>
+                <div class="card-body">
+                    {% if avisos %}
+                        <div class="d-flex flex-column gap-3">
+                            {% for aviso in avisos %}
+                            <form method="POST" action="{{ url_for('igreja_aviso_editar', aviso_id=aviso.id) }}" class="border rounded-4 p-3 bg-light-subtle">
+                                <div class="mb-2">
+                                    <label class="form-label">Titulo</label>
+                                    <input type="text" class="form-control" name="titulo" value="{{ aviso.titulo }}" required>
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label">Descricao</label>
+                                    <textarea class="form-control" name="descricao" rows="3" required>{{ aviso.descricao }}</textarea>
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label">Link opcional</label>
+                                    <input type="url" class="form-control" name="link_url" value="{{ aviso.link_url or '' }}">
+                                </div>
+                                <div class="row g-3 align-items-end">
+                                    <div class="col-4">
+                                        <label class="form-label">Ordem</label>
+                                        <input type="number" class="form-control" name="ordem" value="{{ aviso.ordem or 0 }}">
+                                    </div>
+                                    <div class="col-4">
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="ativo_{{ aviso.id }}" name="ativo" value="1" {% if aviso.ativo %}checked{% endif %}>
+                                            <label class="form-check-label" for="ativo_{{ aviso.id }}">Publicado</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-4 text-end">
+                                        <button type="submit" class="btn btn-sm btn-primary">Salvar</button>
+                                    </div>
+                                </div>
+                                <div class="text-end mt-2">
+                                    <button type="submit" formaction="{{ url_for('igreja_aviso_excluir', aviso_id=aviso.id) }}" formmethod="POST" class="btn btn-sm btn-outline-danger" onclick="return confirm('Deseja remover este aviso?');">
+                                        Excluir
+                                    </button>
+                                </div>
+                            </form>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-secondary mb-0">Nenhum aviso cadastrado ainda.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

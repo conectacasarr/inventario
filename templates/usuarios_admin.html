@@ -21,6 +21,8 @@
                             <th>Usuario</th>
                             <th>E-mail</th>
                             <th>Tipo</th>
+                            <th>Inventario</th>
+                            <th>Portal da Igreja</th>
                             <th>Status</th>
                             <th>Acoes</th>
                         </tr>
@@ -32,6 +34,20 @@
                             <td>{{ usuario.usuario }}</td>
                             <td>{{ usuario.email or '-' }}</td>
                             <td>{{ usuario.tipo }}</td>
+                            <td>
+                                {% if usuario.pode_acessar_inventario %}
+                                <span class="badge text-bg-primary">Liberado</span>
+                                {% else %}
+                                <span class="badge text-bg-secondary">Sem acesso</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if usuario.pode_editar_igreja %}
+                                <span class="badge text-bg-success">Editor</span>
+                                {% else %}
+                                <span class="badge text-bg-secondary">Sem acesso</span>
+                                {% endif %}
+                            </td>
                             <td>
                                 {% if usuario.ativo %}
                                 <span class="badge text-bg-success">Ativo</span>

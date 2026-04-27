@@ -34,6 +34,14 @@ def main():
         conn.execute("ALTER TABLE usuarios ADD COLUMN criado_em TIMESTAMP")
         print("Coluna criado_em adicionada.")
 
+    if "pode_acessar_inventario" not in colunas:
+        conn.execute("ALTER TABLE usuarios ADD COLUMN pode_acessar_inventario INTEGER NOT NULL DEFAULT 1")
+        print("Coluna pode_acessar_inventario adicionada.")
+
+    if "pode_editar_igreja" not in colunas:
+        conn.execute("ALTER TABLE usuarios ADD COLUMN pode_editar_igreja INTEGER NOT NULL DEFAULT 0")
+        print("Coluna pode_editar_igreja adicionada.")
+
     usuarios_sem_email = conn.execute(
         "SELECT id, usuario FROM usuarios WHERE email IS NULL OR TRIM(email) = ''"
     ).fetchall()
@@ -49,6 +57,9 @@ def main():
         "UPDATE usuarios SET criado_em = ? WHERE criado_em IS NULL",
         (datetime.now(),),
     )
+    conn.execute("UPDATE usuarios SET pode_acessar_inventario = 1 WHERE pode_acessar_inventario IS NULL")
+    conn.execute("UPDATE usuarios SET pode_editar_igreja = 0 WHERE pode_editar_igreja IS NULL")
+    conn.execute("UPDATE usuarios SET pode_editar_igreja = 1 WHERE usuario = 'admin'")
     conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_usuarios_email ON usuarios(email)")
     conn.commit()
     conn.close()

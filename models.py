@@ -14,6 +14,8 @@ class Usuario(db.Model):
     senha_hash = db.Column(db.String(128), nullable=False)
     tipo = db.Column(db.String(20), default='comum')  # admin ou comum
     ativo = db.Column(db.Boolean, default=True, nullable=False)
+    pode_acessar_inventario = db.Column(db.Boolean, default=True, nullable=False)
+    pode_editar_igreja = db.Column(db.Boolean, default=False, nullable=False)
     criado_em = db.Column(db.DateTime, default=datetime.now, nullable=False)
     
     def set_senha(self, senha):

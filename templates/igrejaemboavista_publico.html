@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ config.nome_site or 'Igreja em Boa Vista' }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <style>
+        :root {
+            --ibv-blue: #153a7a;
+            --ibv-blue-dark: #0f2854;
+            --ibv-gold: #e5b24a;
+            --ibv-soft: #f5f8ff;
+            --ibv-line: rgba(21, 58, 122, 0.12);
+        }
+
+        body {
+            min-height: 100vh;
+            background:
+                radial-gradient(circle at top left, rgba(229, 178, 74, 0.16), transparent 24rem),
+                linear-gradient(180deg, #fbfdff 0%, #eef4ff 100%);
+            color: #1f2937;
+        }
+
+        .ibv-brand {
+            color: var(--ibv-blue-dark);
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            text-decoration: none;
+            font-size: 1.35rem;
+        }
+
+        .ibv-shell {
+            background: rgba(255, 255, 255, 0.88);
+            border: 1px solid var(--ibv-line);
+            border-radius: 28px;
+            box-shadow: 0 28px 60px rgba(15, 40, 84, 0.08);
+        }
+
+        .ibv-hero-title {
+            color: var(--ibv-blue-dark);
+            font-size: clamp(2.6rem, 4vw, 4.4rem);
+            line-height: 1.03;
+            letter-spacing: -0.04em;
+        }
+
+        .ibv-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.45rem 0.9rem;
+            border-radius: 999px;
+            background: rgba(229, 178, 74, 0.18);
+            color: #9a6700;
+            font-size: 0.78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .ibv-card {
+            border: 1px solid var(--ibv-line);
+            border-radius: 22px;
+            background: rgba(255, 255, 255, 0.94);
+            box-shadow: 0 18px 42px rgba(15, 40, 84, 0.06);
+        }
+
+        .ibv-section-title {
+            color: var(--ibv-blue-dark);
+            font-size: 1.65rem;
+            font-weight: 800;
+        }
+
+        .ibv-link-btn {
+            border-radius: 999px;
+            padding: 0.8rem 1.25rem;
+            font-weight: 700;
+        }
+    </style>
+</head>
+<body>
+    <header class="py-4">
+        <div class="container d-flex justify-content-between align-items-center">
+            <a href="{{ url_for('igreja_publico') }}" class="ibv-brand">{{ config.nome_site or 'Igreja em Boa Vista' }}</a>
+            <div class="d-flex gap-2">
+                {% if current_user.is_authenticated and current_user.pode_editar_igreja %}
+                <a href="{{ url_for('igreja_admin') }}" class="btn btn-outline-dark rounded-pill px-4">
+                    <i class="fas fa-pen me-2"></i>Editar portal
+                </a>
+                {% endif %}
+                <a href="{{ config.instagram_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-primary rounded-pill px-4">
+                    <i class="fab fa-instagram me-2"></i>Instagram
+                </a>
+                <a href="{{ config.youtube_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-primary rounded-pill px-4">
+                    <i class="fab fa-youtube me-2"></i>YouTube
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <main class="container pb-5">
+        <section class="ibv-shell p-4 p-lg-5 mb-4">
+            <div class="row g-4 align-items-center">
+                <div class="col-lg-7">
+                    <span class="ibv-chip"><i class="fas fa-church"></i> Igreja em Boa Vista</span>
+                    <h1 class="ibv-hero-title fw-bold mt-3 mb-3">{{ config.hero_titulo }}</h1>
+                    <p class="lead text-secondary mb-3">{{ config.hero_subtitulo }}</p>
+                    <p class="fs-5 text-secondary mb-4">{{ config.mensagem_boas_vindas }}</p>
+                    <div class="d-flex flex-wrap gap-3">
+                        <a href="#avisos" class="btn btn-primary ibv-link-btn">Ver avisos</a>
+                        <a href="#contribuicao" class="btn btn-outline-primary ibv-link-btn">Contribuicao</a>
+                    </div>
+                </div>
+                <div class="col-lg-5">
+                    <div class="ibv-card p-4 h-100">
+                        <div class="small text-uppercase text-muted fw-bold mb-2">Canais oficiais</div>
+                        <h2 class="h4 mb-3">Acompanhe a igreja durante a semana</h2>
+                        <p class="text-secondary mb-4">Acesse os canais oficiais para acompanhar mensagens, avisos e conteudos publicados pela igreja.</p>
+                        <div class="d-grid gap-3">
+                            <a href="{{ config.youtube_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-danger rounded-pill">
+                                <i class="fab fa-youtube me-2"></i>Acessar YouTube
+                            </a>
+                            <a href="{{ config.instagram_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-dark rounded-pill">
+                                <i class="fab fa-instagram me-2"></i>Acessar Instagram
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="row g-4 mb-4">
+            <div class="col-lg-6">
+                <div class="ibv-card p-4 h-100">
+                    <div class="ibv-section-title mb-3">{{ config.agenda_titulo }}</div>
+                    <p class="text-secondary mb-0" style="white-space: pre-line;">{{ config.agenda_texto }}</p>
+                </div>
+            </div>
+            <div class="col-lg-6" id="contribuicao">
+                <div class="ibv-card p-4 h-100">
+                    <div class="ibv-section-title mb-3">Contribuicao</div>
+                    <p class="text-secondary mb-3">{{ config.pix_texto }}</p>
+                    <div class="p-3 rounded-4 border bg-light">
+                        <div class="small text-uppercase text-muted fw-bold mb-2">PIX da igreja</div>
+                        <div class="fs-5 fw-bold text-dark mb-2">{{ config.pix_cnpj }}</div>
+                        <button type="button" class="btn btn-outline-primary rounded-pill" onclick="copiarPix()">
+                            <i class="fas fa-copy me-2"></i>Copiar CNPJ PIX
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="avisos" class="ibv-card p-4 p-lg-5">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
+                <div>
+                    <div class="small text-uppercase text-muted fw-bold mb-2">Portal da igreja</div>
+                    <h2 class="ibv-section-title mb-0">Avisos e comunicados</h2>
+                </div>
+            </div>
+
+            {% if avisos %}
+            <div class="row g-4">
+                {% for aviso in avisos %}
+                <div class="col-md-6">
+                    <article class="h-100 border rounded-4 p-4 bg-white">
+                        <h3 class="h5 mb-2">{{ aviso.titulo }}</h3>
+                        <p class="text-secondary mb-3" style="white-space: pre-line;">{{ aviso.descricao }}</p>
+                        {% if aviso.link_url %}
+                        <a href="{{ aviso.link_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary rounded-pill">
+                            Abrir link
+                        </a>
+                        {% endif %}
+                    </article>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-secondary">Nenhum aviso publicado no momento.</div>
+            {% endif %}
+        </section>
+    </main>
+
+    <script>
+        function copiarPix() {
+            const chave = {{ (config.pix_cnpj or '')|tojson }};
+            if (!chave) return;
+            navigator.clipboard.writeText(chave).then(function() {
+                alert('CNPJ PIX copiado com sucesso.');
+            });
+        }
+    </script>
+</body>
+</html>
