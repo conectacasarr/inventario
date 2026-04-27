@@ -1,6 +1,6 @@
 {% extends 'base_simples.html' %}
 
-{% block title %}Entrar - OAIBV{% endblock %}
+{% block title %}Entrar{% if host_eh_igreja() %} - Igreja em Boa Vista{% else %} - OAIBV{% endif %}{% endblock %}
 
 {% block content %}
 <section class="auth-shell">
@@ -8,9 +8,15 @@
         <div class="auth-header">
             <span class="auth-badge">
                 <i class="fas fa-shield-alt"></i>
-                Acesso seguro
+                {% if host_eh_igreja() %}Acesso da igreja{% else %}Acesso seguro{% endif %}
             </span>
-            <h1 class="auth-title">Inventario OAIBV</h1>
+            <h1 class="auth-title">
+                {% if host_eh_igreja() %}
+                Igreja em Boa Vista
+                {% else %}
+                Inventario OAIBV
+                {% endif %}
+            </h1>
         </div>
 
         <div class="auth-body">
@@ -29,7 +35,9 @@
                 </div>
 
                 <div class="col-12 d-grid">
-                    <button type="submit" class="btn auth-primary-btn text-white">Entrar no sistema</button>
+                    <button type="submit" class="btn auth-primary-btn text-white">
+                        {% if host_eh_igreja() %}Entrar{% else %}Entrar no sistema{% endif %}
+                    </button>
                 </div>
             </form>
 

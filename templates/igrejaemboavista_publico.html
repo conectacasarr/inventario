@@ -19,14 +19,23 @@
         body {
             min-height: 100vh;
             background:
-                radial-gradient(circle at top left, rgba(229, 178, 74, 0.18), transparent 24rem),
-                radial-gradient(circle at top right, rgba(21, 58, 122, 0.08), transparent 26rem),
-                linear-gradient(180deg, #fffdf8 0%, #eef4ff 100%);
+                radial-gradient(circle at top left, rgba(115, 170, 255, 0.12), transparent 22rem),
+                radial-gradient(circle at top right, rgba(255, 255, 255, 0.09), transparent 18rem),
+                linear-gradient(180deg, #071f3a 0%, #0b2748 24%, #f8fbff 24%, #f8fbff 100%);
             color: #1f2937;
         }
 
+        .ibv-sticky-header {
+            position: sticky;
+            top: 0;
+            z-index: 1040;
+            backdrop-filter: blur(14px);
+            background: rgba(7, 31, 58, 0.88);
+            border-bottom: 1px solid rgba(115, 170, 255, 0.12);
+        }
+
         .ibv-brand {
-            color: var(--ibv-blue-dark);
+            color: #fff;
             font-weight: 800;
             letter-spacing: 0.04em;
             text-decoration: none;
@@ -34,7 +43,7 @@
         }
 
         .ibv-header-meta {
-            color: rgba(15, 40, 84, 0.62);
+            color: rgba(255, 255, 255, 0.72);
             font-size: 0.92rem;
         }
 
@@ -134,6 +143,7 @@
             flex-wrap: wrap;
             gap: 0.75rem;
             justify-content: flex-end;
+            align-items: center;
         }
 
         .ibv-clean-card {
@@ -144,12 +154,15 @@
         }
 
         .ibv-top-tabs-shell {
-            position: relative;
+            position: sticky;
+            top: 88px;
+            z-index: 1035;
             overflow: hidden;
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(244, 229, 200, 0.72));
+            background: rgba(255, 255, 255, 0.92);
             border: 1px solid rgba(21, 58, 122, 0.08);
             border-radius: 26px;
             box-shadow: 0 18px 42px rgba(15, 40, 84, 0.05);
+            backdrop-filter: blur(14px);
         }
 
         .ibv-hero-panel {
@@ -169,37 +182,75 @@
         .ibv-social-card .btn {
             border-radius: 999px;
         }
+
+        .ibv-icon-link {
+            width: 42px;
+            height: 42px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 999px;
+            text-decoration: none;
+            color: #fff;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            transition: transform 0.2s ease, background-color 0.2s ease;
+        }
+
+        .ibv-icon-link:hover {
+            transform: translateY(-1px);
+            background: rgba(255, 255, 255, 0.16);
+            color: #fff;
+        }
+
+        .ibv-home-only.is-hidden {
+            display: none !important;
+        }
+
+        .ibv-tab-content-shell {
+            background: rgba(255, 255, 255, 0.94);
+        }
+
+        @media (max-width: 991px) {
+            .ibv-top-tabs-shell {
+                top: 76px;
+            }
+        }
     </style>
 </head>
 <body>
-    <header class="py-4">
+    <header class="py-3 ibv-sticky-header">
         <div class="container d-flex justify-content-between align-items-center">
             <div>
                 <a href="{{ igreja_path('/') }}" class="ibv-brand">{{ config.nome_site or 'Igreja em Boa Vista' }}</a>
-                <div class="ibv-header-meta mt-1">Portal oficial</div>
             </div>
             <div class="ibv-header-actions">
                 {% if current_user.is_authenticated and current_user.pode_acessar_inventario %}
-                <a href="{{ url_for('inventario') }}" class="btn btn-outline-dark rounded-pill px-4">
+                <a href="{{ url_for('inventario') }}" class="btn btn-light rounded-pill px-4">
                     <i class="fas fa-boxes me-2"></i>Inventario
                 </a>
                 {% endif %}
                 {% if current_user.is_authenticated and current_user.pode_editar_igreja %}
-                <a href="{{ igreja_path('/editar') }}" class="btn btn-outline-primary rounded-pill px-4">
+                <a href="{{ igreja_path('/editar') }}" class="btn btn-outline-light rounded-pill px-4">
                     <i class="fas fa-pen me-2"></i>Editar portal
                 </a>
                 {% elif not current_user.is_authenticated %}
-                <a href="{{ url_for('login', next=url_for('inventario')) }}" class="btn btn-outline-primary rounded-pill px-4">
+                <a href="{{ url_for('login', next=url_for('inventario')) }}" class="btn btn-outline-light rounded-pill px-4">
                     <i class="fas fa-sign-in-alt me-2"></i>Entrar
                 </a>
                 {% endif %}
+                <a href="{{ config.instagram_url }}" target="_blank" rel="noopener noreferrer" class="ibv-icon-link" aria-label="Instagram">
+                    <i class="fab fa-instagram"></i>
+                </a>
+                <a href="{{ config.youtube_url }}" target="_blank" rel="noopener noreferrer" class="ibv-icon-link" aria-label="YouTube">
+                    <i class="fab fa-youtube"></i>
+                </a>
             </div>
         </div>
     </header>
 
     <main class="container pb-5">
         <section class="ibv-top-tabs-shell p-3 p-lg-4 mb-4" id="conteudo-portal">
-            <div class="ibv-subtle-title mb-3">Navegacao</div>
             <div class="ibv-tab-nav">
                 <button type="button" class="ibv-tab-button active" data-ibv-tab="avisos">Avisos</button>
                 <button type="button" class="ibv-tab-button" data-ibv-tab="apostilas">{{ config.apostilas_titulo or 'Apostilas' }}</button>
@@ -208,15 +259,15 @@
             </div>
         </section>
 
-        <section class="ibv-shell p-4 p-lg-5 mb-4">
+        <section class="ibv-shell p-4 p-lg-5 mb-4 ibv-home-only" data-ibv-home-block="hero">
             <div class="row g-4 align-items-center">
-                <div class="col-lg-7">
+                <div class="col-lg-12">
                     <span class="ibv-chip"><i class="fas fa-church"></i> Igreja em Boa Vista</span>
                     <h1 class="ibv-hero-title fw-bold mt-3 mb-3">{{ config.hero_titulo }}</h1>
-                    {% if config.hero_subtitulo %}
+                    {% if config.hero_subtitulo and config.hero_subtitulo != 'Avisos, programacao e canais oficiais da igreja em um so lugar.' %}
                     <p class="lead text-secondary mb-3">{{ config.hero_subtitulo }}</p>
                     {% endif %}
-                    {% if config.mensagem_boas_vindas %}
+                    {% if config.mensagem_boas_vindas and config.mensagem_boas_vindas != 'Acompanhe os avisos da igreja, nossos canais oficiais e a area de contribuicao.' %}
                     <p class="fs-5 text-secondary mb-4">{{ config.mensagem_boas_vindas }}</p>
                     {% endif %}
                     <div class="d-flex flex-wrap gap-3">
@@ -224,48 +275,21 @@
                         <a href="#agenda" class="btn btn-outline-primary ibv-link-btn">Ver agenda</a>
                     </div>
                 </div>
-                <div class="col-lg-5">
-                    <div class="ibv-hero-panel h-100">
-                        <div class="row g-3">
-                            <div class="col-12">
-                                <div class="ibv-social-card">
-                                    <div class="ibv-subtle-title mb-2">Agenda</div>
-                                    <div class="fw-bold text-dark mb-2">{{ config.agenda_titulo or 'Agenda' }}</div>
-                                    <div class="text-secondary" style="white-space: pre-line;">{{ config.agenda_texto or '' }}</div>
-                                </div>
-                            </div>
-                            <div class="col-sm-6">
-                                <div class="ibv-social-card h-100">
-                                    <div class="fw-bold text-dark mb-3">YouTube</div>
-                                    <a href="{{ config.youtube_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-danger w-100">
-                                        <i class="fab fa-youtube me-2"></i>Acessar
-                                    </a>
-                                </div>
-                            </div>
-                            <div class="col-sm-6">
-                                <div class="ibv-social-card h-100">
-                                    <div class="fw-bold text-dark mb-3">Instagram</div>
-                                    <a href="{{ config.instagram_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-dark w-100">
-                                        <i class="fab fa-instagram me-2"></i>Acessar
-                                    </a>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
             </div>
         </section>
 
-        <section class="row g-4 mb-4" id="agenda">
+        <section class="row g-4 mb-4 ibv-home-only" id="agenda" data-ibv-home-block="agenda">
             <div class="col-12">
                 <div class="ibv-card p-4 h-100">
                     <div class="ibv-section-title mb-3">{{ config.agenda_titulo }}</div>
+                    {% if config.agenda_texto and config.agenda_texto != 'Atualize aqui os horarios de cultos, reunioes e eventos da semana.' %}
                     <p class="text-secondary mb-0" style="white-space: pre-line;">{{ config.agenda_texto }}</p>
+                    {% endif %}
                 </div>
             </div>
         </section>
 
-        <section class="ibv-card p-4 p-lg-5">
+        <section class="ibv-card ibv-tab-content-shell p-4 p-lg-5">
             <div class="ibv-tab-pane active" data-ibv-pane="avisos">
                 {% if avisos %}
                 <div class="row g-4">
@@ -376,6 +400,13 @@
     </main>
 
     <script>
+        function atualizarAreaInicial(destino) {
+            var mostrar = destino === 'avisos';
+            document.querySelectorAll('[data-ibv-home-block]').forEach(function(bloco) {
+                bloco.classList.toggle('is-hidden', !mostrar);
+            });
+        }
+
         document.querySelectorAll('[data-ibv-tab]').forEach(function(botao) {
             botao.addEventListener('click', function() {
                 var destino = botao.getAttribute('data-ibv-tab');
@@ -385,8 +416,11 @@
                 document.querySelectorAll('[data-ibv-pane]').forEach(function(pane) {
                     pane.classList.toggle('active', pane.getAttribute('data-ibv-pane') === destino);
                 });
+                atualizarAreaInicial(destino);
             });
         });
+
+        atualizarAreaInicial('avisos');
     </script>
 </body>
 </html>
