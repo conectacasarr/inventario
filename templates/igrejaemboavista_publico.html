@@ -11,6 +11,7 @@
             --ibv-blue: #153a7a;
             --ibv-blue-dark: #0f2854;
             --ibv-gold: #e5b24a;
+            --ibv-gold-soft: #f4e5c8;
             --ibv-soft: #f5f8ff;
             --ibv-line: rgba(21, 58, 122, 0.12);
         }
@@ -18,8 +19,9 @@
         body {
             min-height: 100vh;
             background:
-                radial-gradient(circle at top left, rgba(229, 178, 74, 0.16), transparent 24rem),
-                linear-gradient(180deg, #fbfdff 0%, #eef4ff 100%);
+                radial-gradient(circle at top left, rgba(229, 178, 74, 0.18), transparent 24rem),
+                radial-gradient(circle at top right, rgba(21, 58, 122, 0.08), transparent 26rem),
+                linear-gradient(180deg, #fffdf8 0%, #eef4ff 100%);
             color: #1f2937;
         }
 
@@ -32,10 +34,10 @@
         }
 
         .ibv-shell {
-            background: rgba(255, 255, 255, 0.88);
+            background: rgba(255, 255, 255, 0.9);
             border: 1px solid var(--ibv-line);
-            border-radius: 28px;
-            box-shadow: 0 28px 60px rgba(15, 40, 84, 0.08);
+            border-radius: 34px;
+            box-shadow: 0 28px 70px rgba(15, 40, 84, 0.09);
         }
 
         .ibv-hero-title {
@@ -61,8 +63,8 @@
 
         .ibv-card {
             border: 1px solid var(--ibv-line);
-            border-radius: 22px;
-            background: rgba(255, 255, 255, 0.94);
+            border-radius: 26px;
+            background: rgba(255, 255, 255, 0.96);
             box-shadow: 0 18px 42px rgba(15, 40, 84, 0.06);
         }
 
@@ -74,7 +76,7 @@
 
         .ibv-link-btn {
             border-radius: 999px;
-            padding: 0.8rem 1.25rem;
+            padding: 0.85rem 1.3rem;
             font-weight: 700;
         }
 
@@ -86,18 +88,24 @@
 
         .ibv-tab-button {
             border: 1px solid var(--ibv-line);
-            background: #fff;
+            background: rgba(255, 255, 255, 0.96);
             color: var(--ibv-blue-dark);
             border-radius: 999px;
             padding: 0.75rem 1.1rem;
             font-weight: 700;
+            transition: all 0.2s ease;
         }
 
         .ibv-tab-button.active {
-            background: var(--ibv-blue);
+            background: linear-gradient(135deg, var(--ibv-blue-dark), var(--ibv-blue));
             color: #fff;
             border-color: transparent;
             box-shadow: 0 16px 28px rgba(21, 58, 122, 0.16);
+        }
+
+        .ibv-tab-button:hover {
+            transform: translateY(-1px);
+            border-color: rgba(21, 58, 122, 0.22);
         }
 
         .ibv-tab-pane {
@@ -107,16 +115,39 @@
         .ibv-tab-pane.active {
             display: block;
         }
+
+        .ibv-header-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            justify-content: flex-end;
+        }
+
+        .ibv-clean-card {
+            border: 1px solid rgba(21, 58, 122, 0.1);
+            border-radius: 24px;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(250, 252, 255, 0.96));
+            box-shadow: 0 14px 36px rgba(15, 40, 84, 0.05);
+        }
     </style>
 </head>
 <body>
     <header class="py-4">
         <div class="container d-flex justify-content-between align-items-center">
             <a href="{{ igreja_path('/') }}" class="ibv-brand">{{ config.nome_site or 'Igreja em Boa Vista' }}</a>
-            <div class="d-flex gap-2">
+            <div class="ibv-header-actions">
+                {% if current_user.is_authenticated and current_user.pode_acessar_inventario %}
+                <a href="{{ url_for('dashboard') }}" class="btn btn-outline-dark rounded-pill px-4">
+                    <i class="fas fa-boxes me-2"></i>Inventario
+                </a>
+                {% endif %}
                 {% if current_user.is_authenticated and current_user.pode_editar_igreja %}
-                <a href="{{ igreja_path('/editar') }}" class="btn btn-outline-dark rounded-pill px-4">
+                <a href="{{ igreja_path('/editar') }}" class="btn btn-outline-primary rounded-pill px-4">
                     <i class="fas fa-pen me-2"></i>Editar portal
+                </a>
+                {% elif not current_user.is_authenticated %}
+                <a href="{{ url_for('login') }}" class="btn btn-outline-primary rounded-pill px-4">
+                    <i class="fas fa-sign-in-alt me-2"></i>Entrar
                 </a>
                 {% endif %}
                 <a href="{{ config.instagram_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-primary rounded-pill px-4">
@@ -135,18 +166,20 @@
                 <div class="col-lg-7">
                     <span class="ibv-chip"><i class="fas fa-church"></i> Igreja em Boa Vista</span>
                     <h1 class="ibv-hero-title fw-bold mt-3 mb-3">{{ config.hero_titulo }}</h1>
+                    {% if config.hero_subtitulo %}
                     <p class="lead text-secondary mb-3">{{ config.hero_subtitulo }}</p>
+                    {% endif %}
+                    {% if config.mensagem_boas_vindas %}
                     <p class="fs-5 text-secondary mb-4">{{ config.mensagem_boas_vindas }}</p>
+                    {% endif %}
                     <div class="d-flex flex-wrap gap-3">
-                        <a href="#conteudo-portal" class="btn btn-primary ibv-link-btn">Explorar conteudo</a>
-                        <a href="#contribuicao" class="btn btn-outline-primary ibv-link-btn">Contribuicao</a>
+                        <a href="#conteudo-portal" class="btn btn-primary ibv-link-btn">Conteudo</a>
+                        <a href="#agenda" class="btn btn-outline-primary ibv-link-btn">Ver agenda</a>
                     </div>
                 </div>
                 <div class="col-lg-5">
-                    <div class="ibv-card p-4 h-100">
-                        <div class="small text-uppercase text-muted fw-bold mb-2">Canais oficiais</div>
-                        <h2 class="h4 mb-3">Acompanhe a igreja durante a semana</h2>
-                        <p class="text-secondary mb-4">Acesse os canais oficiais para acompanhar mensagens, avisos e conteudos publicados pela igreja.</p>
+                    <div class="ibv-clean-card p-4 h-100 d-flex flex-column justify-content-center">
+                        <h2 class="h4 mb-4 text-dark">Canais oficiais</h2>
                         <div class="d-grid gap-3">
                             <a href="{{ config.youtube_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-danger rounded-pill">
                                 <i class="fab fa-youtube me-2"></i>Acessar YouTube
@@ -160,49 +193,31 @@
             </div>
         </section>
 
-        <section class="row g-4 mb-4">
-            <div class="col-lg-6">
-                <div class="ibv-card p-4 h-100">
-                    <div class="ibv-section-title mb-3">{{ config.agenda_titulo }}</div>
-                    <p class="text-secondary mb-0" style="white-space: pre-line;">{{ config.agenda_texto }}</p>
-                </div>
-            </div>
-            <div class="col-lg-6" id="contribuicao">
-                <div class="ibv-card p-4 h-100">
-                    <div class="ibv-section-title mb-3">Contribuicao</div>
-                    <p class="text-secondary mb-3">{{ config.pix_texto }}</p>
-                    <div class="p-3 rounded-4 border bg-light">
-                        <div class="small text-uppercase text-muted fw-bold mb-2">PIX da igreja</div>
-                        <div class="fs-5 fw-bold text-dark mb-2">{{ config.pix_cnpj }}</div>
-                        <button type="button" class="btn btn-outline-primary rounded-pill" onclick="copiarPix()">
-                            <i class="fas fa-copy me-2"></i>Copiar CNPJ PIX
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <section id="conteudo-portal" class="ibv-card p-4 p-lg-5">
-            <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
-                <div>
-                    <div class="small text-uppercase text-muted fw-bold mb-2">Portal da igreja</div>
-                    <h2 class="ibv-section-title mb-0">Conteudo da igreja</h2>
-                </div>
-            </div>
-
-            <div class="ibv-tab-nav mb-4">
+        <section class="ibv-card p-4 mb-4" id="conteudo-portal">
+            <div class="ibv-tab-nav">
                 <button type="button" class="ibv-tab-button active" data-ibv-tab="avisos">Avisos</button>
                 <button type="button" class="ibv-tab-button" data-ibv-tab="apostilas">{{ config.apostilas_titulo or 'Apostilas' }}</button>
                 <button type="button" class="ibv-tab-button" data-ibv-tab="historia">{{ config.historia_titulo or 'Historia da Igreja em Boa Vista' }}</button>
                 <button type="button" class="ibv-tab-button" data-ibv-tab="ensinos">{{ config.ensinos_titulo or 'Ensinos' }}</button>
             </div>
+        </section>
 
+        <section class="row g-4 mb-4" id="agenda">
+            <div class="col-12">
+                <div class="ibv-card p-4 h-100">
+                    <div class="ibv-section-title mb-3">{{ config.agenda_titulo }}</div>
+                    <p class="text-secondary mb-0" style="white-space: pre-line;">{{ config.agenda_texto }}</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="ibv-card p-4 p-lg-5">
             <div class="ibv-tab-pane active" data-ibv-pane="avisos">
                 {% if avisos %}
                 <div class="row g-4">
                     {% for aviso in avisos %}
                     <div class="col-md-6">
-                        <article class="h-100 border rounded-4 p-4 bg-white">
+                        <article class="h-100 ibv-clean-card p-4">
                             <h3 class="h5 mb-2">{{ aviso.titulo }}</h3>
                             <p class="text-secondary mb-3" style="white-space: pre-line;">{{ aviso.descricao }}</p>
                             {% if aviso.link_url %}
@@ -224,8 +239,7 @@
                 <div class="row g-4">
                     {% for material in apostilas %}
                     <div class="col-md-6">
-                        <article class="h-100 border rounded-4 p-4 bg-white">
-                            <div class="small text-uppercase text-muted fw-bold mb-2">PDF disponivel</div>
+                        <article class="h-100 ibv-clean-card p-4">
                             <h3 class="h5 mb-2">{{ material.titulo }}</h3>
                             {% if material.descricao %}
                             <p class="text-secondary mb-3" style="white-space: pre-line;">{{ material.descricao }}</p>
@@ -252,7 +266,7 @@
             </div>
 
             <div class="ibv-tab-pane" data-ibv-pane="historia">
-                <article class="border rounded-4 p-4 bg-white">
+                <article class="ibv-clean-card p-4">
                     <h3 class="h4 mb-3">{{ config.historia_titulo or 'Historia da Igreja em Boa Vista' }}</h3>
                     <p class="text-secondary mb-0" style="white-space: pre-line;">{{ config.historia_texto or 'Em breve, esta area vai contar a historia da igreja, seus marcos e testemunhos.' }}</p>
                     {% if config.historia_videos_lista %}
@@ -279,8 +293,7 @@
                 <div class="row g-4">
                     {% for material in ensinos %}
                     <div class="col-md-6">
-                        <article class="h-100 border rounded-4 p-4 bg-white">
-                            <div class="small text-uppercase text-muted fw-bold mb-2">Ensino</div>
+                        <article class="h-100 ibv-clean-card p-4">
                             <h3 class="h5 mb-2">{{ material.titulo }}</h3>
                             {% if material.descricao %}
                             <p class="text-secondary mb-3" style="white-space: pre-line;">{{ material.descricao }}</p>
@@ -309,14 +322,6 @@
     </main>
 
     <script>
-        function copiarPix() {
-            const chave = {{ (config.pix_cnpj or '')|tojson }};
-            if (!chave) return;
-            navigator.clipboard.writeText(chave).then(function() {
-                alert('CNPJ PIX copiado com sucesso.');
-            });
-        }
-
         document.querySelectorAll('[data-ibv-tab]').forEach(function(botao) {
             botao.addEventListener('click', function() {
                 var destino = botao.getAttribute('data-ibv-tab');
