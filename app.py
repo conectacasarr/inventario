@@ -1493,6 +1493,8 @@ def format_tombamento(tombamento):
 # Função para obter o ano atual
 @app.context_processor
 def inject_now():
+    pode_inventario = current_user.is_authenticated and usuario_pode_acessar_inventario(current_user)
+    pode_editar_site = current_user.is_authenticated and usuario_pode_editar_igreja(current_user)
     return {
         "now": datetime.now,
         "formata_brl": formata_brl,
@@ -1500,6 +1502,8 @@ def inject_now():
         "igreja_path": igreja_path,
         "host_eh_conectacasa": host_eh_conectacasa,
         "host_eh_igreja": host_eh_igreja,
+        "pode_inventario": pode_inventario,
+        "pode_editar_site": pode_editar_site,
     }
 
 

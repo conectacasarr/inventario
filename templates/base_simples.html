@@ -21,7 +21,7 @@
     <nav class="navbar navbar-expand-lg navbar-dark app-navbar">
         <div class="container">
             <a class="navbar-brand logo-text" href="{{ url_for('dashboard') if current_user.pode_acessar_inventario else url_for('igreja_admin') }}">
-                {{ 'OAIBV' if current_user.pode_acessar_inventario else 'Igreja em Boa Vista' }}
+                Igreja em Boa Vista
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
