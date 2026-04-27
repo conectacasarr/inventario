@@ -77,6 +77,36 @@
             padding: 0.8rem 1.25rem;
             font-weight: 700;
         }
+
+        .ibv-tab-nav {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+        }
+
+        .ibv-tab-button {
+            border: 1px solid var(--ibv-line);
+            background: #fff;
+            color: var(--ibv-blue-dark);
+            border-radius: 999px;
+            padding: 0.75rem 1.1rem;
+            font-weight: 700;
+        }
+
+        .ibv-tab-button.active {
+            background: var(--ibv-blue);
+            color: #fff;
+            border-color: transparent;
+            box-shadow: 0 16px 28px rgba(21, 58, 122, 0.16);
+        }
+
+        .ibv-tab-pane {
+            display: none;
+        }
+
+        .ibv-tab-pane.active {
+            display: block;
+        }
     </style>
 </head>
 <body>
@@ -108,7 +138,7 @@
                     <p class="lead text-secondary mb-3">{{ config.hero_subtitulo }}</p>
                     <p class="fs-5 text-secondary mb-4">{{ config.mensagem_boas_vindas }}</p>
                     <div class="d-flex flex-wrap gap-3">
-                        <a href="#avisos" class="btn btn-primary ibv-link-btn">Ver avisos</a>
+                        <a href="#conteudo-portal" class="btn btn-primary ibv-link-btn">Explorar conteudo</a>
                         <a href="#contribuicao" class="btn btn-outline-primary ibv-link-btn">Contribuicao</a>
                     </div>
                 </div>
@@ -152,33 +182,129 @@
             </div>
         </section>
 
-        <section id="avisos" class="ibv-card p-4 p-lg-5">
+        <section id="conteudo-portal" class="ibv-card p-4 p-lg-5">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
                 <div>
                     <div class="small text-uppercase text-muted fw-bold mb-2">Portal da igreja</div>
-                    <h2 class="ibv-section-title mb-0">Avisos e comunicados</h2>
+                    <h2 class="ibv-section-title mb-0">Conteudo da igreja</h2>
                 </div>
             </div>
 
-            {% if avisos %}
-            <div class="row g-4">
-                {% for aviso in avisos %}
-                <div class="col-md-6">
-                    <article class="h-100 border rounded-4 p-4 bg-white">
-                        <h3 class="h5 mb-2">{{ aviso.titulo }}</h3>
-                        <p class="text-secondary mb-3" style="white-space: pre-line;">{{ aviso.descricao }}</p>
-                        {% if aviso.link_url %}
-                        <a href="{{ aviso.link_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary rounded-pill">
-                            Abrir link
-                        </a>
-                        {% endif %}
-                    </article>
-                </div>
-                {% endfor %}
+            <div class="ibv-tab-nav mb-4">
+                <button type="button" class="ibv-tab-button active" data-ibv-tab="avisos">Avisos</button>
+                <button type="button" class="ibv-tab-button" data-ibv-tab="apostilas">{{ config.apostilas_titulo or 'Apostilas' }}</button>
+                <button type="button" class="ibv-tab-button" data-ibv-tab="historia">{{ config.historia_titulo or 'Historia da Igreja em Boa Vista' }}</button>
+                <button type="button" class="ibv-tab-button" data-ibv-tab="ensinos">{{ config.ensinos_titulo or 'Ensinos' }}</button>
             </div>
-            {% else %}
-            <div class="text-secondary">Nenhum aviso publicado no momento.</div>
-            {% endif %}
+
+            <div class="ibv-tab-pane active" data-ibv-pane="avisos">
+                {% if avisos %}
+                <div class="row g-4">
+                    {% for aviso in avisos %}
+                    <div class="col-md-6">
+                        <article class="h-100 border rounded-4 p-4 bg-white">
+                            <h3 class="h5 mb-2">{{ aviso.titulo }}</h3>
+                            <p class="text-secondary mb-3" style="white-space: pre-line;">{{ aviso.descricao }}</p>
+                            {% if aviso.link_url %}
+                            <a href="{{ aviso.link_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary rounded-pill">
+                                Abrir link
+                            </a>
+                            {% endif %}
+                        </article>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-secondary">Nenhum aviso publicado no momento.</div>
+                {% endif %}
+            </div>
+
+            <div class="ibv-tab-pane" data-ibv-pane="apostilas">
+                {% if apostilas %}
+                <div class="row g-4">
+                    {% for material in apostilas %}
+                    <div class="col-md-6">
+                        <article class="h-100 border rounded-4 p-4 bg-white">
+                            <div class="small text-uppercase text-muted fw-bold mb-2">PDF disponivel</div>
+                            <h3 class="h5 mb-2">{{ material.titulo }}</h3>
+                            {% if material.descricao %}
+                            <p class="text-secondary mb-3" style="white-space: pre-line;">{{ material.descricao }}</p>
+                            {% endif %}
+                            <div class="d-flex flex-wrap gap-2">
+                                {% if material.arquivo_url %}
+                                <a href="{{ material.arquivo_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-primary rounded-pill">
+                                    Abrir apostila
+                                </a>
+                                {% endif %}
+                                {% if material.link_url %}
+                                <a href="{{ material.link_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary rounded-pill">
+                                    Material complementar
+                                </a>
+                                {% endif %}
+                            </div>
+                        </article>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-secondary">Nenhuma apostila publicada no momento.</div>
+                {% endif %}
+            </div>
+
+            <div class="ibv-tab-pane" data-ibv-pane="historia">
+                <article class="border rounded-4 p-4 bg-white">
+                    <h3 class="h4 mb-3">{{ config.historia_titulo or 'Historia da Igreja em Boa Vista' }}</h3>
+                    <p class="text-secondary mb-0" style="white-space: pre-line;">{{ config.historia_texto or 'Em breve, esta area vai contar a historia da igreja, seus marcos e testemunhos.' }}</p>
+                    {% if config.historia_videos_lista %}
+                    <div class="row g-4 mt-1">
+                        {% for video in config.historia_videos_lista %}
+                        <div class="col-lg-6">
+                            <div class="ratio ratio-16x9 rounded-4 overflow-hidden border">
+                                <iframe
+                                    src="{{ video.embed_url }}"
+                                    title="Video da historia da igreja"
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                    allowfullscreen
+                                ></iframe>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </article>
+            </div>
+
+            <div class="ibv-tab-pane" data-ibv-pane="ensinos">
+                {% if ensinos %}
+                <div class="row g-4">
+                    {% for material in ensinos %}
+                    <div class="col-md-6">
+                        <article class="h-100 border rounded-4 p-4 bg-white">
+                            <div class="small text-uppercase text-muted fw-bold mb-2">Ensino</div>
+                            <h3 class="h5 mb-2">{{ material.titulo }}</h3>
+                            {% if material.descricao %}
+                            <p class="text-secondary mb-3" style="white-space: pre-line;">{{ material.descricao }}</p>
+                            {% endif %}
+                            <div class="d-flex flex-wrap gap-2">
+                                {% if material.arquivo_url %}
+                                <a href="{{ material.arquivo_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-primary rounded-pill">
+                                    Abrir PDF
+                                </a>
+                                {% endif %}
+                                {% if material.link_url %}
+                                <a href="{{ material.link_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary rounded-pill">
+                                    Abrir link
+                                </a>
+                                {% endif %}
+                            </div>
+                        </article>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-secondary">Nenhum ensino publicado no momento.</div>
+                {% endif %}
+            </div>
         </section>
     </main>
 
@@ -190,6 +316,18 @@
                 alert('CNPJ PIX copiado com sucesso.');
             });
         }
+
+        document.querySelectorAll('[data-ibv-tab]').forEach(function(botao) {
+            botao.addEventListener('click', function() {
+                var destino = botao.getAttribute('data-ibv-tab');
+                document.querySelectorAll('[data-ibv-tab]').forEach(function(item) {
+                    item.classList.toggle('active', item === botao);
+                });
+                document.querySelectorAll('[data-ibv-pane]').forEach(function(pane) {
+                    pane.classList.toggle('active', pane.getAttribute('data-ibv-pane') === destino);
+                });
+            });
+        });
     </script>
 </body>
 </html>

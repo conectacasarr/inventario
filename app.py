@@ -80,6 +80,10 @@ PIX_UPLOAD_DIR = os.path.join(UPLOADS_DIR, "pix")
 os.makedirs(LOGO_UPLOAD_DIR, exist_ok=True)
 os.makedirs(PIX_UPLOAD_DIR, exist_ok=True)
 
+IGREJA_UPLOADS_DIR = os.path.join(PROJECT_DIR, "static", "uploads", "igreja")
+IGREJA_DOCUMENTOS_UPLOAD_DIR = os.path.join(IGREJA_UPLOADS_DIR, "documentos")
+os.makedirs(IGREJA_DOCUMENTOS_UPLOAD_DIR, exist_ok=True)
+
 caminho_absoluto = DATABASE
 app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{caminho_absoluto}"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
@@ -187,6 +191,22 @@ def conectacasa_request_permitida():
 
 def igreja_request_permitida():
     return host_eh_igreja() or request.path.startswith("/igrejaemboavista")
+
+
+def extrair_youtube_embed_url(url):
+    url = (url or "").strip()
+    if not url:
+        return None
+    padroes = [
+        r"(?:youtube\.com/watch\?v=)([\w-]{11})",
+        r"(?:youtu\.be/)([\w-]{11})",
+        r"(?:youtube\.com/embed/)([\w-]{11})",
+    ]
+    for padrao in padroes:
+        match = re.search(padrao, url)
+        if match:
+            return f"https://www.youtube.com/embed/{match.group(1)}"
+    return None
 
 
 def emprestimos_tem_grupo_id(db_conn):
@@ -306,6 +326,11 @@ def igreja_criar_tabelas():
             mensagem_boas_vindas TEXT,
             agenda_titulo TEXT NOT NULL DEFAULT 'Agenda e horarios',
             agenda_texto TEXT,
+            historia_titulo TEXT,
+            historia_texto TEXT,
+            historia_videos TEXT,
+            apostilas_titulo TEXT,
+            ensinos_titulo TEXT,
             youtube_url TEXT,
             instagram_url TEXT,
             pix_cnpj TEXT,
@@ -330,9 +355,37 @@ def igreja_criar_tabelas():
     )
     conn.execute(
         """
+        CREATE TABLE IF NOT EXISTS igreja_materiais (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            categoria TEXT NOT NULL,
+            titulo TEXT NOT NULL,
+            descricao TEXT,
+            arquivo_path TEXT,
+            link_url TEXT,
+            ordem INTEGER NOT NULL DEFAULT 0,
+            ativo INTEGER NOT NULL DEFAULT 1,
+            criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            atualizado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    colunas_config = get_table_columns(conn, "igreja_config")
+    if "historia_titulo" not in colunas_config:
+        conn.execute("ALTER TABLE igreja_config ADD COLUMN historia_titulo TEXT")
+    if "historia_texto" not in colunas_config:
+        conn.execute("ALTER TABLE igreja_config ADD COLUMN historia_texto TEXT")
+    if "historia_videos" not in colunas_config:
+        conn.execute("ALTER TABLE igreja_config ADD COLUMN historia_videos TEXT")
+    if "apostilas_titulo" not in colunas_config:
+        conn.execute("ALTER TABLE igreja_config ADD COLUMN apostilas_titulo TEXT")
+    if "ensinos_titulo" not in colunas_config:
+        conn.execute("ALTER TABLE igreja_config ADD COLUMN ensinos_titulo TEXT")
+    conn.execute(
+        """
         INSERT INTO igreja_config (
             id, nome_site, hero_titulo, hero_subtitulo, mensagem_boas_vindas,
-            agenda_titulo, agenda_texto, youtube_url, instagram_url, pix_cnpj, pix_texto
+            agenda_titulo, agenda_texto, historia_titulo, historia_texto, historia_videos,
+            apostilas_titulo, ensinos_titulo, youtube_url, instagram_url, pix_cnpj, pix_texto
         )
         SELECT
             1,
@@ -342,11 +395,28 @@ def igreja_criar_tabelas():
             'Acompanhe os avisos da igreja, nossos canais oficiais e a area de contribuicao.',
             'Agenda e horarios',
             'Atualize aqui os horarios de cultos, reunioes e eventos da semana.',
+            'Historia da Igreja em Boa Vista',
+            'Conte aqui a historia da igreja, os marcos importantes e os testemunhos que fazem parte dessa caminhada.',
+            'https://www.youtube.com/watch?v=lVhH5Tjmc5Y
+https://www.youtube.com/watch?v=bHlavUfkEZg',
+            'Apostilas',
+            'Ensinos',
             'https://www.youtube.com/@igrejaemboavista',
             'https://www.instagram.com/igrejaemboavista?igsh=MWR1aXR6NzNuNm1kNw%3D%3D',
             '09.148.629/0001-58',
             'Sua contribuicao ajuda a manter os trabalhos e projetos da igreja.'
         WHERE NOT EXISTS (SELECT 1 FROM igreja_config WHERE id = 1)
+        """
+    )
+    conn.execute(
+        """
+        UPDATE igreja_config
+        SET historia_titulo = COALESCE(NULLIF(historia_titulo, ''), 'Historia da Igreja em Boa Vista'),
+            historia_videos = COALESCE(NULLIF(historia_videos, ''), 'https://www.youtube.com/watch?v=lVhH5Tjmc5Y
+https://www.youtube.com/watch?v=bHlavUfkEZg'),
+            apostilas_titulo = COALESCE(NULLIF(apostilas_titulo, ''), 'Apostilas'),
+            ensinos_titulo = COALESCE(NULLIF(ensinos_titulo, ''), 'Ensinos')
+        WHERE id = 1
         """
     )
     conn.commit()
@@ -355,7 +425,19 @@ def igreja_criar_tabelas():
 
 def igreja_obter_config(conn):
     config = conn.execute("SELECT * FROM igreja_config WHERE id = 1").fetchone()
-    return dict(config) if config else {}
+    if not config:
+        return {}
+    config = dict(config)
+    videos = []
+    for linha in (config.get("historia_videos") or "").splitlines():
+        url = linha.strip()
+        if not url:
+            continue
+        embed_url = extrair_youtube_embed_url(url)
+        if embed_url:
+            videos.append({"url": url, "embed_url": embed_url})
+    config["historia_videos_lista"] = videos
+    return config
 
 
 def igreja_listar_avisos(conn, somente_ativos=False):
@@ -365,6 +447,27 @@ def igreja_listar_avisos(conn, somente_ativos=False):
         query += " WHERE ativo = 1"
     query += " ORDER BY ordem ASC, atualizado_em DESC, id DESC"
     return [dict(item) for item in conn.execute(query, params).fetchall()]
+
+
+def igreja_preparar_material(material):
+    material = dict(material)
+    material["arquivo_url"] = url_for("static", filename=material["arquivo_path"]) if material.get("arquivo_path") else None
+    return material
+
+
+def igreja_listar_materiais(conn, categoria=None, somente_ativos=False):
+    query = "SELECT * FROM igreja_materiais"
+    params = []
+    filtros = []
+    if categoria:
+        filtros.append("categoria = ?")
+        params.append(categoria)
+    if somente_ativos:
+        filtros.append("ativo = 1")
+    if filtros:
+        query += " WHERE " + " AND ".join(filtros)
+    query += " ORDER BY ordem ASC, atualizado_em DESC, id DESC"
+    return [igreja_preparar_material(item) for item in conn.execute(query, params).fetchall()]
 
 
 def igreja_salvar_config(conn, form):
@@ -377,6 +480,11 @@ def igreja_salvar_config(conn, form):
             mensagem_boas_vindas = ?,
             agenda_titulo = ?,
             agenda_texto = ?,
+            historia_titulo = ?,
+            historia_texto = ?,
+            historia_videos = ?,
+            apostilas_titulo = ?,
+            ensinos_titulo = ?,
             youtube_url = ?,
             instagram_url = ?,
             pix_cnpj = ?,
@@ -391,6 +499,11 @@ def igreja_salvar_config(conn, form):
             (form.get("mensagem_boas_vindas") or "").strip(),
             (form.get("agenda_titulo") or "").strip() or "Agenda e horarios",
             (form.get("agenda_texto") or "").strip(),
+            (form.get("historia_titulo") or "").strip() or "Historia da Igreja em Boa Vista",
+            (form.get("historia_texto") or "").strip(),
+            (form.get("historia_videos") or "").strip(),
+            (form.get("apostilas_titulo") or "").strip() or "Apostilas",
+            (form.get("ensinos_titulo") or "").strip() or "Ensinos",
             (form.get("youtube_url") or "").strip(),
             (form.get("instagram_url") or "").strip(),
             (form.get("pix_cnpj") or "").strip(),
@@ -432,6 +545,90 @@ def igreja_salvar_aviso(conn, form, aviso_id=None):
         )
     conn.commit()
     return True, None
+
+
+def igreja_salvar_documento_pdf(arquivo):
+    if not arquivo or not arquivo.filename:
+        return None, None
+    nome_base = secure_filename(arquivo.filename)
+    extensao = os.path.splitext(nome_base)[1].lower()
+    if extensao != ".pdf":
+        return None, "Envie um arquivo PDF valido."
+    nome_arquivo = f"igreja-{datetime.now().strftime('%Y%m%d%H%M%S%f')}{extensao}"
+    caminho_completo = os.path.join(IGREJA_DOCUMENTOS_UPLOAD_DIR, nome_arquivo)
+    arquivo.save(caminho_completo)
+    return f"uploads/igreja/documentos/{nome_arquivo}", None
+
+
+def igreja_salvar_material(conn, form, arquivo=None, material_id=None):
+    categoria = (form.get("categoria") or "").strip().lower()
+    titulo = (form.get("titulo") or "").strip()
+    descricao = (form.get("descricao") or "").strip()
+    link_url = (form.get("link_url") or "").strip()
+    try:
+        ordem = int(form.get("ordem") or 0)
+    except ValueError:
+        ordem = 0
+    ativo = 1 if form.get("ativo") == "1" else 0
+
+    if categoria not in {"apostila", "ensino"}:
+        return False, "Escolha uma categoria valida para o material."
+    if not titulo:
+        return False, "Informe um titulo para o material."
+
+    arquivo_path = None
+    if material_id:
+        existente = conn.execute("SELECT * FROM igreja_materiais WHERE id = ?", (material_id,)).fetchone()
+        if not existente:
+            return False, "Material nao encontrado."
+        arquivo_path = existente["arquivo_path"]
+
+    novo_arquivo_path, erro_upload = igreja_salvar_documento_pdf(arquivo)
+    if erro_upload:
+        return False, erro_upload
+    if novo_arquivo_path:
+        arquivo_path = novo_arquivo_path
+
+    if not arquivo_path and not link_url:
+        return False, "Envie um PDF ou informe um link para o material."
+
+    if material_id:
+        conn.execute(
+            """
+            UPDATE igreja_materiais
+            SET categoria = ?, titulo = ?, descricao = ?, arquivo_path = ?, link_url = ?, ordem = ?, ativo = ?,
+                atualizado_em = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (categoria, titulo, descricao, arquivo_path, link_url, ordem, ativo, material_id),
+        )
+    else:
+        conn.execute(
+            """
+            INSERT INTO igreja_materiais (categoria, titulo, descricao, arquivo_path, link_url, ordem, ativo)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (categoria, titulo, descricao, arquivo_path, link_url, ordem, ativo),
+        )
+    conn.commit()
+    return True, None
+
+
+def igreja_excluir_material(conn, material_id):
+    material = conn.execute("SELECT * FROM igreja_materiais WHERE id = ?", (material_id,)).fetchone()
+    if not material:
+        return False
+    conn.execute("DELETE FROM igreja_materiais WHERE id = ?", (material_id,))
+    conn.commit()
+    arquivo_relativo = material["arquivo_path"]
+    if arquivo_relativo:
+        caminho_arquivo = os.path.join(PROJECT_DIR, "static", arquivo_relativo.replace("/", os.sep))
+        if os.path.exists(caminho_arquivo):
+            try:
+                os.remove(caminho_arquivo)
+            except OSError:
+                pass
+    return True
 
 
 def conectacasa_autenticado():
@@ -1854,7 +2051,16 @@ def igreja_publico():
     conn = get_db()
     config = igreja_obter_config(conn)
     avisos = igreja_listar_avisos(conn, somente_ativos=True)
-    return render_template("igrejaemboavista_publico.html", config=config, avisos=avisos)
+    apostilas = igreja_listar_materiais(conn, categoria="apostila", somente_ativos=True)
+    ensinos = igreja_listar_materiais(conn, categoria="ensino", somente_ativos=True)
+    conn.close()
+    return render_template(
+        "igrejaemboavista_publico.html",
+        config=config,
+        avisos=avisos,
+        apostilas=apostilas,
+        ensinos=ensinos,
+    )
 
 
 @app.route("/editar", methods=["GET", "POST"])
@@ -1870,12 +2076,22 @@ def igreja_admin():
 
     if request.method == "POST":
         igreja_salvar_config(conn, request.form)
+        conn.close()
         flash("Conteudo do portal atualizado com sucesso.", "success")
         return redirect(igreja_path("/editar"))
 
     config = igreja_obter_config(conn)
     avisos = igreja_listar_avisos(conn)
-    return render_template("igrejaemboavista_admin.html", config=config, avisos=avisos)
+    apostilas = igreja_listar_materiais(conn, categoria="apostila")
+    ensinos = igreja_listar_materiais(conn, categoria="ensino")
+    conn.close()
+    return render_template(
+        "igrejaemboavista_admin.html",
+        config=config,
+        avisos=avisos,
+        apostilas=apostilas,
+        ensinos=ensinos,
+    )
 
 
 @app.route("/avisos/novo", methods=["POST"])
@@ -1889,6 +2105,7 @@ def igreja_aviso_novo():
         abort(404)
     conn = get_db()
     igreja_salvar_aviso(conn, request.form)
+    conn.close()
     flash("Aviso criado com sucesso.", "success")
     return redirect(igreja_path("/editar"))
 
@@ -1904,6 +2121,7 @@ def igreja_aviso_editar(aviso_id):
         abort(404)
     conn = get_db()
     igreja_salvar_aviso(conn, request.form, aviso_id=aviso_id)
+    conn.close()
     flash("Aviso atualizado com sucesso.", "success")
     return redirect(igreja_path("/editar"))
 
@@ -1920,7 +2138,56 @@ def igreja_aviso_excluir(aviso_id):
     conn = get_db()
     conn.execute("DELETE FROM igreja_avisos WHERE id = ?", (aviso_id,))
     conn.commit()
+    conn.close()
     flash("Aviso removido com sucesso.", "success")
+    return redirect(igreja_path("/editar"))
+
+
+@app.route("/materiais/novo", methods=["POST"])
+@app.route("/materiais/novo/", methods=["POST"])
+@app.route("/igrejaemboavista/materiais/novo", methods=["POST"])
+@app.route("/igrejaemboavista/materiais/novo/", methods=["POST"])
+@login_required
+@igreja_edit_required
+def igreja_material_novo():
+    if not igreja_request_permitida():
+        abort(404)
+    conn = get_db()
+    ok, erro = igreja_salvar_material(conn, request.form, request.files.get("arquivo_pdf"))
+    conn.close()
+    flash("Material cadastrado com sucesso." if ok else erro, "success" if ok else "warning")
+    return redirect(igreja_path("/editar"))
+
+
+@app.route("/materiais/<int:material_id>/editar", methods=["POST"])
+@app.route("/materiais/<int:material_id>/editar/", methods=["POST"])
+@app.route("/igrejaemboavista/materiais/<int:material_id>/editar", methods=["POST"])
+@app.route("/igrejaemboavista/materiais/<int:material_id>/editar/", methods=["POST"])
+@login_required
+@igreja_edit_required
+def igreja_material_editar(material_id):
+    if not igreja_request_permitida():
+        abort(404)
+    conn = get_db()
+    ok, erro = igreja_salvar_material(conn, request.form, request.files.get("arquivo_pdf"), material_id=material_id)
+    conn.close()
+    flash("Material atualizado com sucesso." if ok else erro, "success" if ok else "warning")
+    return redirect(igreja_path("/editar"))
+
+
+@app.route("/materiais/<int:material_id>/excluir", methods=["POST"])
+@app.route("/materiais/<int:material_id>/excluir/", methods=["POST"])
+@app.route("/igrejaemboavista/materiais/<int:material_id>/excluir", methods=["POST"])
+@app.route("/igrejaemboavista/materiais/<int:material_id>/excluir/", methods=["POST"])
+@login_required
+@igreja_edit_required
+def igreja_material_excluir(material_id):
+    if not igreja_request_permitida():
+        abort(404)
+    conn = get_db()
+    removido = igreja_excluir_material(conn, material_id)
+    conn.close()
+    flash("Material removido com sucesso." if removido else "Material nao encontrado.", "success" if removido else "warning")
     return redirect(igreja_path("/editar"))
 
 
