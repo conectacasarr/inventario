@@ -83,6 +83,7 @@
                         <ul class="dropdown-menu dropdown-menu-end app-user-menu" aria-labelledby="navbarUserDropdown">
                             <li><span class="dropdown-item-text"><small>Logado como: {{ current_user.tipo }}</small></span></li>
                             <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('alterar_senha') }}"><i class="fas fa-key"></i> Alterar senha</a></li>
                             {% if current_user.pode_editar_igreja %}
                             <li><a class="dropdown-item" href="{{ url_for('igreja_admin') }}"><i class="fas fa-church"></i> Editar portal da igreja</a></li>
                             {% endif %}

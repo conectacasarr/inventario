@@ -1732,6 +1732,48 @@ def resetar_senha(token):
 
     return render_template("resetar_senha.html", token=token, usuario=usuario)
 
+
+@app.route("/minha-senha", methods=["GET", "POST"])
+@app.route("/minha-senha/", methods=["GET", "POST"])
+@login_required
+def alterar_senha():
+    if request.method == "POST":
+        senha_atual = request.form.get("senha_atual", "")
+        nova_senha = request.form.get("nova_senha", "")
+        confirmar_senha = request.form.get("confirmar_senha", "")
+
+        db = get_db()
+        usuario = db.execute("SELECT id, senha_hash FROM usuarios WHERE id = ?", (current_user.id,)).fetchone()
+
+        if not usuario or not check_password_hash(usuario["senha_hash"], senha_atual):
+            flash("A senha atual informada nao confere.", "danger")
+            return render_template("alterar_senha.html")
+
+        if not senha_atende_requisitos(nova_senha):
+            flash("A nova senha deve ter pelo menos 8 caracteres.", "danger")
+            return render_template("alterar_senha.html")
+
+        if nova_senha != confirmar_senha:
+            flash("A confirmacao da nova senha nao confere.", "danger")
+            return render_template("alterar_senha.html")
+
+        if check_password_hash(usuario["senha_hash"], nova_senha):
+            flash("A nova senha precisa ser diferente da senha atual.", "warning")
+            return render_template("alterar_senha.html")
+
+        db.execute(
+            "UPDATE usuarios SET senha_hash = ? WHERE id = ?",
+            (generate_password_hash(nova_senha), current_user.id),
+        )
+        db.commit()
+        registrar_log("Senha alterada pelo proprio usuario")
+        db.commit()
+        flash("Senha alterada com sucesso.", "success")
+        return redirect(url_for("alterar_senha"))
+
+    return render_template("alterar_senha.html")
+
+
 @app.route("/logout")
 @app.route("/logout/")
 @login_required
@@ -2077,14 +2119,12 @@ def igreja_publico():
         abort(404)
     conn = get_db()
     config = igreja_obter_config(conn)
-    avisos = igreja_listar_avisos(conn, somente_ativos=True)
     apostilas = igreja_listar_materiais(conn, categoria="apostila", somente_ativos=True)
     ensinos = igreja_listar_materiais(conn, categoria="ensino", somente_ativos=True)
     conn.close()
     return render_template(
         "igrejaemboavista_publico.html",
         config=config,
-        avisos=avisos,
         apostilas=apostilas,
         ensinos=ensinos,
     )

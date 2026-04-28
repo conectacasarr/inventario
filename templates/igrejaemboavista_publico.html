@@ -225,6 +225,11 @@
                 <a href="{{ igreja_path('/') }}" class="ibv-brand">{{ config.nome_site or 'Igreja em Boa Vista' }}</a>
             </div>
             <div class="ibv-header-actions">
+                {% if current_user.is_authenticated %}
+                <a href="{{ url_for('alterar_senha') }}" class="btn btn-outline-light rounded-pill px-4">
+                    <i class="fas fa-key me-2"></i>Minha senha
+                </a>
+                {% endif %}
                 {% if current_user.is_authenticated and current_user.pode_acessar_inventario %}
                 <a href="{{ url_for('inventario') }}" class="btn btn-light rounded-pill px-4">
                     <i class="fas fa-boxes me-2"></i>Inventario
@@ -252,9 +257,8 @@
     <main class="container pb-5">
         <section class="ibv-top-tabs-shell p-3 p-lg-4 mb-4" id="conteudo-portal">
             <div class="ibv-tab-nav">
-                <button type="button" class="ibv-tab-button active" data-ibv-tab="avisos">Avisos</button>
                 <button type="button" class="ibv-tab-button" data-ibv-tab="apostilas">{{ config.apostilas_titulo or 'Apostilas' }}</button>
-                <button type="button" class="ibv-tab-button" data-ibv-tab="historia">{{ config.historia_titulo or 'Historia da Igreja em Boa Vista' }}</button>
+                <button type="button" class="ibv-tab-button active" data-ibv-tab="historia">{{ config.historia_titulo or 'Historia da Igreja em Boa Vista' }}</button>
                 <button type="button" class="ibv-tab-button" data-ibv-tab="ensinos">{{ config.ensinos_titulo or 'Ensinos' }}</button>
             </div>
         </section>
@@ -290,28 +294,6 @@
         </section>
 
         <section class="ibv-card ibv-tab-content-shell p-4 p-lg-5">
-            <div class="ibv-tab-pane active" data-ibv-pane="avisos">
-                {% if avisos %}
-                <div class="row g-4">
-                    {% for aviso in avisos %}
-                    <div class="col-md-6">
-                        <article class="h-100 ibv-clean-card p-4">
-                            <h3 class="h5 mb-2">{{ aviso.titulo }}</h3>
-                            <p class="text-secondary mb-3" style="white-space: pre-line;">{{ aviso.descricao }}</p>
-                            {% if aviso.link_url %}
-                            <a href="{{ aviso.link_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary rounded-pill">
-                                Abrir link
-                            </a>
-                            {% endif %}
-                        </article>
-                    </div>
-                    {% endfor %}
-                </div>
-                {% else %}
-                <div class="text-secondary">Nenhum aviso publicado no momento.</div>
-                {% endif %}
-            </div>
-
             <div class="ibv-tab-pane" data-ibv-pane="apostilas">
                 {% if apostilas %}
                 <div class="row g-4">
@@ -343,7 +325,7 @@
                 {% endif %}
             </div>
 
-            <div class="ibv-tab-pane" data-ibv-pane="historia">
+            <div class="ibv-tab-pane active" data-ibv-pane="historia">
                 <article class="ibv-clean-card p-4">
                     <h3 class="h4 mb-3">{{ config.historia_titulo or 'Historia da Igreja em Boa Vista' }}</h3>
                     <p class="text-secondary mb-0" style="white-space: pre-line;">{{ config.historia_texto or 'Em breve, esta area vai contar a historia da igreja, seus marcos e testemunhos.' }}</p>
@@ -401,7 +383,7 @@
 
     <script>
         function atualizarAreaInicial(destino) {
-            var mostrar = destino === 'avisos';
+            var mostrar = destino === 'historia';
             document.querySelectorAll('[data-ibv-home-block]').forEach(function(bloco) {
                 bloco.classList.toggle('is-hidden', !mostrar);
             });
@@ -420,7 +402,7 @@
             });
         });
 
-        atualizarAreaInicial('avisos');
+        atualizarAreaInicial('historia');
     </script>
 </body>
 </html>
