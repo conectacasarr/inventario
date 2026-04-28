@@ -24,6 +24,7 @@ from reportlab.lib.utils import ImageReader
 from collections import defaultdict
 from reportlab.lib.enums import TA_RIGHT
 import locale
+from markupsafe import Markup, escape
 
 load_dotenv()
 
@@ -46,6 +47,39 @@ def format_date(data):
         return datetime.strptime(data, "%Y-%m-%d").strftime("%d/%m/%Y")
     except Exception:
         return data
+
+
+def rich_text_para_html(valor):
+    texto = escape((valor or "").strip())
+    if not texto:
+        return Markup("")
+
+    substituicoes = [
+        (r"\[b\](.*?)\[/b\]", r"<strong>\1</strong>"),
+        (r"\[i\](.*?)\[/i\]", r"<em>\1</em>"),
+        (r"\[u\](.*?)\[/u\]", r"<u>\1</u>"),
+        (r"\[h2\](.*?)\[/h2\]", r"<h2>\1</h2>"),
+        (r"\[h3\](.*?)\[/h3\]", r"<h3>\1</h3>"),
+    ]
+
+    html = str(texto)
+    for padrao, replacement in substituicoes:
+        html = re.sub(padrao, replacement, html, flags=re.IGNORECASE | re.DOTALL)
+
+    html = re.sub(
+        r"\[color=(#[0-9a-fA-F]{3,6})\](.*?)\[/color\]",
+        lambda m: f'<span style="color:{m.group(1)}">{m.group(2)}</span>',
+        html,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    html = re.sub(
+        r"\[link=(https?://[^\]]+)\](.*?)\[/link\]",
+        lambda m: f'<a href="{m.group(1)}" target="_blank" rel="noopener noreferrer">{m.group(2)}</a>',
+        html,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    html = html.replace("\r\n", "\n").replace("\n", "<br>")
+    return Markup(html)
 
 
 app = Flask(__name__)
@@ -1214,6 +1248,10 @@ def usuario_pode_editar_igreja(user):
     return bool(getattr(user, "tipo", "") == "admin" or getattr(user, "pode_editar_igreja", False))
 
 
+def usuario_pode_gerenciar_usuarios(user):
+    return bool(getattr(user, "tipo", "") == "admin" and usuario_pode_acessar_inventario(user))
+
+
 def destino_pos_login(user):
     if usuario_pode_acessar_inventario(user):
         return url_for("inventario")
@@ -1498,6 +1536,7 @@ def inject_now():
     return {
         "now": datetime.now,
         "formata_brl": formata_brl,
+        "rich_text": rich_text_para_html,
         "conectacasa_path": conectacasa_path,
         "igreja_path": igreja_path,
         "host_eh_conectacasa": host_eh_conectacasa,
@@ -1520,10 +1559,8 @@ INVENTARIO_ENDPOINTS = {
     "excluir_emprestimo",
     "termo_compromisso",
     "relatorios",
-    "usuarios",
     "ativar_usuario",
     "novo_usuario",
-    "editar_usuario",
     "excluir_usuario",
     "logs",
 }
@@ -1733,45 +1770,85 @@ def resetar_senha(token):
     return render_template("resetar_senha.html", token=token, usuario=usuario)
 
 
-@app.route("/minha-senha", methods=["GET", "POST"])
-@app.route("/minha-senha/", methods=["GET", "POST"])
+@app.route("/usuarios/meu", methods=["GET", "POST"])
+@app.route("/usuarios/meu/", methods=["GET", "POST"])
 @login_required
-def alterar_senha():
+def meu_usuario():
+    db = get_db()
+    usuario = db.execute("SELECT * FROM usuarios WHERE id = ?", (current_user.id,)).fetchone()
+
+    if not usuario:
+        flash("Usuario nao encontrado.", "danger")
+        return redirect(destino_pos_login(current_user) or url_for("logout"))
+
     if request.method == "POST":
+        nome = request.form.get("nome")
+        usuario_login = request.form.get("usuario")
+        email = validar_email_informado(request.form.get("email"))
         senha_atual = request.form.get("senha_atual", "")
         nova_senha = request.form.get("nova_senha", "")
         confirmar_senha = request.form.get("confirmar_senha", "")
 
-        db = get_db()
-        usuario = db.execute("SELECT id, senha_hash FROM usuarios WHERE id = ?", (current_user.id,)).fetchone()
+        if not nome or not usuario_login or not email:
+            flash("Nome, usuario e e-mail sao obrigatorios.", "danger")
+            return render_template("editar_usuario_simples.html", usuario=usuario, eh_proprio_usuario=True, pode_gerenciar_usuarios=False)
 
-        if not usuario or not check_password_hash(usuario["senha_hash"], senha_atual):
-            flash("A senha atual informada nao confere.", "danger")
-            return render_template("alterar_senha.html")
+        existente = db.execute(
+            """
+            SELECT * FROM usuarios
+            WHERE id != ? AND (lower(usuario) = lower(?) OR lower(coalesce(email, '')) = lower(?))
+            """,
+            (current_user.id, usuario_login, email),
+        ).fetchone()
+        if existente:
+            flash("Nome de usuario ou e-mail ja cadastrado.", "danger")
+            return render_template("editar_usuario_simples.html", usuario=usuario, eh_proprio_usuario=True, pode_gerenciar_usuarios=False)
 
-        if not senha_atende_requisitos(nova_senha):
-            flash("A nova senha deve ter pelo menos 8 caracteres.", "danger")
-            return render_template("alterar_senha.html")
+        senha_hash_nova = None
+        if senha_atual or nova_senha or confirmar_senha:
+            if not senha_atual or not nova_senha or not confirmar_senha:
+                flash("Para alterar a senha, preencha a senha atual, a nova senha e a confirmacao.", "danger")
+                return render_template("editar_usuario_simples.html", usuario=usuario, eh_proprio_usuario=True, pode_gerenciar_usuarios=False)
+            if not check_password_hash(usuario["senha_hash"], senha_atual):
+                flash("A senha atual informada nao confere.", "danger")
+                return render_template("editar_usuario_simples.html", usuario=usuario, eh_proprio_usuario=True, pode_gerenciar_usuarios=False)
+            if not senha_atende_requisitos(nova_senha):
+                flash("A nova senha deve ter pelo menos 8 caracteres.", "danger")
+                return render_template("editar_usuario_simples.html", usuario=usuario, eh_proprio_usuario=True, pode_gerenciar_usuarios=False)
+            if nova_senha != confirmar_senha:
+                flash("A confirmacao da nova senha nao confere.", "danger")
+                return render_template("editar_usuario_simples.html", usuario=usuario, eh_proprio_usuario=True, pode_gerenciar_usuarios=False)
+            if check_password_hash(usuario["senha_hash"], nova_senha):
+                flash("A nova senha precisa ser diferente da senha atual.", "warning")
+                return render_template("editar_usuario_simples.html", usuario=usuario, eh_proprio_usuario=True, pode_gerenciar_usuarios=False)
+            senha_hash_nova = generate_password_hash(nova_senha)
 
-        if nova_senha != confirmar_senha:
-            flash("A confirmacao da nova senha nao confere.", "danger")
-            return render_template("alterar_senha.html")
+        if senha_hash_nova:
+            db.execute(
+                """
+                UPDATE usuarios
+                SET nome = ?, usuario = ?, email = ?, senha_hash = ?
+                WHERE id = ?
+                """,
+                (nome, usuario_login, email, senha_hash_nova, current_user.id),
+            )
+        else:
+            db.execute(
+                """
+                UPDATE usuarios
+                SET nome = ?, usuario = ?, email = ?
+                WHERE id = ?
+                """,
+                (nome, usuario_login, email, current_user.id),
+            )
 
-        if check_password_hash(usuario["senha_hash"], nova_senha):
-            flash("A nova senha precisa ser diferente da senha atual.", "warning")
-            return render_template("alterar_senha.html")
-
-        db.execute(
-            "UPDATE usuarios SET senha_hash = ? WHERE id = ?",
-            (generate_password_hash(nova_senha), current_user.id),
-        )
         db.commit()
-        registrar_log("Senha alterada pelo proprio usuario")
+        registrar_log(f"Usuario atualizou a propria conta: {nome} ({usuario_login})")
         db.commit()
-        flash("Senha alterada com sucesso.", "success")
-        return redirect(url_for("alterar_senha"))
+        flash("Usuario atualizado com sucesso.", "success")
+        return redirect(url_for("meu_usuario"))
 
-    return render_template("alterar_senha.html")
+    return render_template("editar_usuario_simples.html", usuario=usuario, eh_proprio_usuario=True, pode_gerenciar_usuarios=False)
 
 
 @app.route("/logout")
@@ -2120,13 +2197,11 @@ def igreja_publico():
     conn = get_db()
     config = igreja_obter_config(conn)
     apostilas = igreja_listar_materiais(conn, categoria="apostila", somente_ativos=True)
-    ensinos = igreja_listar_materiais(conn, categoria="ensino", somente_ativos=True)
     conn.close()
     return render_template(
         "igrejaemboavista_publico.html",
         config=config,
         apostilas=apostilas,
-        ensinos=ensinos,
     )
 
 
@@ -2148,9 +2223,9 @@ def igreja_admin():
         return redirect(igreja_path("/editar"))
 
     config = igreja_obter_config(conn)
-    avisos = igreja_listar_avisos(conn)
-    apostilas = igreja_listar_materiais(conn, categoria="apostila")
-    ensinos = igreja_listar_materiais(conn, categoria="ensino")
+    avisos = []
+    apostilas = igreja_listar_materiais(conn, categoria="apostila", somente_ativos=True)
+    ensinos = []
     conn.close()
     return render_template(
         "igrejaemboavista_admin.html",
@@ -3675,11 +3750,14 @@ def exportar_pdf(itens, emprestimos, filtro_tipo, filtro_grupo, filtro_data_inic
 @app.route("/usuarios")
 @app.route("/usuarios/")
 @login_required
-@admin_required
 def usuarios():
     db = get_db()
-    usuarios = db.execute("SELECT * FROM usuarios ORDER BY nome").fetchall()
-    return render_template("usuarios_admin.html", usuarios=usuarios)
+    pode_gerenciar_usuarios = usuario_pode_gerenciar_usuarios(current_user)
+    if pode_gerenciar_usuarios:
+        usuarios = db.execute("SELECT * FROM usuarios ORDER BY nome").fetchall()
+    else:
+        usuarios = db.execute("SELECT * FROM usuarios WHERE id = ?", (current_user.id,)).fetchall()
+    return render_template("usuarios_admin.html", usuarios=usuarios, pode_gerenciar_usuarios=pode_gerenciar_usuarios)
 
 @app.route("/usuarios/ativar/<int:id>", methods=["POST"])
 @login_required
@@ -3769,6 +3847,7 @@ def novo_usuario():
 def editar_usuario(id):
     db = get_db()
     usuario = db.execute("SELECT * FROM usuarios WHERE id = ?", (id,)).fetchone()
+    eh_proprio_usuario = False
     
     if not usuario:
         flash("Usuário não encontrado.", "danger")
@@ -3778,14 +3857,14 @@ def editar_usuario(id):
         nome = request.form.get("nome")
         usuario_login = request.form.get("usuario")
         email = validar_email_informado(request.form.get("email"))
-        senha = request.form.get("senha")
+        senha = ""
         tipo = request.form.get("tipo")
         pode_acessar_inventario = 1 if request.form.get("pode_acessar_inventario") == "1" else 0
         pode_editar_igreja = 1 if request.form.get("pode_editar_igreja") == "1" else 0
         
         if not nome or not usuario_login or not email:
             flash("Nome, usuario e e-mail sao obrigatorios.", "danger")
-            return render_template("editar_usuario_simples.html", usuario=usuario)
+            return render_template("editar_usuario_simples.html", usuario=usuario, eh_proprio_usuario=eh_proprio_usuario, pode_gerenciar_usuarios=True)
         
         try:
             # Verificar se o novo nome de usuário ou e-mail já existem
@@ -3799,7 +3878,7 @@ def editar_usuario(id):
                 ).fetchone()
                 if user_existente:
                     flash("Nome de usuario ou e-mail ja cadastrado.", "danger")
-                    return render_template("editar_usuario_simples.html", usuario=usuario)
+                    return render_template("editar_usuario_simples.html", usuario=usuario, eh_proprio_usuario=eh_proprio_usuario, pode_gerenciar_usuarios=True)
             
             # Atualizar usuário
             if senha:
@@ -3828,7 +3907,7 @@ def editar_usuario(id):
         except Exception as e:
             flash(f"Erro ao atualizar usuário: {str(e)}", "danger")
     
-    return render_template("editar_usuario_simples.html", usuario=usuario)
+    return render_template("editar_usuario_simples.html", usuario=usuario, eh_proprio_usuario=eh_proprio_usuario, pode_gerenciar_usuarios=True)
 @app.route("/usuarios/excluir/<int:id>", methods=["POST"])
 @login_required
 @admin_required

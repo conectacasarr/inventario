@@ -54,12 +54,12 @@
                             <i class="fas fa-chart-bar"></i> Relatorios
                         </a>
                     </li>
-                    {% if current_user.tipo == 'admin' %}
                     <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'usuarios' or request.endpoint == 'novo_usuario' or request.endpoint == 'editar_usuario' %}active{% endif %}" href="{{ url_for('usuarios') }}">
+                        <a class="nav-link {% if request.endpoint in ['usuarios', 'novo_usuario', 'editar_usuario', 'meu_usuario'] %}active{% endif %}" href="{{ url_for('usuarios') if current_user.tipo == 'admin' and current_user.pode_acessar_inventario else url_for('meu_usuario') }}">
                             <i class="fas fa-users"></i> Usuarios
                         </a>
                     </li>
+                    {% if current_user.tipo == 'admin' %}
                     <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'logs' %}active{% endif %}" href="{{ url_for('logs') }}">
                             <i class="fas fa-clipboard-list"></i> Logs
@@ -83,7 +83,7 @@
                         <ul class="dropdown-menu dropdown-menu-end app-user-menu" aria-labelledby="navbarUserDropdown">
                             <li><span class="dropdown-item-text"><small>Logado como: {{ current_user.tipo }}</small></span></li>
                             <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="{{ url_for('alterar_senha') }}"><i class="fas fa-key"></i> Alterar senha</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('usuarios') if current_user.tipo == 'admin' and current_user.pode_acessar_inventario else url_for('meu_usuario') }}"><i class="fas fa-user-cog"></i> Usuarios</a></li>
                             {% if current_user.pode_editar_igreja %}
                             <li><a class="dropdown-item" href="{{ url_for('igreja_admin') }}"><i class="fas fa-church"></i> Editar portal da igreja</a></li>
                             {% endif %}

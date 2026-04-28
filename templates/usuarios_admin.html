@@ -4,12 +4,14 @@
 
 {% block content %}
 <div class="container mt-4">
-    <h2>Gestao de Usuarios</h2>
+    <h2>{% if pode_gerenciar_usuarios %}Gestao de Usuarios{% else %}Meu Usuario{% endif %}</h2>
 
     <div class="card mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">Lista de Usuarios</h5>
+            <h5 class="mb-0">{% if pode_gerenciar_usuarios %}Lista de Usuarios{% else %}Seus dados{% endif %}</h5>
+            {% if pode_gerenciar_usuarios %}
             <a href="{{ url_for('novo_usuario') }}" class="btn btn-success">Cadastrar Novo Usuario</a>
+            {% endif %}
         </div>
         <div class="card-body">
             {% if usuarios %}
@@ -20,10 +22,12 @@
                             <th>Nome</th>
                             <th>Usuario</th>
                             <th>E-mail</th>
+                            {% if pode_gerenciar_usuarios %}
                             <th>Tipo</th>
                             <th>Inventario</th>
                             <th>Portal da Igreja</th>
                             <th>Status</th>
+                            {% endif %}
                             <th>Acoes</th>
                         </tr>
                     </thead>
@@ -33,6 +37,7 @@
                             <td>{{ usuario.nome }}</td>
                             <td>{{ usuario.usuario }}</td>
                             <td>{{ usuario.email or '-' }}</td>
+                            {% if pode_gerenciar_usuarios %}
                             <td>{{ usuario.tipo }}</td>
                             <td>
                                 {% if usuario.pode_acessar_inventario %}
@@ -55,23 +60,26 @@
                                 <span class="badge text-bg-warning">Pendente</span>
                                 {% endif %}
                             </td>
+                            {% endif %}
                             <td>
                                 <div class="d-flex gap-2">
-                                    {% if not usuario.ativo %}
+                                    {% if pode_gerenciar_usuarios and not usuario.ativo %}
                                     <form method="POST" action="{{ url_for('ativar_usuario', id=usuario.id) }}">
                                         <button type="submit" class="btn btn-sm btn-outline-success" title="Aprovar acesso">
                                             <i class="fas fa-user-check"></i>
                                         </button>
                                     </form>
                                     {% endif %}
-                                    <a href="{{ url_for('editar_usuario', id=usuario.id) }}" class="btn btn-sm btn-outline-primary" title="Editar">
+                                    <a href="{{ url_for('editar_usuario', id=usuario.id) if pode_gerenciar_usuarios else url_for('meu_usuario') }}" class="btn btn-sm btn-outline-primary" title="Editar">
                                         <i class="fas fa-edit"></i>
                                     </a>
+                                    {% if pode_gerenciar_usuarios %}
                                     <form method="POST" action="{{ url_for('excluir_usuario', id=usuario.id) }}" onsubmit="return confirm('Deseja realmente excluir este usuario?');">
                                         <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir">
                                             <i class="fas fa-trash-alt"></i>
                                         </button>
                                     </form>
+                                    {% endif %}
                                 </div>
                             </td>
                         </tr>

@@ -1,26 +1,78 @@
 {% extends 'base_simples.html' %}
 
-{% block title %}Portal da Igreja - OAIBV{% endblock %}
+{% block title %}Editar portal da igreja{% endblock %}
+
+{% block head_extra %}
+<style>
+    .church-editor-shell {
+        max-width: 1240px;
+    }
+
+    .church-editor-card {
+        border: 0;
+        border-radius: 24px;
+        box-shadow: 0 18px 46px rgba(7, 31, 58, 0.08);
+        overflow: hidden;
+    }
+
+    .church-editor-card .card-header {
+        background: #fff;
+        border-bottom: 1px solid rgba(7, 31, 58, 0.08);
+        padding: 1.1rem 1.4rem;
+    }
+
+    .church-editor-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.45rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .church-editor-toolbar .btn {
+        border-radius: 999px;
+        padding: 0.35rem 0.75rem;
+        font-size: 0.9rem;
+    }
+
+    .church-editor-toolbar input[type="color"] {
+        width: 42px;
+        height: 38px;
+        border: 0;
+        padding: 0;
+        background: transparent;
+    }
+
+    .church-editor-help {
+        color: #64748b;
+        font-size: 0.9rem;
+    }
+
+    .church-section-title {
+        color: #071f3a;
+        font-weight: 700;
+    }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
+<div class="container church-editor-shell mt-4 mb-5">
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
         <div>
-            <h1 class="mb-1">Portal da Igreja</h1>
-            <p class="text-secondary mb-0">Edite o conteudo publico da igreja sem precisar mexer em codigo.</p>
+            <h1 class="mb-1">Editar portal da igreja</h1>
+            <p class="text-secondary mb-0">Atualize os textos principais e as apostilas visiveis no site.</p>
         </div>
-        <a href="{{ igreja_path('/') }}" target="_blank" class="btn btn-outline-primary">
+        <a href="{{ igreja_path('/') }}" target="_blank" class="btn btn-outline-primary rounded-pill px-4">
             <i class="fas fa-external-link-alt me-2"></i>Ver site publico
         </a>
     </div>
 
     <div class="row g-4">
         <div class="col-lg-7">
-            <div class="card shadow-sm border-0">
-                <div class="card-header bg-white">
+            <div class="card church-editor-card">
+                <div class="card-header">
                     <h5 class="mb-0">Conteudo principal</h5>
                 </div>
-                <div class="card-body">
+                <div class="card-body p-4">
                     <form method="POST">
                         <div class="mb-3">
                             <label for="nome_site" class="form-label">Nome do site</label>
@@ -30,67 +82,81 @@
                             <label for="hero_titulo" class="form-label">Titulo principal</label>
                             <input type="text" class="form-control" id="hero_titulo" name="hero_titulo" value="{{ config.hero_titulo or '' }}" required>
                         </div>
+
                         <div class="mb-3">
-                            <label for="hero_subtitulo" class="form-label">Subtitulo</label>
-                            <textarea class="form-control" id="hero_subtitulo" name="hero_subtitulo" rows="3" required>{{ config.hero_subtitulo or '' }}</textarea>
+                            <label for="hero_subtitulo" class="form-label">Texto de apoio</label>
+                            <div class="church-editor-toolbar" data-rich-toolbar>
+                                <button type="button" class="btn btn-outline-secondary" data-wrap="[b]" data-wrap-close="[/b]"><strong>B</strong></button>
+                                <button type="button" class="btn btn-outline-secondary" data-wrap="[i]" data-wrap-close="[/i]"><em>I</em></button>
+                                <button type="button" class="btn btn-outline-secondary" data-wrap="[u]" data-wrap-close="[/u]"><u>U</u></button>
+                                <button type="button" class="btn btn-outline-secondary" data-wrap="[h2]" data-wrap-close="[/h2]">H2</button>
+                                <button type="button" class="btn btn-outline-secondary" data-wrap="[h3]" data-wrap-close="[/h3]">H3</button>
+                                <input type="color" value="#153a7a" data-color-picker>
+                            </div>
+                            <textarea class="form-control js-rich-text" id="hero_subtitulo" name="hero_subtitulo" rows="4">{{ config.hero_subtitulo or '' }}</textarea>
                         </div>
+
                         <div class="mb-3">
-                            <label for="mensagem_boas_vindas" class="form-label">Mensagem de boas-vindas</label>
-                            <textarea class="form-control" id="mensagem_boas_vindas" name="mensagem_boas_vindas" rows="3">{{ config.mensagem_boas_vindas or '' }}</textarea>
+                            <label for="mensagem_boas_vindas" class="form-label">Mensagem principal</label>
+                            <div class="church-editor-toolbar" data-rich-toolbar>
+                                <button type="button" class="btn btn-outline-secondary" data-wrap="[b]" data-wrap-close="[/b]"><strong>B</strong></button>
+                                <button type="button" class="btn btn-outline-secondary" data-wrap="[i]" data-wrap-close="[/i]"><em>I</em></button>
+                                <button type="button" class="btn btn-outline-secondary" data-wrap="[u]" data-wrap-close="[/u]"><u>U</u></button>
+                                <button type="button" class="btn btn-outline-secondary" data-wrap="[h2]" data-wrap-close="[/h2]">H2</button>
+                                <button type="button" class="btn btn-outline-secondary" data-wrap="[h3]" data-wrap-close="[/h3]">H3</button>
+                                <input type="color" value="#153a7a" data-color-picker>
+                            </div>
+                            <textarea class="form-control js-rich-text" id="mensagem_boas_vindas" name="mensagem_boas_vindas" rows="5">{{ config.mensagem_boas_vindas or '' }}</textarea>
                         </div>
-                        <div class="mb-3">
-                            <label for="agenda_titulo" class="form-label">Titulo da agenda</label>
-                            <input type="text" class="form-control" id="agenda_titulo" name="agenda_titulo" value="{{ config.agenda_titulo or '' }}" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="agenda_texto" class="form-label">Agenda e horarios</label>
-                            <textarea class="form-control" id="agenda_texto" name="agenda_texto" rows="6">{{ config.agenda_texto or '' }}</textarea>
-                        </div>
+
                         <hr class="my-4">
+
                         <div class="mb-3">
                             <label for="historia_titulo" class="form-label">Titulo da historia</label>
                             <input type="text" class="form-control" id="historia_titulo" name="historia_titulo" value="{{ config.historia_titulo or '' }}">
                         </div>
+
                         <div class="mb-3">
                             <label for="historia_texto" class="form-label">Historia da igreja</label>
-                            <textarea class="form-control" id="historia_texto" name="historia_texto" rows="8">{{ config.historia_texto or '' }}</textarea>
+                            <div class="church-editor-toolbar" data-rich-toolbar>
+                                <button type="button" class="btn btn-outline-secondary" data-wrap="[b]" data-wrap-close="[/b]"><strong>B</strong></button>
+                                <button type="button" class="btn btn-outline-secondary" data-wrap="[i]" data-wrap-close="[/i]"><em>I</em></button>
+                                <button type="button" class="btn btn-outline-secondary" data-wrap="[u]" data-wrap-close="[/u]"><u>U</u></button>
+                                <button type="button" class="btn btn-outline-secondary" data-wrap="[h2]" data-wrap-close="[/h2]">H2</button>
+                                <button type="button" class="btn btn-outline-secondary" data-wrap="[h3]" data-wrap-close="[/h3]">H3</button>
+                                <input type="color" value="#153a7a" data-color-picker>
+                            </div>
+                            <textarea class="form-control js-rich-text" id="historia_texto" name="historia_texto" rows="9">{{ config.historia_texto or '' }}</textarea>
                         </div>
+
                         <div class="mb-3">
                             <label for="historia_videos" class="form-label">Videos do YouTube na historia</label>
                             <textarea class="form-control" id="historia_videos" name="historia_videos" rows="4">{{ config.historia_videos or '' }}</textarea>
-                            <div class="form-text">Cole um link por linha. Eles serao incorporados na aba Historia.</div>
+                            <div class="form-text">Cole um link por linha.</div>
                         </div>
+
                         <div class="row g-3 mb-3">
                             <div class="col-md-6">
                                 <label for="apostilas_titulo" class="form-label">Titulo da aba Apostilas</label>
                                 <input type="text" class="form-control" id="apostilas_titulo" name="apostilas_titulo" value="{{ config.apostilas_titulo or '' }}">
                             </div>
                             <div class="col-md-6">
-                                <label for="ensinos_titulo" class="form-label">Titulo da aba Ensinos</label>
-                                <input type="text" class="form-control" id="ensinos_titulo" name="ensinos_titulo" value="{{ config.ensinos_titulo or '' }}">
-                            </div>
-                        </div>
-                        <div class="row g-3">
-                            <div class="col-md-6">
                                 <label for="youtube_url" class="form-label">Link do YouTube</label>
                                 <input type="url" class="form-control" id="youtube_url" name="youtube_url" value="{{ config.youtube_url or '' }}">
                             </div>
-                            <div class="col-md-6">
-                                <label for="instagram_url" class="form-label">Link do Instagram</label>
-                                <input type="url" class="form-control" id="instagram_url" name="instagram_url" value="{{ config.instagram_url or '' }}">
-                            </div>
                         </div>
-                        <hr class="my-4">
-                        <div class="mb-3">
-                            <label for="pix_cnpj" class="form-label">PIX para contribuicao</label>
-                            <input type="text" class="form-control" id="pix_cnpj" name="pix_cnpj" value="{{ config.pix_cnpj or '' }}">
+
+                        <div class="mb-4">
+                            <label for="instagram_url" class="form-label">Link do Instagram</label>
+                            <input type="url" class="form-control" id="instagram_url" name="instagram_url" value="{{ config.instagram_url or '' }}">
                         </div>
-                        <div class="mb-3">
-                            <label for="pix_texto" class="form-label">Texto da contribuicao</label>
-                            <textarea class="form-control" id="pix_texto" name="pix_texto" rows="3">{{ config.pix_texto or '' }}</textarea>
+
+                        <div class="church-editor-help mb-3">
+                            Use as marcacoes para formatar com negrito, italico, sublinhado, titulos e cor.
                         </div>
+
                         <div class="d-flex justify-content-end">
-                            <button type="submit" class="btn btn-primary">Salvar conteudo</button>
+                            <button type="submit" class="btn btn-primary rounded-pill px-4">Salvar conteudo</button>
                         </div>
                     </form>
                 </div>
@@ -98,117 +164,27 @@
         </div>
 
         <div class="col-lg-5">
-            <div class="card shadow-sm border-0 mb-4">
-                <div class="card-header bg-white">
-                    <h5 class="mb-0">Novo aviso</h5>
+            <div class="card church-editor-card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Nova apostila</h5>
                 </div>
-                <div class="card-body">
-                    <form method="POST" action="{{ igreja_path('/avisos/novo') }}">
-                        <div class="mb-3">
-                            <label for="novo_titulo" class="form-label">Titulo</label>
-                            <input type="text" class="form-control" id="novo_titulo" name="titulo" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="novo_descricao" class="form-label">Descricao</label>
-                            <textarea class="form-control" id="novo_descricao" name="descricao" rows="4" required></textarea>
-                        </div>
-                        <div class="mb-3">
-                            <label for="novo_link_url" class="form-label">Link opcional</label>
-                            <input type="url" class="form-control" id="novo_link_url" name="link_url">
-                        </div>
-                        <div class="row g-3">
-                            <div class="col-6">
-                                <label for="novo_ordem" class="form-label">Ordem</label>
-                                <input type="number" class="form-control" id="novo_ordem" name="ordem" value="0">
-                            </div>
-                            <div class="col-6 d-flex align-items-end">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="novo_ativo" name="ativo" value="1" checked>
-                                    <label class="form-check-label" for="novo_ativo">Publicado</label>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="d-grid mt-4">
-                            <button type="submit" class="btn btn-dark">Adicionar aviso</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-
-            <div class="card shadow-sm border-0">
-                <div class="card-header bg-white">
-                    <h5 class="mb-0">Avisos cadastrados</h5>
-                </div>
-                <div class="card-body">
-                    {% if avisos %}
-                        <div class="d-flex flex-column gap-3">
-                            {% for aviso in avisos %}
-                            <form method="POST" action="{{ igreja_path('/avisos/' ~ aviso.id ~ '/editar') }}" class="border rounded-4 p-3 bg-light-subtle">
-                                <div class="mb-2">
-                                    <label class="form-label">Titulo</label>
-                                    <input type="text" class="form-control" name="titulo" value="{{ aviso.titulo }}" required>
-                                </div>
-                                <div class="mb-2">
-                                    <label class="form-label">Descricao</label>
-                                    <textarea class="form-control" name="descricao" rows="3" required>{{ aviso.descricao }}</textarea>
-                                </div>
-                                <div class="mb-2">
-                                    <label class="form-label">Link opcional</label>
-                                    <input type="url" class="form-control" name="link_url" value="{{ aviso.link_url or '' }}">
-                                </div>
-                                <div class="row g-3 align-items-end">
-                                    <div class="col-4">
-                                        <label class="form-label">Ordem</label>
-                                        <input type="number" class="form-control" name="ordem" value="{{ aviso.ordem or 0 }}">
-                                    </div>
-                                    <div class="col-4">
-                                        <div class="form-check mb-2">
-                                            <input class="form-check-input" type="checkbox" id="ativo_{{ aviso.id }}" name="ativo" value="1" {% if aviso.ativo %}checked{% endif %}>
-                                            <label class="form-check-label" for="ativo_{{ aviso.id }}">Publicado</label>
-                                        </div>
-                                    </div>
-                                    <div class="col-4 text-end">
-                                        <button type="submit" class="btn btn-sm btn-primary">Salvar</button>
-                                    </div>
-                                </div>
-                                <div class="text-end mt-2">
-                                    <button type="submit" formaction="{{ igreja_path('/avisos/' ~ aviso.id ~ '/excluir') }}" formmethod="POST" class="btn btn-sm btn-outline-danger" onclick="return confirm('Deseja remover este aviso?');">
-                                        Excluir
-                                    </button>
-                                </div>
-                            </form>
-                            {% endfor %}
-                        </div>
-                    {% else %}
-                        <p class="text-secondary mb-0">Nenhum aviso cadastrado ainda.</p>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="row g-4 mt-1">
-        <div class="col-lg-5">
-            <div class="card shadow-sm border-0">
-                <div class="card-header bg-white">
-                    <h5 class="mb-0">Novo material</h5>
-                </div>
-                <div class="card-body">
+                <div class="card-body p-4">
                     <form method="POST" action="{{ igreja_path('/materiais/novo') }}" enctype="multipart/form-data">
-                        <div class="mb-3">
-                            <label for="material_categoria" class="form-label">Categoria</label>
-                            <select class="form-select" id="material_categoria" name="categoria" required>
-                                <option value="apostila">Apostila</option>
-                                <option value="ensino">Ensino</option>
-                            </select>
-                        </div>
+                        <input type="hidden" name="categoria" value="apostila">
+                        <input type="hidden" name="ativo" value="1">
                         <div class="mb-3">
                             <label for="material_titulo" class="form-label">Titulo</label>
                             <input type="text" class="form-control" id="material_titulo" name="titulo" required>
                         </div>
                         <div class="mb-3">
                             <label for="material_descricao" class="form-label">Descricao</label>
-                            <textarea class="form-control" id="material_descricao" name="descricao" rows="4"></textarea>
+                            <div class="church-editor-toolbar" data-rich-toolbar>
+                                <button type="button" class="btn btn-outline-secondary" data-wrap="[b]" data-wrap-close="[/b]"><strong>B</strong></button>
+                                <button type="button" class="btn btn-outline-secondary" data-wrap="[i]" data-wrap-close="[/i]"><em>I</em></button>
+                                <button type="button" class="btn btn-outline-secondary" data-wrap="[u]" data-wrap-close="[/u]"><u>U</u></button>
+                                <input type="color" value="#153a7a" data-color-picker>
+                            </div>
+                            <textarea class="form-control js-rich-text" id="material_descricao" name="descricao" rows="5"></textarea>
                         </div>
                         <div class="mb-3">
                             <label for="material_link" class="form-label">Link opcional</label>
@@ -217,161 +193,110 @@
                         <div class="mb-3">
                             <label for="material_pdf" class="form-label">Arquivo PDF</label>
                             <input type="file" class="form-control" id="material_pdf" name="arquivo_pdf" accept="application/pdf">
-                            <div class="form-text">Envie um PDF ou informe um link.</div>
                         </div>
-                        <div class="row g-3">
-                            <div class="col-6">
-                                <label for="material_ordem" class="form-label">Ordem</label>
-                                <input type="number" class="form-control" id="material_ordem" name="ordem" value="0">
-                            </div>
-                            <div class="col-6 d-flex align-items-end">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="material_ativo" name="ativo" value="1" checked>
-                                    <label class="form-check-label" for="material_ativo">Publicado</label>
-                                </div>
-                            </div>
+                        <div class="mb-4">
+                            <label for="material_ordem" class="form-label">Ordem</label>
+                            <input type="number" class="form-control" id="material_ordem" name="ordem" value="0">
                         </div>
-                        <div class="d-grid mt-4">
-                            <button type="submit" class="btn btn-dark">Adicionar material</button>
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-dark rounded-pill">Adicionar apostila</button>
                         </div>
                     </form>
                 </div>
             </div>
-        </div>
 
-        <div class="col-lg-7">
-            <div class="card shadow-sm border-0 mb-4">
-                <div class="card-header bg-white">
-                    <h5 class="mb-0">Apostilas cadastradas</h5>
+            <div class="card church-editor-card">
+                <div class="card-header">
+                    <h5 class="mb-0">Apostilas ativas</h5>
                 </div>
-                <div class="card-body">
+                <div class="card-body p-4">
                     {% if apostilas %}
                         <div class="d-flex flex-column gap-3">
                             {% for material in apostilas %}
                             <form method="POST" action="{{ igreja_path('/materiais/' ~ material.id ~ '/editar') }}" enctype="multipart/form-data" class="border rounded-4 p-3 bg-light-subtle">
-                                <div class="row g-3">
-                                    <div class="col-md-4">
-                                        <label class="form-label">Categoria</label>
-                                        <select class="form-select" name="categoria">
-                                            <option value="apostila" {% if material.categoria == 'apostila' %}selected{% endif %}>Apostila</option>
-                                            <option value="ensino" {% if material.categoria == 'ensino' %}selected{% endif %}>Ensino</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-md-8">
-                                        <label class="form-label">Titulo</label>
-                                        <input type="text" class="form-control" name="titulo" value="{{ material.titulo }}" required>
-                                    </div>
+                                <input type="hidden" name="categoria" value="apostila">
+                                <input type="hidden" name="ativo" value="1">
+                                <div class="mb-3">
+                                    <label class="form-label">Titulo</label>
+                                    <input type="text" class="form-control" name="titulo" value="{{ material.titulo }}" required>
                                 </div>
-                                <div class="mb-2 mt-3">
+                                <div class="mb-3">
                                     <label class="form-label">Descricao</label>
-                                    <textarea class="form-control" name="descricao" rows="3">{{ material.descricao or '' }}</textarea>
+                                    <div class="church-editor-toolbar" data-rich-toolbar>
+                                        <button type="button" class="btn btn-outline-secondary" data-wrap="[b]" data-wrap-close="[/b]"><strong>B</strong></button>
+                                        <button type="button" class="btn btn-outline-secondary" data-wrap="[i]" data-wrap-close="[/i]"><em>I</em></button>
+                                        <button type="button" class="btn btn-outline-secondary" data-wrap="[u]" data-wrap-close="[/u]"><u>U</u></button>
+                                        <input type="color" value="#153a7a" data-color-picker>
+                                    </div>
+                                    <textarea class="form-control js-rich-text" name="descricao" rows="4">{{ material.descricao or '' }}</textarea>
                                 </div>
-                                <div class="mb-2">
+                                <div class="mb-3">
                                     <label class="form-label">Link opcional</label>
                                     <input type="url" class="form-control" name="link_url" value="{{ material.link_url or '' }}">
                                 </div>
-                                <div class="mb-2">
+                                <div class="mb-3">
                                     <label class="form-label">Substituir PDF</label>
                                     <input type="file" class="form-control" name="arquivo_pdf" accept="application/pdf">
                                     {% if material.arquivo_url %}
-                                    <div class="form-text"><a href="{{ material.arquivo_url }}" target="_blank">Abrir PDF atual</a></div>
+                                    <div class="form-text"><a href="{{ material.arquivo_url }}" target="_blank" rel="noopener noreferrer">Abrir PDF atual</a></div>
                                     {% endif %}
                                 </div>
                                 <div class="row g-3 align-items-end">
-                                    <div class="col-md-4">
+                                    <div class="col-md-5">
                                         <label class="form-label">Ordem</label>
                                         <input type="number" class="form-control" name="ordem" value="{{ material.ordem or 0 }}">
                                     </div>
-                                    <div class="col-md-4">
-                                        <div class="form-check mb-2">
-                                            <input class="form-check-input" type="checkbox" id="material_ativo_{{ material.id }}" name="ativo" value="1" {% if material.ativo %}checked{% endif %}>
-                                            <label class="form-check-label" for="material_ativo_{{ material.id }}">Publicado</label>
-                                        </div>
+                                    <div class="col-md-7 text-end">
+                                        <button type="submit" class="btn btn-sm btn-primary rounded-pill px-3">Salvar</button>
+                                        <button type="submit" formaction="{{ igreja_path('/materiais/' ~ material.id ~ '/excluir') }}" formmethod="POST" class="btn btn-sm btn-outline-danger rounded-pill px-3" onclick="return confirm('Deseja remover esta apostila?');">
+                                            Excluir
+                                        </button>
                                     </div>
-                                    <div class="col-md-4 text-end">
-                                        <button type="submit" class="btn btn-sm btn-primary">Salvar</button>
-                                    </div>
-                                </div>
-                                <div class="text-end mt-2">
-                                    <button type="submit" formaction="{{ igreja_path('/materiais/' ~ material.id ~ '/excluir') }}" formmethod="POST" class="btn btn-sm btn-outline-danger" onclick="return confirm('Deseja remover este material?');">
-                                        Excluir
-                                    </button>
                                 </div>
                             </form>
                             {% endfor %}
                         </div>
                     {% else %}
-                        <p class="text-secondary mb-0">Nenhuma apostila cadastrada ainda.</p>
-                    {% endif %}
-                </div>
-            </div>
-
-            <div class="card shadow-sm border-0">
-                <div class="card-header bg-white">
-                    <h5 class="mb-0">Ensinos cadastrados</h5>
-                </div>
-                <div class="card-body">
-                    {% if ensinos %}
-                        <div class="d-flex flex-column gap-3">
-                            {% for material in ensinos %}
-                            <form method="POST" action="{{ igreja_path('/materiais/' ~ material.id ~ '/editar') }}" enctype="multipart/form-data" class="border rounded-4 p-3 bg-light-subtle">
-                                <div class="row g-3">
-                                    <div class="col-md-4">
-                                        <label class="form-label">Categoria</label>
-                                        <select class="form-select" name="categoria">
-                                            <option value="apostila" {% if material.categoria == 'apostila' %}selected{% endif %}>Apostila</option>
-                                            <option value="ensino" {% if material.categoria == 'ensino' %}selected{% endif %}>Ensino</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-md-8">
-                                        <label class="form-label">Titulo</label>
-                                        <input type="text" class="form-control" name="titulo" value="{{ material.titulo }}" required>
-                                    </div>
-                                </div>
-                                <div class="mb-2 mt-3">
-                                    <label class="form-label">Descricao</label>
-                                    <textarea class="form-control" name="descricao" rows="3">{{ material.descricao or '' }}</textarea>
-                                </div>
-                                <div class="mb-2">
-                                    <label class="form-label">Link opcional</label>
-                                    <input type="url" class="form-control" name="link_url" value="{{ material.link_url or '' }}">
-                                </div>
-                                <div class="mb-2">
-                                    <label class="form-label">Substituir PDF</label>
-                                    <input type="file" class="form-control" name="arquivo_pdf" accept="application/pdf">
-                                    {% if material.arquivo_url %}
-                                    <div class="form-text"><a href="{{ material.arquivo_url }}" target="_blank">Abrir PDF atual</a></div>
-                                    {% endif %}
-                                </div>
-                                <div class="row g-3 align-items-end">
-                                    <div class="col-md-4">
-                                        <label class="form-label">Ordem</label>
-                                        <input type="number" class="form-control" name="ordem" value="{{ material.ordem or 0 }}">
-                                    </div>
-                                    <div class="col-md-4">
-                                        <div class="form-check mb-2">
-                                            <input class="form-check-input" type="checkbox" id="ensino_ativo_{{ material.id }}" name="ativo" value="1" {% if material.ativo %}checked{% endif %}>
-                                            <label class="form-check-label" for="ensino_ativo_{{ material.id }}">Publicado</label>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-4 text-end">
-                                        <button type="submit" class="btn btn-sm btn-primary">Salvar</button>
-                                    </div>
-                                </div>
-                                <div class="text-end mt-2">
-                                    <button type="submit" formaction="{{ igreja_path('/materiais/' ~ material.id ~ '/excluir') }}" formmethod="POST" class="btn btn-sm btn-outline-danger" onclick="return confirm('Deseja remover este material?');">
-                                        Excluir
-                                    </button>
-                                </div>
-                            </form>
-                            {% endfor %}
-                        </div>
-                    {% else %}
-                        <p class="text-secondary mb-0">Nenhum ensino cadastrado ainda.</p>
+                        <p class="text-secondary mb-0">Nenhuma apostila ativa no momento.</p>
                     {% endif %}
                 </div>
             </div>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function wrapSelection(textarea, before, after) {
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const value = textarea.value;
+        const selected = value.slice(start, end);
+        textarea.value = value.slice(0, start) + before + selected + after + value.slice(end);
+        textarea.focus();
+        textarea.selectionStart = start + before.length;
+        textarea.selectionEnd = start + before.length + selected.length;
+    }
+
+    document.querySelectorAll('[data-rich-toolbar]').forEach(function(toolbar) {
+        const textarea = toolbar.parentElement.querySelector('.js-rich-text');
+        if (!textarea) {
+            return;
+        }
+
+        toolbar.querySelectorAll('[data-wrap]').forEach(function(button) {
+            button.addEventListener('click', function() {
+                wrapSelection(textarea, button.getAttribute('data-wrap'), button.getAttribute('data-wrap-close') || '');
+            });
+        });
+
+        const colorPicker = toolbar.querySelector('[data-color-picker]');
+        if (colorPicker) {
+            colorPicker.addEventListener('input', function() {
+                wrapSelection(textarea, '[color=' + colorPicker.value + ']', '[/color]');
+            });
+        }
+    });
+</script>
 {% endblock %}
