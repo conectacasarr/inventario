@@ -5,51 +5,108 @@
 {% block head_extra %}
 <style>
     .church-editor-shell {
-        max-width: 1240px;
+        max-width: 1280px;
     }
 
     .church-editor-card {
         border: 0;
-        border-radius: 24px;
-        box-shadow: 0 18px 46px rgba(7, 31, 58, 0.08);
+        border-radius: 28px;
+        box-shadow: 0 20px 48px rgba(7, 31, 58, 0.08);
         overflow: hidden;
     }
 
     .church-editor-card .card-header {
         background: #fff;
         border-bottom: 1px solid rgba(7, 31, 58, 0.08);
-        padding: 1.1rem 1.4rem;
+        padding: 1.15rem 1.4rem;
     }
 
-    .church-editor-toolbar {
+    .church-editor-tabs {
+        border: 0;
+        gap: 0.75rem;
+    }
+
+    .church-editor-tabs .nav-link {
+        border: 1px solid rgba(21, 58, 122, 0.12);
+        border-radius: 999px;
+        color: #102c4f;
+        font-weight: 700;
+        padding: 0.8rem 1.15rem;
+        background: rgba(255, 255, 255, 0.9);
+    }
+
+    .church-editor-tabs .nav-link.active {
+        color: #fff;
+        border-color: transparent;
+        background: linear-gradient(135deg, #0f2854, #2f6edb);
+        box-shadow: 0 16px 28px rgba(21, 58, 122, 0.16);
+    }
+
+    .editor-shell {
+        border: 1px solid rgba(16, 44, 79, 0.12);
+        border-radius: 22px;
+        background: #fff;
+        overflow: hidden;
+    }
+
+    .editor-toolbar {
         display: flex;
         flex-wrap: wrap;
         gap: 0.45rem;
-        margin-bottom: 0.75rem;
+        padding: 0.9rem;
+        background: rgba(248, 250, 255, 0.98);
+        border-bottom: 1px solid rgba(16, 44, 79, 0.1);
     }
 
-    .church-editor-toolbar .btn {
-        border-radius: 999px;
-        padding: 0.35rem 0.75rem;
-        font-size: 0.9rem;
+    .editor-toolbar .btn,
+    .editor-toolbar .form-select,
+    .editor-toolbar .form-control-color {
+        border-radius: 14px;
     }
 
-    .church-editor-toolbar input[type="color"] {
-        width: 42px;
-        height: 38px;
-        border: 0;
-        padding: 0;
-        background: transparent;
+    .editor-toolbar .form-select {
+        max-width: 150px;
     }
 
-    .church-editor-help {
+    .editor-toolbar .form-control-color {
+        width: 48px;
+        height: 42px;
+        padding: 0.25rem;
+    }
+
+    .editor-surface {
+        min-height: 180px;
+        padding: 1rem 1.1rem;
+        outline: 0;
+        color: #334155;
+        line-height: 1.7;
+    }
+
+    .editor-surface.editor-lg {
+        min-height: 320px;
+    }
+
+    .editor-surface p:last-child {
+        margin-bottom: 0;
+    }
+
+    .editor-surface img {
+        max-width: 100%;
+        height: auto;
+        border-radius: 16px;
+        display: block;
+        margin: 1rem auto;
+    }
+
+    .church-editor-note {
         color: #64748b;
-        font-size: 0.9rem;
+        font-size: 0.92rem;
     }
 
-    .church-section-title {
-        color: #071f3a;
-        font-weight: 700;
+    .apostila-item-card {
+        border: 1px solid rgba(16, 44, 79, 0.08);
+        border-radius: 22px;
+        background: rgba(248, 250, 255, 0.92);
     }
 </style>
 {% endblock %}
@@ -59,100 +116,99 @@
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
         <div>
             <h1 class="mb-1">Editar portal da igreja</h1>
-            <p class="text-secondary mb-0">Atualize os textos principais e as apostilas visiveis no site.</p>
+            <p class="text-secondary mb-0">Organize o conteudo por area e mantenha somente o que estiver ativo no site.</p>
         </div>
         <a href="{{ igreja_path('/') }}" target="_blank" class="btn btn-outline-primary rounded-pill px-4">
             <i class="fas fa-external-link-alt me-2"></i>Ver site publico
         </a>
     </div>
 
-    <div class="row g-4">
-        <div class="col-lg-7">
+    <ul class="nav church-editor-tabs mb-4" id="editorTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="historia-tab" data-bs-toggle="tab" data-bs-target="#historia-pane" type="button" role="tab">
+                Historia da Igreja
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="apostilas-tab" data-bs-toggle="tab" data-bs-target="#apostilas-pane" type="button" role="tab">
+                Apostilas
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content">
+        <div class="tab-pane fade show active" id="historia-pane" role="tabpanel" aria-labelledby="historia-tab">
             <div class="card church-editor-card">
                 <div class="card-header">
-                    <h5 class="mb-0">Conteudo principal</h5>
+                    <h5 class="mb-0">Conteudo principal do portal</h5>
                 </div>
                 <div class="card-body p-4">
-                    <form method="POST">
-                        <div class="mb-3">
-                            <label for="nome_site" class="form-label">Nome do site</label>
-                            <input type="text" class="form-control" id="nome_site" name="nome_site" value="{{ config.nome_site or '' }}" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="hero_titulo" class="form-label">Titulo principal</label>
-                            <input type="text" class="form-control" id="hero_titulo" name="hero_titulo" value="{{ config.hero_titulo or '' }}" required>
-                        </div>
-
-                        <div class="mb-3">
-                            <label for="hero_subtitulo" class="form-label">Texto de apoio</label>
-                            <div class="church-editor-toolbar" data-rich-toolbar>
-                                <button type="button" class="btn btn-outline-secondary" data-wrap="[b]" data-wrap-close="[/b]"><strong>B</strong></button>
-                                <button type="button" class="btn btn-outline-secondary" data-wrap="[i]" data-wrap-close="[/i]"><em>I</em></button>
-                                <button type="button" class="btn btn-outline-secondary" data-wrap="[u]" data-wrap-close="[/u]"><u>U</u></button>
-                                <button type="button" class="btn btn-outline-secondary" data-wrap="[h2]" data-wrap-close="[/h2]">H2</button>
-                                <button type="button" class="btn btn-outline-secondary" data-wrap="[h3]" data-wrap-close="[/h3]">H3</button>
-                                <input type="color" value="#153a7a" data-color-picker>
-                            </div>
-                            <textarea class="form-control js-rich-text" id="hero_subtitulo" name="hero_subtitulo" rows="4">{{ config.hero_subtitulo or '' }}</textarea>
-                        </div>
-
-                        <div class="mb-3">
-                            <label for="mensagem_boas_vindas" class="form-label">Mensagem principal</label>
-                            <div class="church-editor-toolbar" data-rich-toolbar>
-                                <button type="button" class="btn btn-outline-secondary" data-wrap="[b]" data-wrap-close="[/b]"><strong>B</strong></button>
-                                <button type="button" class="btn btn-outline-secondary" data-wrap="[i]" data-wrap-close="[/i]"><em>I</em></button>
-                                <button type="button" class="btn btn-outline-secondary" data-wrap="[u]" data-wrap-close="[/u]"><u>U</u></button>
-                                <button type="button" class="btn btn-outline-secondary" data-wrap="[h2]" data-wrap-close="[/h2]">H2</button>
-                                <button type="button" class="btn btn-outline-secondary" data-wrap="[h3]" data-wrap-close="[/h3]">H3</button>
-                                <input type="color" value="#153a7a" data-color-picker>
-                            </div>
-                            <textarea class="form-control js-rich-text" id="mensagem_boas_vindas" name="mensagem_boas_vindas" rows="5">{{ config.mensagem_boas_vindas or '' }}</textarea>
-                        </div>
-
-                        <hr class="my-4">
-
-                        <div class="mb-3">
-                            <label for="historia_titulo" class="form-label">Titulo da historia</label>
-                            <input type="text" class="form-control" id="historia_titulo" name="historia_titulo" value="{{ config.historia_titulo or '' }}">
-                        </div>
-
-                        <div class="mb-3">
-                            <label for="historia_texto" class="form-label">Historia da igreja</label>
-                            <div class="church-editor-toolbar" data-rich-toolbar>
-                                <button type="button" class="btn btn-outline-secondary" data-wrap="[b]" data-wrap-close="[/b]"><strong>B</strong></button>
-                                <button type="button" class="btn btn-outline-secondary" data-wrap="[i]" data-wrap-close="[/i]"><em>I</em></button>
-                                <button type="button" class="btn btn-outline-secondary" data-wrap="[u]" data-wrap-close="[/u]"><u>U</u></button>
-                                <button type="button" class="btn btn-outline-secondary" data-wrap="[h2]" data-wrap-close="[/h2]">H2</button>
-                                <button type="button" class="btn btn-outline-secondary" data-wrap="[h3]" data-wrap-close="[/h3]">H3</button>
-                                <input type="color" value="#153a7a" data-color-picker>
-                            </div>
-                            <textarea class="form-control js-rich-text" id="historia_texto" name="historia_texto" rows="9">{{ config.historia_texto or '' }}</textarea>
-                        </div>
-
-                        <div class="mb-3">
-                            <label for="historia_videos" class="form-label">Videos do YouTube na historia</label>
-                            <textarea class="form-control" id="historia_videos" name="historia_videos" rows="4">{{ config.historia_videos or '' }}</textarea>
-                            <div class="form-text">Cole um link por linha.</div>
-                        </div>
-
-                        <div class="row g-3 mb-3">
+                    <form method="POST" id="form-conteudo-principal">
+                        <div class="row g-3 mb-4">
                             <div class="col-md-6">
-                                <label for="apostilas_titulo" class="form-label">Titulo da aba Apostilas</label>
-                                <input type="text" class="form-control" id="apostilas_titulo" name="apostilas_titulo" value="{{ config.apostilas_titulo or '' }}">
+                                <label for="nome_site" class="form-label">Nome do site</label>
+                                <input type="text" class="form-control" id="nome_site" name="nome_site" value="{{ config.nome_site or '' }}" required>
                             </div>
                             <div class="col-md-6">
-                                <label for="youtube_url" class="form-label">Link do YouTube</label>
-                                <input type="url" class="form-control" id="youtube_url" name="youtube_url" value="{{ config.youtube_url or '' }}">
+                                <label for="hero_titulo" class="form-label">Titulo principal</label>
+                                <input type="text" class="form-control" id="hero_titulo" name="hero_titulo" value="{{ config.hero_titulo or '' }}" required>
                             </div>
                         </div>
 
                         <div class="mb-4">
-                            <label for="instagram_url" class="form-label">Link do Instagram</label>
-                            <input type="url" class="form-control" id="instagram_url" name="instagram_url" value="{{ config.instagram_url or '' }}">
+                            <label class="form-label">Texto de apoio</label>
+                            <div class="editor-shell" data-editor-root>
+                                <div class="editor-toolbar" data-editor-toolbar></div>
+                                <div class="editor-surface" data-editor-surface contenteditable="true">{{ config.hero_subtitulo | safe }}</div>
+                            </div>
+                            <textarea name="hero_subtitulo" hidden data-editor-hidden>{{ config.hero_subtitulo or '' }}</textarea>
                         </div>
 
-                        <div class="church-editor-help mb-3">
-                            Use as marcacoes para formatar com negrito, italico, sublinhado, titulos e cor.
+                        <div class="mb-4">
+                            <label class="form-label">Mensagem principal</label>
+                            <div class="editor-shell" data-editor-root>
+                                <div class="editor-toolbar" data-editor-toolbar></div>
+                                <div class="editor-surface" data-editor-surface contenteditable="true">{{ config.mensagem_boas_vindas | safe }}</div>
+                            </div>
+                            <textarea name="mensagem_boas_vindas" hidden data-editor-hidden>{{ config.mensagem_boas_vindas or '' }}</textarea>
+                        </div>
+
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <label for="historia_titulo" class="form-label">Titulo da aba Historia</label>
+                                <input type="text" class="form-control" id="historia_titulo" name="historia_titulo" value="{{ config.historia_titulo or '' }}">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="apostilas_titulo" class="form-label">Titulo da aba Apostilas</label>
+                                <input type="text" class="form-control" id="apostilas_titulo" name="apostilas_titulo" value="{{ config.apostilas_titulo or '' }}">
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label">Historia da igreja</label>
+                            <div class="editor-shell" data-editor-root>
+                                <div class="editor-toolbar" data-editor-toolbar></div>
+                                <div class="editor-surface editor-lg" data-editor-surface contenteditable="true">{{ config.historia_texto | safe }}</div>
+                            </div>
+                            <textarea name="historia_texto" hidden data-editor-hidden>{{ config.historia_texto or '' }}</textarea>
+                            <div class="church-editor-note mt-2">Voce pode inserir imagens, alinhar texto, alterar cor e destacar partes importantes sem perder a formatacao ao salvar.</div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label for="historia_videos" class="form-label">Videos do YouTube na historia</label>
+                            <textarea class="form-control" id="historia_videos" name="historia_videos" rows="4">{{ config.historia_videos or '' }}</textarea>
+                            <div class="form-text">Cole um link por linha para exibir os videos diretamente no site.</div>
+                        </div>
+
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <label for="youtube_url" class="form-label">Link do YouTube</label>
+                                <input type="url" class="form-control" id="youtube_url" name="youtube_url" value="{{ config.youtube_url or '' }}">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="instagram_url" class="form-label">Link do Instagram</label>
+                                <input type="url" class="form-control" id="instagram_url" name="instagram_url" value="{{ config.instagram_url or '' }}">
+                            </div>
                         </div>
 
                         <div class="d-flex justify-content-end">
@@ -163,140 +219,349 @@
             </div>
         </div>
 
-        <div class="col-lg-5">
-            <div class="card church-editor-card mb-4">
-                <div class="card-header">
-                    <h5 class="mb-0">Nova apostila</h5>
-                </div>
-                <div class="card-body p-4">
-                    <form method="POST" action="{{ igreja_path('/materiais/novo') }}" enctype="multipart/form-data">
-                        <input type="hidden" name="categoria" value="apostila">
-                        <input type="hidden" name="ativo" value="1">
-                        <div class="mb-3">
-                            <label for="material_titulo" class="form-label">Titulo</label>
-                            <input type="text" class="form-control" id="material_titulo" name="titulo" required>
+        <div class="tab-pane fade" id="apostilas-pane" role="tabpanel" aria-labelledby="apostilas-tab">
+            <div class="row g-4">
+                <div class="col-lg-5">
+                    <div class="card church-editor-card">
+                        <div class="card-header">
+                            <h5 class="mb-0">Nova apostila</h5>
                         </div>
-                        <div class="mb-3">
-                            <label for="material_descricao" class="form-label">Descricao</label>
-                            <div class="church-editor-toolbar" data-rich-toolbar>
-                                <button type="button" class="btn btn-outline-secondary" data-wrap="[b]" data-wrap-close="[/b]"><strong>B</strong></button>
-                                <button type="button" class="btn btn-outline-secondary" data-wrap="[i]" data-wrap-close="[/i]"><em>I</em></button>
-                                <button type="button" class="btn btn-outline-secondary" data-wrap="[u]" data-wrap-close="[/u]"><u>U</u></button>
-                                <input type="color" value="#153a7a" data-color-picker>
-                            </div>
-                            <textarea class="form-control js-rich-text" id="material_descricao" name="descricao" rows="5"></textarea>
-                        </div>
-                        <div class="mb-3">
-                            <label for="material_link" class="form-label">Link opcional</label>
-                            <input type="url" class="form-control" id="material_link" name="link_url">
-                        </div>
-                        <div class="mb-3">
-                            <label for="material_pdf" class="form-label">Arquivo PDF</label>
-                            <input type="file" class="form-control" id="material_pdf" name="arquivo_pdf" accept="application/pdf">
-                        </div>
-                        <div class="mb-4">
-                            <label for="material_ordem" class="form-label">Ordem</label>
-                            <input type="number" class="form-control" id="material_ordem" name="ordem" value="0">
-                        </div>
-                        <div class="d-grid">
-                            <button type="submit" class="btn btn-dark rounded-pill">Adicionar apostila</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-
-            <div class="card church-editor-card">
-                <div class="card-header">
-                    <h5 class="mb-0">Apostilas ativas</h5>
-                </div>
-                <div class="card-body p-4">
-                    {% if apostilas %}
-                        <div class="d-flex flex-column gap-3">
-                            {% for material in apostilas %}
-                            <form method="POST" action="{{ igreja_path('/materiais/' ~ material.id ~ '/editar') }}" enctype="multipart/form-data" class="border rounded-4 p-3 bg-light-subtle">
+                        <div class="card-body p-4">
+                            <form method="POST" action="{{ igreja_path('/materiais/novo') }}" enctype="multipart/form-data">
                                 <input type="hidden" name="categoria" value="apostila">
                                 <input type="hidden" name="ativo" value="1">
                                 <div class="mb-3">
-                                    <label class="form-label">Titulo</label>
-                                    <input type="text" class="form-control" name="titulo" value="{{ material.titulo }}" required>
+                                    <label for="material_titulo" class="form-label">Titulo</label>
+                                    <input type="text" class="form-control" id="material_titulo" name="titulo" required>
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Descricao</label>
-                                    <div class="church-editor-toolbar" data-rich-toolbar>
-                                        <button type="button" class="btn btn-outline-secondary" data-wrap="[b]" data-wrap-close="[/b]"><strong>B</strong></button>
-                                        <button type="button" class="btn btn-outline-secondary" data-wrap="[i]" data-wrap-close="[/i]"><em>I</em></button>
-                                        <button type="button" class="btn btn-outline-secondary" data-wrap="[u]" data-wrap-close="[/u]"><u>U</u></button>
-                                        <input type="color" value="#153a7a" data-color-picker>
+                                    <div class="editor-shell" data-editor-root>
+                                        <div class="editor-toolbar" data-editor-toolbar></div>
+                                        <div class="editor-surface" data-editor-surface contenteditable="true"></div>
                                     </div>
-                                    <textarea class="form-control js-rich-text" name="descricao" rows="4">{{ material.descricao or '' }}</textarea>
+                                    <textarea name="descricao" hidden data-editor-hidden></textarea>
                                 </div>
                                 <div class="mb-3">
-                                    <label class="form-label">Link opcional</label>
-                                    <input type="url" class="form-control" name="link_url" value="{{ material.link_url or '' }}">
+                                    <label for="material_link" class="form-label">Link opcional</label>
+                                    <input type="url" class="form-control" id="material_link" name="link_url">
                                 </div>
                                 <div class="mb-3">
-                                    <label class="form-label">Substituir PDF</label>
-                                    <input type="file" class="form-control" name="arquivo_pdf" accept="application/pdf">
-                                    {% if material.arquivo_url %}
-                                    <div class="form-text"><a href="{{ material.arquivo_url }}" target="_blank" rel="noopener noreferrer">Abrir PDF atual</a></div>
-                                    {% endif %}
+                                    <label for="material_pdf" class="form-label">Arquivo PDF</label>
+                                    <input type="file" class="form-control" id="material_pdf" name="arquivo_pdf" accept="application/pdf">
                                 </div>
-                                <div class="row g-3 align-items-end">
-                                    <div class="col-md-5">
-                                        <label class="form-label">Ordem</label>
-                                        <input type="number" class="form-control" name="ordem" value="{{ material.ordem or 0 }}">
-                                    </div>
-                                    <div class="col-md-7 text-end">
-                                        <button type="submit" class="btn btn-sm btn-primary rounded-pill px-3">Salvar</button>
-                                        <button type="submit" formaction="{{ igreja_path('/materiais/' ~ material.id ~ '/excluir') }}" formmethod="POST" class="btn btn-sm btn-outline-danger rounded-pill px-3" onclick="return confirm('Deseja remover esta apostila?');">
-                                            Excluir
-                                        </button>
-                                    </div>
+                                <div class="mb-4">
+                                    <label for="material_ordem" class="form-label">Ordem</label>
+                                    <input type="number" class="form-control" id="material_ordem" name="ordem" value="0">
+                                </div>
+                                <div class="d-grid">
+                                    <button type="submit" class="btn btn-dark rounded-pill">Adicionar apostila</button>
                                 </div>
                             </form>
-                            {% endfor %}
                         </div>
-                    {% else %}
-                        <p class="text-secondary mb-0">Nenhuma apostila ativa no momento.</p>
-                    {% endif %}
+                    </div>
+                </div>
+
+                <div class="col-lg-7">
+                    <div class="card church-editor-card">
+                        <div class="card-header">
+                            <h5 class="mb-0">Apostilas ativas</h5>
+                        </div>
+                        <div class="card-body p-4">
+                            {% if apostilas %}
+                            <div class="d-flex flex-column gap-3">
+                                {% for material in apostilas %}
+                                <form method="POST" action="{{ igreja_path('/materiais/' ~ material.id ~ '/editar') }}" enctype="multipart/form-data" class="apostila-item-card p-3">
+                                    <input type="hidden" name="categoria" value="apostila">
+                                    <input type="hidden" name="ativo" value="1">
+                                    <div class="mb-3">
+                                        <label class="form-label">Titulo</label>
+                                        <input type="text" class="form-control" name="titulo" value="{{ material.titulo }}" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Descricao</label>
+                                        <div class="editor-shell" data-editor-root>
+                                            <div class="editor-toolbar" data-editor-toolbar></div>
+                                            <div class="editor-surface" data-editor-surface contenteditable="true">{{ material.descricao | safe }}</div>
+                                        </div>
+                                        <textarea name="descricao" hidden data-editor-hidden>{{ material.descricao or '' }}</textarea>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Link opcional</label>
+                                        <input type="url" class="form-control" name="link_url" value="{{ material.link_url or '' }}">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Substituir PDF</label>
+                                        <input type="file" class="form-control" name="arquivo_pdf" accept="application/pdf">
+                                        {% if material.arquivo_url %}
+                                        <div class="form-text">
+                                            <a href="{{ material.arquivo_url }}" target="_blank" rel="noopener noreferrer">Abrir PDF atual</a>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="row g-3 align-items-end">
+                                        <div class="col-md-4">
+                                            <label class="form-label">Ordem</label>
+                                            <input type="number" class="form-control" name="ordem" value="{{ material.ordem or 0 }}">
+                                        </div>
+                                        <div class="col-md-8 text-end">
+                                            <button type="submit" class="btn btn-sm btn-primary rounded-pill px-3">Salvar</button>
+                                            <button type="submit" formaction="{{ igreja_path('/materiais/' ~ material.id ~ '/excluir') }}" formmethod="POST" class="btn btn-sm btn-outline-danger rounded-pill px-3" onclick="return confirm('Deseja remover esta apostila?');">
+                                                Excluir
+                                            </button>
+                                        </div>
+                                    </div>
+                                </form>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <p class="text-secondary mb-0">Nenhuma apostila ativa no momento.</p>
+                            {% endif %}
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+<input type="file" id="editor-image-upload" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
 {% endblock %}
 
 {% block scripts %}
 <script>
-    function wrapSelection(textarea, before, after) {
-        const start = textarea.selectionStart;
-        const end = textarea.selectionEnd;
-        const value = textarea.value;
-        const selected = value.slice(start, end);
-        textarea.value = value.slice(0, start) + before + selected + after + value.slice(end);
-        textarea.focus();
-        textarea.selectionStart = start + before.length;
-        textarea.selectionEnd = start + before.length + selected.length;
-    }
+    document.addEventListener('DOMContentLoaded', function () {
+        document.execCommand('styleWithCSS', false, true);
 
-    document.querySelectorAll('[data-rich-toolbar]').forEach(function(toolbar) {
-        const textarea = toolbar.parentElement.querySelector('.js-rich-text');
-        if (!textarea) {
-            return;
+        let activeEditor = null;
+        let currentRange = null;
+        const imageInput = document.getElementById('editor-image-upload');
+        const uploadUrl = "{{ igreja_path('/editor/imagem') }}";
+
+        function saveRange(editor) {
+            const selection = window.getSelection();
+            if (!selection.rangeCount) return;
+            const range = selection.getRangeAt(0);
+            if (editor.contains(range.commonAncestorContainer)) {
+                currentRange = range.cloneRange();
+            }
         }
 
-        toolbar.querySelectorAll('[data-wrap]').forEach(function(button) {
-            button.addEventListener('click', function() {
-                wrapSelection(textarea, button.getAttribute('data-wrap'), button.getAttribute('data-wrap-close') || '');
+        function restoreRange() {
+            if (!activeEditor || !currentRange) return;
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(currentRange);
+        }
+
+        function getHiddenField(editor) {
+            const root = editor.closest('[data-editor-root]');
+            const hidden = root ? root.nextElementSibling : null;
+            if (hidden && hidden.matches('[data-editor-hidden]')) {
+                return hidden;
+            }
+            return null;
+        }
+
+        function syncEditor(editor) {
+            const hidden = getHiddenField(editor);
+            if (hidden) {
+                hidden.value = editor.innerHTML.trim();
+            }
+        }
+
+        function wrapBlock(styleValue) {
+            if (!activeEditor) return;
+            const scrollTop = window.scrollY;
+            restoreRange();
+            activeEditor.focus({ preventScroll: true });
+            document.execCommand('formatBlock', false, styleValue);
+            syncEditor(activeEditor);
+            saveRange(activeEditor);
+            requestAnimationFrame(function () {
+                window.scrollTo(0, scrollTop);
             });
+        }
+
+        function execEditorCommand(command, value) {
+            if (!activeEditor) return;
+            const scrollTop = window.scrollY;
+            restoreRange();
+            activeEditor.focus({ preventScroll: true });
+            document.execCommand(command, false, value);
+            syncEditor(activeEditor);
+            saveRange(activeEditor);
+            requestAnimationFrame(function () {
+                window.scrollTo(0, scrollTop);
+            });
+        }
+
+        function insertHtml(html) {
+            if (!activeEditor) return;
+            const scrollTop = window.scrollY;
+            restoreRange();
+            activeEditor.focus({ preventScroll: true });
+            document.execCommand('insertHTML', false, html);
+            syncEditor(activeEditor);
+            saveRange(activeEditor);
+            requestAnimationFrame(function () {
+                window.scrollTo(0, scrollTop);
+            });
+        }
+
+        function createToolbar(toolbar) {
+            toolbar.innerHTML = `
+                <button type="button" class="btn btn-outline-secondary" data-command="bold"><strong>B</strong></button>
+                <button type="button" class="btn btn-outline-secondary" data-command="italic"><em>I</em></button>
+                <button type="button" class="btn btn-outline-secondary" data-command="underline"><u>U</u></button>
+                <button type="button" class="btn btn-outline-secondary" data-command="justifyLeft"><i class="fas fa-align-left"></i></button>
+                <button type="button" class="btn btn-outline-secondary" data-command="justifyCenter"><i class="fas fa-align-center"></i></button>
+                <button type="button" class="btn btn-outline-secondary" data-command="justifyRight"><i class="fas fa-align-right"></i></button>
+                <button type="button" class="btn btn-outline-secondary" data-command="justifyFull"><i class="fas fa-align-justify"></i></button>
+                <button type="button" class="btn btn-outline-secondary" data-action="h2">H2</button>
+                <button type="button" class="btn btn-outline-secondary" data-action="h3">H3</button>
+                <button type="button" class="btn btn-outline-secondary" data-action="paragraph">P</button>
+                <button type="button" class="btn btn-outline-secondary" data-action="highlightBlock"><i class="fas fa-square-full"></i></button>
+                <button type="button" class="btn btn-outline-secondary" data-action="bigger">A+</button>
+                <button type="button" class="btn btn-outline-secondary" data-action="smaller">A-</button>
+                <input type="color" class="form-control form-control-color" value="#153a7a" data-action="foreColor">
+                <input type="color" class="form-control form-control-color" value="#fff3cd" data-action="hiliteColor">
+                <button type="button" class="btn btn-outline-secondary" data-action="insertImage"><i class="fas fa-image"></i></button>
+            `;
+        }
+
+        function applyFontSize(sizeValue) {
+            insertHtml(`<span style="font-size:${sizeValue};">${window.getSelection().toString() || '&#8203;'}</span>`);
+        }
+
+        function applyHighlightBlock() {
+            const selectionText = window.getSelection().toString() || 'Novo bloco destacado';
+            insertHtml(`<div style="background-color:#f8fbff;padding:1rem 1.15rem;border-radius:18px;margin:0.75rem 0;">${selectionText}</div>`);
+        }
+
+        document.addEventListener('selectionchange', function () {
+            if (activeEditor) {
+                saveRange(activeEditor);
+            }
         });
 
-        const colorPicker = toolbar.querySelector('[data-color-picker]');
-        if (colorPicker) {
-            colorPicker.addEventListener('input', function() {
-                wrapSelection(textarea, '[color=' + colorPicker.value + ']', '[/color]');
+        document.querySelectorAll('[data-editor-root]').forEach(function (root) {
+            const toolbar = root.querySelector('[data-editor-toolbar]');
+            const editor = root.querySelector('[data-editor-surface]');
+            createToolbar(toolbar);
+
+            toolbar.addEventListener('mousedown', function (event) {
+                event.preventDefault();
             });
-        }
+
+            editor.addEventListener('focus', function () {
+                activeEditor = editor;
+            });
+
+            editor.addEventListener('mouseup', function () {
+                activeEditor = editor;
+                saveRange(editor);
+                syncEditor(editor);
+            });
+
+            editor.addEventListener('keyup', function () {
+                activeEditor = editor;
+                saveRange(editor);
+                syncEditor(editor);
+            });
+
+            editor.addEventListener('input', function () {
+                activeEditor = editor;
+                saveRange(editor);
+                syncEditor(editor);
+            });
+
+            editor.addEventListener('blur', function () {
+                syncEditor(editor);
+            });
+
+            toolbar.addEventListener('click', function (event) {
+                const button = event.target.closest('[data-command],[data-action]');
+                if (!button) return;
+                activeEditor = editor;
+                saveRange(editor);
+
+                if (button.dataset.command) {
+                    execEditorCommand(button.dataset.command);
+                    return;
+                }
+
+                if (button.dataset.action === 'h2') {
+                    wrapBlock('h2');
+                } else if (button.dataset.action === 'h3') {
+                    wrapBlock('h3');
+                } else if (button.dataset.action === 'paragraph') {
+                    wrapBlock('p');
+                } else if (button.dataset.action === 'highlightBlock') {
+                    applyHighlightBlock();
+                } else if (button.dataset.action === 'bigger') {
+                    applyFontSize('1.2em');
+                } else if (button.dataset.action === 'smaller') {
+                    applyFontSize('0.9em');
+                } else if (button.dataset.action === 'insertImage') {
+                    imageInput.dataset.targetEditor = Array.from(document.querySelectorAll('[data-editor-surface]')).indexOf(editor);
+                    imageInput.click();
+                }
+            });
+
+            toolbar.addEventListener('input', function (event) {
+                const input = event.target;
+                if (!input.dataset.action) return;
+                activeEditor = editor;
+                saveRange(editor);
+                if (input.dataset.action === 'foreColor') {
+                    execEditorCommand('foreColor', input.value);
+                } else if (input.dataset.action === 'hiliteColor') {
+                    execEditorCommand('hiliteColor', input.value);
+                }
+            });
+
+            syncEditor(editor);
+        });
+
+        imageInput.addEventListener('change', async function () {
+            const file = imageInput.files[0];
+            if (!file) return;
+            const editorIndex = Number(imageInput.dataset.targetEditor || 0);
+            const editor = document.querySelectorAll('[data-editor-surface]')[editorIndex];
+            if (!editor) return;
+            activeEditor = editor;
+
+            const formData = new FormData();
+            formData.append('imagem', file);
+
+            try {
+                const response = await fetch(uploadUrl, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+                const data = await response.json();
+                if (!response.ok || !data.ok) {
+                    throw new Error(data.error || 'Nao foi possivel enviar a imagem.');
+                }
+                insertHtml(`<img src="${data.url}" alt="Imagem do conteudo">`);
+            } catch (error) {
+                alert(error.message || 'Nao foi possivel enviar a imagem.');
+            } finally {
+                imageInput.value = '';
+            }
+        });
+
+        document.querySelectorAll('form').forEach(function (form) {
+            form.addEventListener('submit', function () {
+                form.querySelectorAll('[data-editor-surface]').forEach(function (editor) {
+                    syncEditor(editor);
+                });
+            });
+        });
     });
 </script>
 {% endblock %}

@@ -14,7 +14,8 @@ import re
 import io
 import tempfile
 import json
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
+from html.parser import HTMLParser
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
@@ -49,10 +50,43 @@ def format_date(data):
         return data
 
 
-def rich_text_para_html(valor):
+PORTAL_ALLOWED_TAGS = {
+    "p",
+    "br",
+    "strong",
+    "b",
+    "em",
+    "i",
+    "u",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "ul",
+    "ol",
+    "li",
+    "blockquote",
+    "span",
+    "div",
+    "a",
+    "img",
+}
+PORTAL_SELF_CLOSING_TAGS = {"br", "img"}
+PORTAL_ALLOWED_ALIGNMENTS = {"left", "center", "right", "justify"}
+PORTAL_ALLOWED_COLORS = re.compile(r"^(#[0-9a-fA-F]{3,8}|rgb[a]?\([0-9,\s.%]+\)|hsl[a]?\([0-9,\s.%]+\)|[a-zA-Z]+)$")
+PORTAL_ALLOWED_SIZE = re.compile(r"^[0-9]+(\.[0-9]+)?(px|em|rem|%)?$")
+PORTAL_ALLOWED_RADIUS = re.compile(r"^[0-9]+(\.[0-9]+)?(px|%)$")
+PORTAL_ALLOWED_SPACING = re.compile(r"^[0-9.\s%a-zA-Z-]+$")
+PORTAL_ALLOWED_WEIGHT = re.compile(r"^(normal|bold|bolder|lighter|[1-9]00)$")
+PORTAL_ALLOWED_DECORATION = re.compile(r"^(none|underline|line-through)$")
+PORTAL_ALLOWED_FONT_STYLE = re.compile(r"^(normal|italic|oblique)$")
+PORTAL_ALLOWED_DISPLAY = {"block", "inline", "inline-block"}
+
+
+def rich_text_legado_para_html(valor):
     texto = escape((valor or "").strip())
     if not texto:
-        return Markup("")
+        return ""
 
     substituicoes = [
         (r"\[b\](.*?)\[/b\]", r"<strong>\1</strong>"),
@@ -67,7 +101,7 @@ def rich_text_para_html(valor):
         html = re.sub(padrao, replacement, html, flags=re.IGNORECASE | re.DOTALL)
 
     html = re.sub(
-        r"\[color=(#[0-9a-fA-F]{3,6})\](.*?)\[/color\]",
+        r"\[color=(#[0-9a-fA-F]{3,8})\](.*?)\[/color\]",
         lambda m: f'<span style="color:{m.group(1)}">{m.group(2)}</span>',
         html,
         flags=re.IGNORECASE | re.DOTALL,
@@ -78,8 +112,139 @@ def rich_text_para_html(valor):
         html,
         flags=re.IGNORECASE | re.DOTALL,
     )
-    html = html.replace("\r\n", "\n").replace("\n", "<br>")
-    return Markup(html)
+    return html.replace("\r\n", "\n").replace("\n", "<br>")
+
+
+def portal_url_segura(url, tipo="link"):
+    url = (url or "").strip()
+    if not url:
+        return None
+    if url.startswith("/") and not url.startswith("//"):
+        return url
+
+    parsed = urlparse(url)
+    if parsed.scheme in {"http", "https"}:
+        return url
+    if tipo == "link" and parsed.scheme in {"mailto", "tel"}:
+        return url
+    return None
+
+
+def portal_style_sanitizado(style_value):
+    if not style_value:
+        return ""
+
+    estilos_validos = []
+    for item in style_value.split(";"):
+        if ":" not in item:
+            continue
+        propriedade, valor = item.split(":", 1)
+        propriedade = propriedade.strip().lower()
+        valor = valor.strip()
+        if not propriedade or not valor:
+            continue
+
+        if propriedade == "text-align" and valor.lower() in PORTAL_ALLOWED_ALIGNMENTS:
+            estilos_validos.append(f"{propriedade}:{valor.lower()}")
+        elif propriedade in {"color", "background-color"} and PORTAL_ALLOWED_COLORS.match(valor):
+            estilos_validos.append(f"{propriedade}:{valor}")
+        elif propriedade in {"font-size", "width", "max-width", "height", "line-height"} and PORTAL_ALLOWED_SIZE.match(valor):
+            estilos_validos.append(f"{propriedade}:{valor}")
+        elif propriedade == "border-radius" and PORTAL_ALLOWED_RADIUS.match(valor):
+            estilos_validos.append(f"{propriedade}:{valor}")
+        elif propriedade in {"margin", "margin-left", "margin-right"} and PORTAL_ALLOWED_SPACING.match(valor):
+            estilos_validos.append(f"{propriedade}:{valor}")
+        elif propriedade == "font-weight" and PORTAL_ALLOWED_WEIGHT.match(valor.lower()):
+            estilos_validos.append(f"{propriedade}:{valor.lower()}")
+        elif propriedade == "text-decoration" and PORTAL_ALLOWED_DECORATION.match(valor.lower()):
+            estilos_validos.append(f"{propriedade}:{valor.lower()}")
+        elif propriedade == "font-style" and PORTAL_ALLOWED_FONT_STYLE.match(valor.lower()):
+            estilos_validos.append(f"{propriedade}:{valor.lower()}")
+        elif propriedade == "display" and valor.lower() in PORTAL_ALLOWED_DISPLAY:
+            estilos_validos.append(f"{propriedade}:{valor.lower()}")
+
+    return "; ".join(estilos_validos)
+
+
+class PortalHTMLSanitizer(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.parts = []
+
+    def handle_starttag(self, tag, attrs):
+        tag = tag.lower()
+        if tag not in PORTAL_ALLOWED_TAGS:
+            return
+        attrs_html = self._build_attrs(tag, attrs)
+        self.parts.append(f"<{tag}{attrs_html}>")
+
+    def handle_startendtag(self, tag, attrs):
+        self.handle_starttag(tag, attrs)
+
+    def handle_endtag(self, tag):
+        tag = tag.lower()
+        if tag in PORTAL_ALLOWED_TAGS and tag not in PORTAL_SELF_CLOSING_TAGS:
+            self.parts.append(f"</{tag}>")
+
+    def handle_data(self, data):
+        self.parts.append(str(escape(data)))
+
+    def handle_entityref(self, name):
+        self.parts.append(f"&{name};")
+
+    def handle_charref(self, name):
+        self.parts.append(f"&#{name};")
+
+    def _build_attrs(self, tag, attrs):
+        permitidos = []
+        for nome, valor in attrs:
+            nome = (nome or "").lower()
+            valor = (valor or "").strip()
+            if not nome or not valor:
+                continue
+
+            if nome == "style":
+                style_limpo = portal_style_sanitizado(valor)
+                if style_limpo:
+                    permitidos.append(f'style="{escape(style_limpo)}"')
+            elif tag == "a" and nome == "href":
+                href = portal_url_segura(valor, tipo="link")
+                if href:
+                    permitidos.append(f'href="{escape(href)}"')
+            elif tag == "a" and nome == "target":
+                if valor.lower() == "_blank":
+                    permitidos.append('target="_blank"')
+            elif tag == "a" and nome == "rel":
+                permitidos.append('rel="noopener noreferrer"')
+            elif tag == "img" and nome == "src":
+                src = portal_url_segura(valor, tipo="img")
+                if src:
+                    permitidos.append(f'src="{escape(src)}"')
+            elif tag == "img" and nome in {"alt", "title"}:
+                permitidos.append(f'{nome}="{escape(valor)}"')
+        return f" {' '.join(permitidos)}" if permitidos else ""
+
+    def get_html(self):
+        return "".join(self.parts)
+
+
+def sanitizar_html_portal(valor):
+    html = (valor or "").strip()
+    if not html:
+        return ""
+    parser = PortalHTMLSanitizer()
+    parser.feed(html)
+    parser.close()
+    return parser.get_html().strip()
+
+
+def rich_text_para_html(valor):
+    bruto = (valor or "").strip()
+    if not bruto:
+        return Markup("")
+    if "<" not in bruto or ">" not in bruto:
+        bruto = rich_text_legado_para_html(bruto)
+    return Markup(sanitizar_html_portal(bruto))
 
 
 app = Flask(__name__)
@@ -97,7 +262,7 @@ app.config["APP_BASE_URL"] = os.environ.get("APP_BASE_URL", "http://localhost:50
 app.config["CONECTACASA_PUBLIC_HOST"] = os.environ.get("CONECTACASA_PUBLIC_HOST", "conectacasa.oaibv.com.br").strip().lower()
 app.config["IGREJA_PUBLIC_HOST"] = os.environ.get("IGREJA_PUBLIC_HOST", "igrejaemboavista.oaibv.com.br").strip().lower()
 
-# Aqui pode adicionar a configuração do SQLAlchemy, se ainda não estiver
+# Aqui pode adicionar a configuraÃ§Ã£o do SQLAlchemy, se ainda nÃ£o estiver
 from models import db, Usuario
 PROJECT_DIR = os.path.abspath(os.path.dirname(__file__))
 if os.name == "nt":
@@ -116,7 +281,9 @@ os.makedirs(PIX_UPLOAD_DIR, exist_ok=True)
 
 IGREJA_UPLOADS_DIR = os.path.join(PROJECT_DIR, "static", "uploads", "igreja")
 IGREJA_DOCUMENTOS_UPLOAD_DIR = os.path.join(IGREJA_UPLOADS_DIR, "documentos")
+IGREJA_CONTEUDO_UPLOAD_DIR = os.path.join(IGREJA_UPLOADS_DIR, "conteudo")
 os.makedirs(IGREJA_DOCUMENTOS_UPLOAD_DIR, exist_ok=True)
+os.makedirs(IGREJA_CONTEUDO_UPLOAD_DIR, exist_ok=True)
 
 caminho_absoluto = DATABASE
 app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{caminho_absoluto}"
@@ -143,12 +310,12 @@ responsavel_style = ParagraphStyle(
 )
 
 
-# Função Formato brasileiro de moeada
+# FunÃ§Ã£o Formato brasileiro de moeada
 def formata_brl(valor):
     if valor is None:
         return "-"
     s = "{:,.2f}".format(valor)  # Ex: "2,000.00"
-    # Trocar vírgula e ponto para padrão BR
+    # Trocar vÃ­rgula e ponto para padrÃ£o BR
     return "R$ " + s.replace(",", "v").replace(".", ",").replace("v", ".")
 
 # Agora sim pode imprimir
@@ -529,12 +696,12 @@ def igreja_salvar_config(conn, form):
         (
             (form.get("nome_site") or "").strip() or "Igreja em Boa Vista",
             (form.get("hero_titulo") or "").strip() or "Igreja em Boa Vista",
-            (form.get("hero_subtitulo") or "").strip() or "Avisos, programacao e canais oficiais da igreja em um so lugar.",
-            (form.get("mensagem_boas_vindas") or "").strip(),
+            sanitizar_html_portal(form.get("hero_subtitulo")),
+            sanitizar_html_portal(form.get("mensagem_boas_vindas")),
             (form.get("agenda_titulo") or "").strip() or "Agenda e horarios",
             (form.get("agenda_texto") or "").strip(),
             (form.get("historia_titulo") or "").strip() or "Historia da Igreja em Boa Vista",
-            (form.get("historia_texto") or "").strip(),
+            sanitizar_html_portal(form.get("historia_texto")),
             (form.get("historia_videos") or "").strip(),
             (form.get("apostilas_titulo") or "").strip() or "Apostilas",
             (form.get("ensinos_titulo") or "").strip() or "Ensinos",
@@ -594,10 +761,23 @@ def igreja_salvar_documento_pdf(arquivo):
     return f"uploads/igreja/documentos/{nome_arquivo}", None
 
 
+def igreja_salvar_imagem_conteudo(arquivo):
+    if not arquivo or not arquivo.filename:
+        return None, "Selecione uma imagem valida."
+    nome_base = secure_filename(arquivo.filename)
+    extensao = os.path.splitext(nome_base)[1].lower()
+    if extensao not in {".png", ".jpg", ".jpeg", ".webp", ".gif"}:
+        return None, "Envie uma imagem PNG, JPG, WEBP ou GIF."
+    nome_arquivo = f"igreja-conteudo-{datetime.now().strftime('%Y%m%d%H%M%S%f')}{extensao}"
+    caminho_completo = os.path.join(IGREJA_CONTEUDO_UPLOAD_DIR, nome_arquivo)
+    arquivo.save(caminho_completo)
+    return url_for("static", filename=f"uploads/igreja/conteudo/{nome_arquivo}"), None
+
+
 def igreja_salvar_material(conn, form, arquivo=None, material_id=None):
     categoria = (form.get("categoria") or "").strip().lower()
     titulo = (form.get("titulo") or "").strip()
-    descricao = (form.get("descricao") or "").strip()
+    descricao = sanitizar_html_portal(form.get("descricao"))
     link_url = (form.get("link_url") or "").strip()
     try:
         ordem = int(form.get("ordem") or 0)
@@ -1223,21 +1403,26 @@ def init_db():
         #     db.cursor().executescript(f.read())
         # db.commit()
 
-# Configuração do Flask-Login
+# ConfiguraÃ§Ã£o do Flask-Login
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = "login"
 login_manager.login_message = None
 
-# Classe de usuário para o Flask-Login
+# Classe de usuÃ¡rio para o Flask-Login
 class User(UserMixin):
-    def __init__(self, id, nome, usuario, tipo, pode_acessar_inventario=1, pode_editar_igreja=0):
+    def __init__(self, id, nome, usuario, tipo, pode_acessar_inventario=1, pode_editar_igreja=0, email=""):
         self.id = id
         self.nome = nome
         self.usuario = usuario
         self.tipo = tipo
         self.pode_acessar_inventario = bool(int(pode_acessar_inventario or 0))
         self.pode_editar_igreja = bool(int(pode_editar_igreja or 0))
+        self.email = normalizar_email(email)
+
+    @property
+    def identificacao_portal(self):
+        return self.email or self.usuario
 
 
 def usuario_pode_acessar_inventario(user):
@@ -1297,6 +1482,7 @@ def load_user(user_id):
             user["tipo"],
             user["pode_acessar_inventario"] if "pode_acessar_inventario" in user.keys() else 1,
             user["pode_editar_igreja"] if "pode_editar_igreja" in user.keys() else 0,
+            user["email"] if "email" in user.keys() else "",
         )
     return None
 
@@ -1471,7 +1657,7 @@ def migrar_usuarios_auth():
     finally:
         conn.close()
 
-# Decorador para verificar se o usuário é administrador
+# Decorador para verificar se o usuÃ¡rio Ã© administrador
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -1505,12 +1691,12 @@ def registrar_log(acao):
             )
             db.commit()  # Commit deve sempre estar aqui
         except sqlite3.OperationalError as e:
-            print(f"[Erro SQLite] Não foi possível registrar log: {e}")
+            print(f"[Erro SQLite] NÃ£o foi possÃ­vel registrar log: {e}")
         except Exception as e:
             print(f"[Erro Geral] Erro ao registrar log: {e}")
 
 
-# Função para formatar data
+# FunÃ§Ã£o para formatar data
 def format_date(date):
     if date:
         if isinstance(date, str):
@@ -1524,11 +1710,11 @@ def format_date(date):
         return date.strftime("%d/%m/%Y %H:%M")
     return ""
 
-# Função para formatar tombamento com 4 dígitos
+# FunÃ§Ã£o para formatar tombamento com 4 dÃ­gitos
 def format_tombamento(tombamento):
     return str(tombamento).zfill(4)
 
-# Função para obter o ano atual
+# FunÃ§Ã£o para obter o ano atual
 @app.context_processor
 def inject_now():
     pode_inventario = current_user.is_authenticated and usuario_pode_acessar_inventario(current_user)
@@ -1582,7 +1768,7 @@ def aplicar_permissoes_de_acesso():
         destino = destino_pos_login(current_user)
         return redirect(destino or url_for("logout"))
 
-# Rotas de autenticação
+# Rotas de autenticaÃ§Ã£o
 @app.route("/login", methods=["GET", "POST"])
 @app.route("/login/", methods=["GET", "POST"])
 def login():
@@ -1610,6 +1796,7 @@ def login():
                 user["tipo"],
                 user["pode_acessar_inventario"] if "pode_acessar_inventario" in user.keys() else 1,
                 user["pode_editar_igreja"] if "pode_editar_igreja" in user.keys() else 0,
+                user["email"] if "email" in user.keys() else "",
             )
             destino = destino_pos_login_com_next(user_obj)
             if not destino:
@@ -1782,8 +1969,8 @@ def meu_usuario():
         return redirect(destino_pos_login(current_user) or url_for("logout"))
 
     if request.method == "POST":
-        nome = request.form.get("nome")
-        usuario_login = request.form.get("usuario")
+        nome = (request.form.get("nome") or "").strip()
+        usuario_login = (request.form.get("usuario") or "").strip()
         email = validar_email_informado(request.form.get("email"))
         senha_atual = request.form.get("senha_atual", "")
         nova_senha = request.form.get("nova_senha", "")
@@ -1857,8 +2044,6 @@ def meu_usuario():
 def logout():
     registrar_log("Logout realizado")
     logout_user()
-    if host_eh_igreja():
-        return redirect(igreja_path("/"))
     return redirect(url_for("login"))
 
 
@@ -2236,6 +2421,22 @@ def igreja_admin():
     )
 
 
+@app.route("/editor/imagem", methods=["POST"])
+@app.route("/editor/imagem/", methods=["POST"])
+@app.route("/igrejaemboavista/editor/imagem", methods=["POST"])
+@app.route("/igrejaemboavista/editor/imagem/", methods=["POST"])
+@login_required
+@igreja_edit_required
+def igreja_editor_upload_imagem():
+    if not igreja_request_permitida():
+        abort(404)
+    imagem = request.files.get("imagem")
+    imagem_url, erro = igreja_salvar_imagem_conteudo(imagem)
+    if erro:
+        return {"ok": False, "error": erro}, 400
+    return {"ok": True, "url": imagem_url}
+
+
 @app.route("/avisos/novo", methods=["POST"])
 @app.route("/avisos/novo/", methods=["POST"])
 @app.route("/igrejaemboavista/avisos/novo", methods=["POST"])
@@ -2353,7 +2554,7 @@ def dashboard():
     total_emprestado = db.execute("SELECT COUNT(*) as count FROM emprestimos WHERE data_devolucao IS NULL").fetchone()["count"]
     total_devolvido = db.execute("SELECT COUNT(*) as count FROM emprestimos WHERE data_devolucao IS NOT NULL").fetchone()["count"]
     
-    # Dados para gráfico de itens por grupo
+    # Dados para grÃ¡fico de itens por grupo
     itens_por_grupo_raw = db.execute("""
         SELECT g.nome as grupo_nome, COUNT(*) as count
         FROM itens i
@@ -2364,7 +2565,7 @@ def dashboard():
     grupos_labels = [row["grupo_nome"] for row in itens_por_grupo_raw]
     grupos_data = [row["count"] for row in itens_por_grupo_raw]
     
-    # Dados para gráfico de empréstimos (Ativos vs Devolvidos)
+    # Dados para grÃ¡fico de emprÃ©stimos (Ativos vs Devolvidos)
     emprestimos_status_labels = ["Ativos", "Devolvidos"]
     emprestimos_status_data = [total_emprestado, total_devolvido]
     total_grupos = len(grupos_labels)
@@ -2386,17 +2587,17 @@ def dashboard():
                           grupo_destaque_total=grupo_destaque_total,
                           total_movimentacoes=total_movimentacoes,
                           taxa_devolucao=taxa_devolucao,
-                          format_date=format_date # Passando a função format_date
+                          format_date=format_date # Passando a funÃ§Ã£o format_date
                           )
 
-# Rotas de Inventário
+# Rotas de InventÃ¡rio
 @app.route("/inventario")
 @app.route("/inventario/")
 @login_required
 def inventario():
     db = get_db()
     
-    # Obter parâmetros de filtro
+    # Obter parÃ¢metros de filtro
     filtro_grupo = request.args.get("grupo", "")
     filtro_busca = request.args.get("busca", "")
     
@@ -2429,12 +2630,12 @@ def inventario():
     query += " ORDER BY date(i.data_aquisicao) ASC"
     
     # Executar consulta
-    # Convertendo itens para dicionários
+    # Convertendo itens para dicionÃ¡rios
     itens_raw = db.execute(query, params).fetchall()
     itens = [dict(row) for row in itens_raw]
 
     
-    # Obter lista de grupos únicos para o filtro
+    # Obter lista de grupos Ãºnicos para o filtro
     grupos = db.execute("SELECT * FROM grupos ORDER BY nome").fetchall()
     
     valores_unitarios = [item['valor_unitario'] or 0 for item in itens]
@@ -2477,7 +2678,7 @@ def novo_item():
         quantidade = request.form.get("quantidade") or 1
         
         if not descricao or not grupo_id:
-            flash("Descrição e Grupo são obrigatórios.", "danger")
+            flash("DescriÃ§Ã£o e Grupo sÃ£o obrigatÃ³rios.", "danger")
             grupos = db.execute("SELECT * FROM grupos ORDER BY nome").fetchall()
             marcas = db.execute("SELECT * FROM marcas ORDER BY nome").fetchall()
             return render_template("novo_item_simples.html", form=request.form, grupos=grupos, marcas=marcas)
@@ -2492,39 +2693,39 @@ def novo_item():
                 
             if valor_unitario:
                 try:
-                    # Limpar string: remover R$, remover pontos de milhar, trocar vírgula decimal por ponto
+                    # Limpar string: remover R$, remover pontos de milhar, trocar vÃ­rgula decimal por ponto
                     cleaned_valor = valor_unitario.replace("R$", "").replace(".", "").replace(",", ".").strip()
                     valor_unitario = float(cleaned_valor)
                 except ValueError:
                     db.rollback()
-                    flash("Valor unitário inválido. Certifique-se de usar apenas números, ponto ou vírgula.", "danger")
+                    flash("Valor unitÃ¡rio invÃ¡lido. Certifique-se de usar apenas nÃºmeros, ponto ou vÃ­rgula.", "danger")
                     grupos = db.execute("SELECT * FROM grupos ORDER BY nome").fetchall()
                     marcas = db.execute("SELECT * FROM marcas ORDER BY nome").fetchall()
                     return render_template("novo_item_simples.html", form=request.form, grupos=grupos, marcas=marcas)
             else:
                 valor_unitario = None
                 
-            # Converter data de aquisição
+            # Converter data de aquisiÃ§Ã£o
             if data_aquisicao:
                 try:
                     data_aquisicao = datetime.strptime(data_aquisicao, "%Y-%m-%d").date()
                     hoje = datetime.today().date()
                     if data_aquisicao > hoje:
                         db.rollback()
-                        flash("A data de aquisição não pode ser no futuro.", "danger")
+                        flash("A data de aquisiÃ§Ã£o nÃ£o pode ser no futuro.", "danger")
                         grupos = db.execute("SELECT * FROM grupos ORDER BY nome").fetchall()
                         marcas = db.execute("SELECT * FROM marcas ORDER BY nome").fetchall()
                         return render_template("novo_item_simples.html", form=request.form, grupos=grupos, marcas=marcas)
                 except ValueError:
                     db.rollback()
-                    flash("Data de aquisição inválida.", "danger")
+                    flash("Data de aquisiÃ§Ã£o invÃ¡lida.", "danger")
                     grupos = db.execute("SELECT * FROM grupos ORDER BY nome").fetchall()
                     marcas = db.execute("SELECT * FROM marcas ORDER BY nome").fetchall()
                     return render_template("novo_item_simples.html", form=request.form, grupos=grupos, marcas=marcas)
             else:
                 data_aquisicao = None
 
-            # Gerar próximo tombamento automaticamente
+            # Gerar prÃ³ximo tombamento automaticamente
             ultimo_tombamento = db.execute("SELECT MAX(CAST(tombamento AS INTEGER)) as max_tomb FROM itens WHERE tombamento REGEXP '^[0-9]+$'").fetchone()
             proximo_numero = (ultimo_tombamento["max_tomb"] or 0) + 1
             tombamento_fmt = str(proximo_numero).zfill(4)
@@ -2532,7 +2733,7 @@ def novo_item():
             # Verificar se grupo e marca existem
             grupo = db.execute("SELECT * FROM grupos WHERE id = ?", (grupo_id,)).fetchone()
             if not grupo:
-                flash("Grupo selecionado não existe.", "danger")
+                flash("Grupo selecionado nÃ£o existe.", "danger")
                 grupos = db.execute("SELECT * FROM grupos ORDER BY nome").fetchall()
                 marcas = db.execute("SELECT * FROM marcas ORDER BY nome").fetchall()                
                 return render_template("novo_item_simples.html", form=request.form, grupos=grupos, marcas=marcas)
@@ -2540,7 +2741,7 @@ def novo_item():
             if marca_id:
                 marca = db.execute("SELECT * FROM marcas WHERE id = ?", (marca_id,)).fetchone()
                 if not marca:
-                    flash("Marca selecionada não existe.", "danger")
+                    flash("Marca selecionada nÃ£o existe.", "danger")
                     grupos = db.execute("SELECT * FROM grupos ORDER BY nome").fetchall()
                     marcas = db.execute("SELECT * FROM marcas ORDER BY nome").fetchall()                  
                     return render_template("novo_item_simples.html", form=request.form, grupos=grupos, marcas=marcas)
@@ -2564,12 +2765,12 @@ def novo_item():
             marcas = db.execute("SELECT * FROM marcas ORDER BY nome").fetchall()            
             return render_template("novo_item_simples.html", form=request.form, grupos=grupos, marcas=marcas)
     
-    # GET request - mostrar formulário
+    # GET request - mostrar formulÃ¡rio
     grupos = db.execute("SELECT * FROM grupos ORDER BY nome").fetchall()
     marcas = db.execute("SELECT * FROM marcas ORDER BY nome").fetchall()
     
-    # Gerar próximo tombamento para exibir no formulário
-    # Buscar todos os tombamentos e filtrar apenas os numéricos no Python
+    # Gerar prÃ³ximo tombamento para exibir no formulÃ¡rio
+    # Buscar todos os tombamentos e filtrar apenas os numÃ©ricos no Python
     tombamentos = db.execute("SELECT tombamento FROM itens").fetchall()
     numeros_tombamento = []
     for t in tombamentos:
@@ -2606,7 +2807,7 @@ def editar_item(id):
 
 
     if not item:
-        flash("Item não encontrado.", "danger")
+        flash("Item nÃ£o encontrado.", "danger")
         return redirect(url_for("inventario"))
 
     if request.method == "POST":
@@ -2620,7 +2821,7 @@ def editar_item(id):
         quantidade = request.form.get("quantidade") or 1
 
         if not descricao or not grupo_id:
-            flash("Descrição e Grupo são obrigatórios.", "danger")
+            flash("DescriÃ§Ã£o e Grupo sÃ£o obrigatÃ³rios.", "danger")
             grupos = db.execute("SELECT * FROM grupos ORDER BY nome").fetchall()
             marcas = db.execute("SELECT * FROM marcas ORDER BY nome").fetchall()
             return render_template("editar_item.html", item=item, grupos=grupos, marcas=marcas)
@@ -2635,31 +2836,31 @@ def editar_item(id):
                 
             if valor_unitario:
                 try:
-                    # Limpar string: remover R$, remover pontos de milhar, trocar vírgula decimal por ponto
+                    # Limpar string: remover R$, remover pontos de milhar, trocar vÃ­rgula decimal por ponto
                     cleaned_valor = valor_unitario.replace("R$", "").replace(".", "").replace(",", ".").strip()
                     valor_unitario = float(cleaned_valor)
                 except ValueError:
                     db.rollback()
-                    flash("Valor unitário inválido. Certifique-se de usar apenas números, ponto ou vírgula.", "danger")
+                    flash("Valor unitÃ¡rio invÃ¡lido. Certifique-se de usar apenas nÃºmeros, ponto ou vÃ­rgula.", "danger")
                     grupos = db.execute("SELECT * FROM grupos ORDER BY nome").fetchall()
                     marcas = db.execute("SELECT * FROM marcas ORDER BY nome").fetchall()
                     return render_template("editar_item.html", item=item, grupos=grupos, marcas=marcas)
             else:
                 valor_unitario = None
                 
-            # Converter data de aquisição
+            # Converter data de aquisiÃ§Ã£o
             if data_aquisicao:
                 try:
                     data_aquisicao = datetime.strptime(data_aquisicao, "%Y-%m-%d").date()
                     hoje = datetime.today().date()
                     if data_aquisicao > hoje:
-                        flash("A data de aquisição não pode ser no futuro.", "danger")
+                        flash("A data de aquisiÃ§Ã£o nÃ£o pode ser no futuro.", "danger")
                         grupos = db.execute("SELECT * FROM grupos ORDER BY nome").fetchall()
                         marcas = db.execute("SELECT * FROM marcas ORDER BY nome").fetchall()
                         return render_template("novo_item_simples.html", form=request.form, grupos=grupos, marcas=marcas)
                 except ValueError:
                     db.rollback()
-                    flash("Data de aquisição inválida.", "danger")
+                    flash("Data de aquisiÃ§Ã£o invÃ¡lida.", "danger")
                     grupos = db.execute("SELECT * FROM grupos ORDER BY nome").fetchall()
                     marcas = db.execute("SELECT * FROM marcas ORDER BY nome").fetchall()
                     return render_template("novo_item_simples.html", form=request.form, grupos=grupos, marcas=marcas)
@@ -2669,7 +2870,7 @@ def editar_item(id):
             # Verificar se grupo e marca existem
             grupo = db.execute("SELECT * FROM grupos WHERE id = ?", (grupo_id,)).fetchone()
             if not grupo:
-                flash("Grupo selecionado não existe.", "danger")
+                flash("Grupo selecionado nÃ£o existe.", "danger")
                 grupos = db.execute("SELECT * FROM grupos ORDER BY nome").fetchall()
                 marcas = db.execute("SELECT * FROM marcas ORDER BY nome").fetchall()
                 return render_template("editar_item.html", item=item, grupos=grupos, marcas=marcas)
@@ -2677,7 +2878,7 @@ def editar_item(id):
             if marca_id:
                 marca = db.execute("SELECT * FROM marcas WHERE id = ?", (marca_id,)).fetchone()
                 if not marca:
-                    flash("Marca selecionada não existe.", "danger")
+                    flash("Marca selecionada nÃ£o existe.", "danger")
                     grupos = db.execute("SELECT * FROM grupos ORDER BY nome").fetchall()
                     marcas = db.execute("SELECT * FROM marcas ORDER BY nome").fetchall()
                     return render_template("editar_item.html", item=item, grupos=grupos, marcas=marcas)
@@ -2700,7 +2901,7 @@ def editar_item(id):
             marcas = db.execute("SELECT * FROM marcas ORDER BY nome").fetchall()
             return render_template("editar_item.html", item=item, grupos=grupos, marcas=marcas)
 
-    # GET request - mostrar formulário
+    # GET request - mostrar formulÃ¡rio
     grupos = db.execute("SELECT * FROM grupos ORDER BY nome").fetchall()
     marcas = db.execute("SELECT * FROM marcas ORDER BY nome").fetchall()
     return render_template("editar_item.html", item=item, grupos=grupos, marcas=marcas)
@@ -2712,13 +2913,13 @@ def excluir_item(id):
     try:
         item = db.execute("SELECT * FROM itens WHERE id = ?", (id,)).fetchone()
         if not item:
-            flash("Item não encontrado.", "danger")
+            flash("Item nÃ£o encontrado.", "danger")
             return redirect(url_for("inventario"))
         
         db.execute("DELETE FROM itens WHERE id = ?", (id,))
         db.commit()
-        registrar_log(f"Item excluído: {item['tombamento']} - {item['descricao']}")
-        flash("Item excluído com sucesso!", "success")
+        registrar_log(f"Item excluÃ­do: {item['tombamento']} - {item['descricao']}")
+        flash("Item excluÃ­do com sucesso!", "success")
     except Exception as e:
         db.rollback()
         flash(f"Erro ao excluir item: {str(e)}", "danger")
@@ -2744,9 +2945,9 @@ def grupos_marcas():
                     db.commit()
                     flash("Grupo criado com sucesso!", "success")
                 except sqlite3.IntegrityError:
-                    flash("Já existe um grupo com este nome.", "danger")
+                    flash("JÃ¡ existe um grupo com este nome.", "danger")
             else:
-                flash("Nome do grupo é obrigatório.", "danger")
+                flash("Nome do grupo Ã© obrigatÃ³rio.", "danger")
                 
         elif acao == "nova_marca":
             nome = request.form.get("nome")
@@ -2758,9 +2959,9 @@ def grupos_marcas():
                     db.commit()
                     flash("Marca criada com sucesso!", "success")
                 except sqlite3.IntegrityError:
-                    flash("Já existe uma marca com este nome.", "danger")
+                    flash("JÃ¡ existe uma marca com este nome.", "danger")
             else:
-                flash("Nome da marca é obrigatório.", "danger")
+                flash("Nome da marca Ã© obrigatÃ³rio.", "danger")
                 
         elif acao == "editar_grupo":
             id_grupo = request.form.get("id")
@@ -2773,9 +2974,9 @@ def grupos_marcas():
                     db.commit()
                     flash("Grupo atualizado com sucesso!", "success")
                 except sqlite3.IntegrityError:
-                    flash("Já existe um grupo com este nome.", "danger")
+                    flash("JÃ¡ existe um grupo com este nome.", "danger")
             else:
-                flash("Dados inválidos para edição.", "danger")
+                flash("Dados invÃ¡lidos para ediÃ§Ã£o.", "danger")
                 
         elif acao == "editar_marca":
             id_marca = request.form.get("id")
@@ -2788,43 +2989,43 @@ def grupos_marcas():
                     db.commit()
                     flash("Marca atualizada com sucesso!", "success")
                 except sqlite3.IntegrityError:
-                    flash("Já existe uma marca com este nome.", "danger")
+                    flash("JÃ¡ existe uma marca com este nome.", "danger")
             else:
-                flash("Dados inválidos para edição.", "danger")
+                flash("Dados invÃ¡lidos para ediÃ§Ã£o.", "danger")
                 
         elif acao == "excluir_grupo":
             id_grupo = request.form.get("id")
             if id_grupo:
-                # Verificar se há itens usando este grupo
+                # Verificar se hÃ¡ itens usando este grupo
                 itens_usando = db.execute("SELECT COUNT(*) as count FROM itens WHERE grupo_id = ?", (id_grupo,)).fetchone()
                 if itens_usando["count"] > 0:
-                    flash("Não é possível excluir o grupo pois há itens cadastrados nele.", "danger")
+                    flash("NÃ£o Ã© possÃ­vel excluir o grupo pois hÃ¡ itens cadastrados nele.", "danger")
                 else:
                     grupo = db.execute("SELECT nome FROM grupos WHERE id = ?", (id_grupo,)).fetchone()
                     db.execute("DELETE FROM grupos WHERE id = ?", (id_grupo,))
                     db.commit()
-                    registrar_log(f"Grupo excluído: {grupo['nome']}")
+                    registrar_log(f"Grupo excluÃ­do: {grupo['nome']}")
                     db.commit()
-                    flash("Grupo excluído com sucesso!", "success")
+                    flash("Grupo excluÃ­do com sucesso!", "success")
             else:
-                flash("ID do grupo inválido.", "danger")
+                flash("ID do grupo invÃ¡lido.", "danger")
                 
         elif acao == "excluir_marca":
             id_marca = request.form.get("id")
             if id_marca:
-                # Verificar se há itens usando esta marca
+                # Verificar se hÃ¡ itens usando esta marca
                 itens_usando = db.execute("SELECT COUNT(*) as count FROM itens WHERE marca_id = ?", (id_marca,)).fetchone()
                 if itens_usando["count"] > 0:
-                    flash("Não é possível excluir a marca pois há itens cadastrados nela.", "danger")
+                    flash("NÃ£o Ã© possÃ­vel excluir a marca pois hÃ¡ itens cadastrados nela.", "danger")
                 else:
                     marca = db.execute("SELECT nome FROM marcas WHERE id = ?", (id_marca,)).fetchone()
                     db.execute("DELETE FROM marcas WHERE id = ?", (id_marca,))
                     db.commit()
-                    registrar_log(f"Marca excluída: {marca['nome']}")
+                    registrar_log(f"Marca excluÃ­da: {marca['nome']}")
                     db.commit()
-                    flash("Marca excluída com sucesso!", "success")
+                    flash("Marca excluÃ­da com sucesso!", "success")
             else:
-                flash("ID da marca inválido.", "danger")
+                flash("ID da marca invÃ¡lido.", "danger")
         
         return redirect(url_for("grupos_marcas"))
     
@@ -2848,7 +3049,7 @@ def grupos_marcas():
 
     return render_template("grupos_marcas_simples.html", grupos=grupos, marcas=marcas)
 
-# Rotas de Empréstimos
+# Rotas de EmprÃ©stimos
 @app.route("/emprestimos", methods=["GET", "POST"])
 @app.route("/emprestimos/", methods=["GET", "POST"])
 @login_required
@@ -2867,7 +3068,7 @@ def emprestimos():
         quantidades = request.form.getlist("quantidade[]")
         
         if not nome or not grupo or not contato:
-            flash("Dados do solicitante são obrigatórios.", "danger")
+            flash("Dados do solicitante sÃ£o obrigatÃ³rios.", "danger")
             return redirect(url_for("emprestimos"))
             
         if not item_ids or not quantidades or len(item_ids) != len(quantidades):
@@ -2888,24 +3089,24 @@ def emprestimos():
                 
                 item_db = db.execute("SELECT * FROM itens WHERE id = ?", (item_id,)).fetchone()
                 if not item_db:
-                    flash(f"Item com ID {item_id} não encontrado.", "danger")
+                    flash(f"Item com ID {item_id} nÃ£o encontrado.", "danger")
                     erro_validacao = True
                     break
                 
                 if item_db["quantidade"] < quantidade:
-                    flash(f"Quantidade insuficiente para o item {item_db['tombamento']} ({item_db['descricao']}). Disponível: {item_db['quantidade']}", "danger")
+                    flash(f"Quantidade insuficiente para o item {item_db['tombamento']} ({item_db['descricao']}). DisponÃ­vel: {item_db['quantidade']}", "danger")
                     erro_validacao = True
                     break
-                # Evita duplicação do mesmo item_id
+                # Evita duplicaÃ§Ã£o do mesmo item_id
                 if any(i["id"] == item_id for i in itens_para_emprestar):
-                   flash(f"O item {item_db['tombamento']} já foi adicionado ao formulário. Evite duplicar.", "warning")
+                   flash(f"O item {item_db['tombamento']} jÃ¡ foi adicionado ao formulÃ¡rio. Evite duplicar.", "warning")
                    continue
                 itens_para_emprestar.append({"id": item_id, "quantidade": quantidade, "tombamento": item_db["tombamento"], "estoque_atual": item_db["quantidade"]})
             
             if erro_validacao:
                  return redirect(url_for("emprestimos"))
 
-            # Criar o registro principal do empréstimo
+            # Criar o registro principal do emprÃ©stimo
             cursor = db.cursor()
             if usa_grupo_id:
                 cursor.execute("""
@@ -2935,23 +3136,23 @@ def emprestimos():
             
             db.commit()
             
-            registrar_log(f"Empréstimo ID {emprestimo_id} registrado para {nome} - Itens: {', '.join(log_itens_str)}")
+            registrar_log(f"EmprÃ©stimo ID {emprestimo_id} registrado para {nome} - Itens: {', '.join(log_itens_str)}")
             db.commit()
-            flash("Empréstimo registrado com sucesso!", "success")
+            flash("EmprÃ©stimo registrado com sucesso!", "success")
             return redirect(url_for("emprestimos"))
             
         except ValueError:
             db.rollback()
-            flash("Quantidade inválida para um dos itens.", "danger")
+            flash("Quantidade invÃ¡lida para um dos itens.", "danger")
             return redirect(url_for("emprestimos"))
         except Exception as e:
             db.rollback()
-            db.rollback() # Desfaz alterações em caso de erro
-            flash(f"Erro ao registrar empréstimo: {str(e)}", "danger")
+            db.rollback() # Desfaz alteraÃ§Ãµes em caso de erro
+            flash(f"Erro ao registrar emprÃ©stimo: {str(e)}", "danger")
             return redirect(url_for("emprestimos"))
 
-    # Listar empréstimos (GET)
-    # Precisa ajustar a consulta para lidar com múltiplos itens
+    # Listar emprÃ©stimos (GET)
+    # Precisa ajustar a consulta para lidar com mÃºltiplos itens
     grupo_select = emprestimos_grupo_select_sql(db)
     grupo_join = emprestimos_grupo_join_sql(db)
 
@@ -3007,17 +3208,17 @@ def emprestimos():
 def devolver_emprestimo(id):
     db = get_db()
     try:
-        # Verificar se o empréstimo existe e não foi devolvido
+        # Verificar se o emprÃ©stimo existe e nÃ£o foi devolvido
         emprestimo = db.execute("SELECT * FROM emprestimos WHERE id = ?", (id,)).fetchone()
         if not emprestimo:
-            flash("Empréstimo não encontrado.", "danger")
+            flash("EmprÃ©stimo nÃ£o encontrado.", "danger")
             return redirect(url_for("emprestimos"))
         
         if emprestimo["data_devolucao"]:
-            flash("Este empréstimo já foi devolvido.", "warning")
+            flash("Este emprÃ©stimo jÃ¡ foi devolvido.", "warning")
             return redirect(url_for("emprestimos"))
         
-        # Buscar todos os itens associados a este empréstimo
+        # Buscar todos os itens associados a este emprÃ©stimo
         itens_emprestados = db.execute("""
             SELECT ei.item_id, ei.quantidade, i.tombamento, i.quantidade as estoque_atual
             FROM emprestimo_itens ei
@@ -3026,10 +3227,10 @@ def devolver_emprestimo(id):
         """, (id,)).fetchall()
         
         if not itens_emprestados:
-             flash("Nenhum item encontrado para este empréstimo. Contate o administrador.", "danger")
+             flash("Nenhum item encontrado para este emprÃ©stimo. Contate o administrador.", "danger")
              return redirect(url_for("emprestimos"))
 
-        # Atualizar data de devolução no empréstimo principal
+        # Atualizar data de devoluÃ§Ã£o no emprÃ©stimo principal
         db.execute("UPDATE emprestimos SET data_devolucao = ? WHERE id = ?", (datetime.now(), id))
         
         log_itens_str = []
@@ -3041,13 +3242,13 @@ def devolver_emprestimo(id):
 
         db.commit()
         
-        registrar_log(f"Devolução do Empréstimo ID {id} registrada - Itens: {', '.join(log_itens_str)}")
+        registrar_log(f"DevoluÃ§Ã£o do EmprÃ©stimo ID {id} registrada - Itens: {', '.join(log_itens_str)}")
         db.commit()
-        flash("Devolução registrada com sucesso!", "success")
+        flash("DevoluÃ§Ã£o registrada com sucesso!", "success")
         
     except Exception as e:
         db.rollback()
-        flash(f"Erro ao registrar devolução: {str(e)}", "danger")
+        flash(f"Erro ao registrar devoluÃ§Ã£o: {str(e)}", "danger")
     
     return redirect(url_for("emprestimos"))
 
@@ -3057,18 +3258,18 @@ def devolver_emprestimo(id):
 @admin_required
 def desfazer_devolucao(id):
     db = get_db()
-    # Busca dados do empréstimo principal
+    # Busca dados do emprÃ©stimo principal
     emprestimo = db.execute("SELECT * FROM emprestimos WHERE id = ?", (id,)).fetchone()
     
     if not emprestimo:
-        flash("Empréstimo não encontrado.", "danger")
+        flash("EmprÃ©stimo nÃ£o encontrado.", "danger")
         return redirect(url_for("emprestimos"))
     
     if not emprestimo["data_devolucao"]:
-        flash("Este empréstimo ainda não foi devolvido.", "warning")
+        flash("Este emprÃ©stimo ainda nÃ£o foi devolvido.", "warning")
         return redirect(url_for("emprestimos"))
 
-    # Busca os itens associados para exibição no template (mesmo que a lógica mude)
+    # Busca os itens associados para exibiÃ§Ã£o no template (mesmo que a lÃ³gica mude)
     itens_emprestados_desc = db.execute("""
         SELECT GROUP_CONCAT(i.tombamento || ' (' || ei.quantidade || 'x) - ' || i.descricao, ', ') as itens_desc
         FROM emprestimo_itens ei
@@ -3084,11 +3285,11 @@ def desfazer_devolucao(id):
         justificativa = request.form.get("justificativa")
         
         if not justificativa:
-            flash("A justificativa é obrigatória.", "danger")
+            flash("A justificativa Ã© obrigatÃ³ria.", "danger")
             return render_template("desfazer_devolucao_simples.html", emprestimo=emprestimo_dict, format_date=format_date)
         
         try:
-            # Buscar todos os itens que foram devolvidos neste empréstimo
+            # Buscar todos os itens que foram devolvidos neste emprÃ©stimo
             itens_a_reativar = db.execute("""
                 SELECT ei.item_id, ei.quantidade, i.tombamento, i.quantidade as estoque_atual
                 FROM emprestimo_itens ei
@@ -3097,21 +3298,21 @@ def desfazer_devolucao(id):
             """, (id,)).fetchall()
 
             if not itens_a_reativar:
-                 flash("Nenhum item encontrado para este empréstimo. Contate o administrador.", "danger")
+                 flash("Nenhum item encontrado para este emprÃ©stimo. Contate o administrador.", "danger")
                  return redirect(url_for("emprestimos"))
 
-            # Verificar se há estoque suficiente para remover novamente
+            # Verificar se hÃ¡ estoque suficiente para remover novamente
             erro_estoque = False
             for item_info in itens_a_reativar:
                 if item_info["estoque_atual"] < item_info["quantidade"]:
-                    flash(f"Quantidade insuficiente para reativar empréstimo do item {item_info['tombamento']}. Disponível: {item_info['estoque_atual']}", "danger")
+                    flash(f"Quantidade insuficiente para reativar emprÃ©stimo do item {item_info['tombamento']}. DisponÃ­vel: {item_info['estoque_atual']}", "danger")
                     erro_estoque = True
                     break
             
             if erro_estoque:
                 return render_template("desfazer_devolucao_simples.html", emprestimo=emprestimo_dict, format_date=format_date)
 
-            # Atualizar empréstimo principal (remover data de devolução)
+            # Atualizar emprÃ©stimo principal (remover data de devoluÃ§Ã£o)
             db.execute("UPDATE emprestimos SET data_devolucao = NULL WHERE id = ?", (id,))
             
             log_itens_str = []
@@ -3122,19 +3323,19 @@ def desfazer_devolucao(id):
                 log_itens_str.append(f"{item_info['quantidade']}x {item_info['tombamento']}")
             
             # Registrar justificativa no log
-            registrar_log(f"Devolução do Empréstimo ID {id} desfeita - Itens: {', '.join(log_itens_str)} - Justificativa: {justificativa}")
+            registrar_log(f"DevoluÃ§Ã£o do EmprÃ©stimo ID {id} desfeita - Itens: {', '.join(log_itens_str)} - Justificativa: {justificativa}")
             
             db.commit()
             
-            flash("Devolução desfeita com sucesso!", "success")
+            flash("DevoluÃ§Ã£o desfeita com sucesso!", "success")
             return redirect(url_for("emprestimos"))
             
         except Exception as e:
             db.rollback()
-            flash(f"Erro ao desfazer devolução: {str(e)}", "danger")
+            flash(f"Erro ao desfazer devoluÃ§Ã£o: {str(e)}", "danger")
             return render_template("desfazer_devolucao_simples.html", emprestimo=emprestimo_dict, format_date=format_date)
     
-    # Método GET
+    # MÃ©todo GET
     return render_template("desfazer_devolucao_simples.html", emprestimo=emprestimo_dict, format_date=format_date)
 @app.route("/emprestimos/excluir/<int:id>", methods=["POST"])
 @login_required
@@ -3144,20 +3345,20 @@ def excluir_emprestimo(id):
     try:
         emprestimo = db.execute("SELECT * FROM emprestimos WHERE id = ?", (id,)).fetchone()
         if not emprestimo:
-            flash("Empréstimo não encontrado.", "danger")
+            flash("EmprÃ©stimo nÃ£o encontrado.", "danger")
             return redirect(url_for("emprestimos"))
         
         # Apagar itens associados
         db.execute("DELETE FROM emprestimo_itens WHERE emprestimo_id = ?", (id,))
-        # Apagar o empréstimo principal
+        # Apagar o emprÃ©stimo principal
         db.execute("DELETE FROM emprestimos WHERE id = ?", (id,))
         db.commit()
         
-        registrar_log(f"Empréstimo ID {id} excluído pelo admin.")
-        flash("Empréstimo excluído com sucesso.", "success")
+        registrar_log(f"EmprÃ©stimo ID {id} excluÃ­do pelo admin.")
+        flash("EmprÃ©stimo excluÃ­do com sucesso.", "success")
     except Exception as e:
         db.rollback()
-        flash(f"Erro ao excluir empréstimo: {str(e)}", "danger")
+        flash(f"Erro ao excluir emprÃ©stimo: {str(e)}", "danger")
     
     return redirect(url_for("emprestimos"))
 
@@ -3179,7 +3380,7 @@ def termo_compromisso(emprestimo_id):
     """, (emprestimo_id,)).fetchone()
 
     if not emprestimo_base:
-        flash("Empréstimo não encontrado.", "danger")
+        flash("EmprÃ©stimo nÃ£o encontrado.", "danger")
         return redirect(url_for("emprestimos"))
 
     itens_emprestimo = db.execute("""
@@ -3194,7 +3395,7 @@ def termo_compromisso(emprestimo_id):
     """, (emprestimo_id,)).fetchall()
 
     if not itens_emprestimo:
-        flash("Nenhum item encontrado para este empréstimo.", "danger")
+        flash("Nenhum item encontrado para este emprÃ©stimo.", "danger")
         return redirect(url_for("emprestimos"))
 
     buffer = io.BytesIO()
@@ -3202,14 +3403,14 @@ def termo_compromisso(emprestimo_id):
     styles = getSampleStyleSheet()
     elements = []
 
-    elements.append(Paragraph("TERMO DE COMPROMISSO DE EMPRÉSTIMO", styles["Title"]))
+    elements.append(Paragraph("TERMO DE COMPROMISSO DE EMPRÃ‰STIMO", styles["Title"]))
     elements.append(Spacer(1, 0.3 * inch))
 
-    elements.append(Paragraph(f"<b>Data do Empréstimo:</b> {format_date(emprestimo_base['data_emprestimo'])}", styles["Normal"]))
+    elements.append(Paragraph(f"<b>Data do EmprÃ©stimo:</b> {format_date(emprestimo_base['data_emprestimo'])}", styles["Normal"]))
     elements.append(Spacer(1, 0.2 * inch))
 
     elements.append(Paragraph("<b>DADOS DOS ITENS</b>", styles["Heading3"]))
-    data_itens = [["Tombamento", "Descrição", "Marca", "Grupo", "Qtd"]]
+    data_itens = [["Tombamento", "DescriÃ§Ã£o", "Marca", "Grupo", "Qtd"]]
     for item in itens_emprestimo:
         data_itens.append([
             item["tombamento"],
@@ -3229,7 +3430,7 @@ def termo_compromisso(emprestimo_id):
     elements.append(t_itens)
     elements.append(Spacer(1, 0.3 * inch))
 
-    elements.append(Paragraph("<b>DADOS DO RESPONSÁVEL</b>", styles["Heading3"]))
+    elements.append(Paragraph("<b>DADOS DO RESPONSÃVEL</b>", styles["Heading3"]))
     data_resp = [
         ["Nome:", emprestimo_base["nome"]],
         ["Grupo:", emprestimo_base["grupo_caseiro"] or ""],
@@ -3245,18 +3446,18 @@ def termo_compromisso(emprestimo_id):
     elements.append(Spacer(1, 0.4 * inch))
 
     termo_text = """
-    Pelo presente termo, declaro ter recebido o(s) item(ns) acima descrito(s) da OAIBV – Organização e Apoio à Igreja em Boa Vista, 
-    comprometendo-me a devolvê-lo(s) nas mesmas condições em que o(s) recebi, responsabilizando-me por eventuais danos ou extravios.
+    Pelo presente termo, declaro ter recebido o(s) item(ns) acima descrito(s) da OAIBV â€“ OrganizaÃ§Ã£o e Apoio Ã  Igreja em Boa Vista, 
+    comprometendo-me a devolvÃª-lo(s) nas mesmas condiÃ§Ãµes em que o(s) recebi, responsabilizando-me por eventuais danos ou extravios.
     <br/><br/>
-    Estou ciente de que devo devolver o(s) item(ns) até a data acordada e que, em caso de necessidade de prorrogação do prazo, 
-    deverei comunicar antecipadamente à administração.
+    Estou ciente de que devo devolver o(s) item(ns) atÃ© a data acordada e que, em caso de necessidade de prorrogaÃ§Ã£o do prazo, 
+    deverei comunicar antecipadamente Ã  administraÃ§Ã£o.
     """
     elements.append(Paragraph(termo_text, styles["Normal"]))
     elements.append(Spacer(1, 0.5 * inch))
 
     assinaturas = [
         ["_______________________________", "_______________________________"],
-        ["Assinatura do Responsável", "Assinatura do Administrador"],
+        ["Assinatura do ResponsÃ¡vel", "Assinatura do Administrador"],
         ["Data: ____/____/________", "Data: ____/____/________"]
     ]
     t_ass = Table(assinaturas, colWidths=[3*inch, 3*inch])
@@ -3267,7 +3468,7 @@ def termo_compromisso(emprestimo_id):
     elements.append(t_ass)
     elements.append(Spacer(1, 0.5 * inch))
 
-    elements.append(Paragraph("OAIBV – Organização e Apoio à Igreja em Boa Vista", styles["Normal"]))
+    elements.append(Paragraph("OAIBV â€“ OrganizaÃ§Ã£o e Apoio Ã  Igreja em Boa Vista", styles["Normal"]))
     elements.append(Paragraph(f"Documento gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}", styles["Normal"]))
 
     doc.build(elements)
@@ -3278,7 +3479,7 @@ def termo_compromisso(emprestimo_id):
     response.headers["Content-Disposition"] = f"inline; filename=termo_emprestimo_{emprestimo_id}.pdf"
     return response
 
-# Rotas de Relatórios
+# Rotas de RelatÃ³rios
 @app.route("/relatorios", methods=["GET", "POST"])
 @app.route("/relatorios/", methods=["GET", "POST"])
 @login_required
@@ -3287,7 +3488,7 @@ def relatorios():
     grupo_select = emprestimos_grupo_select_sql(db)
     grupo_join = emprestimos_grupo_join_sql(db)
     
-    # Obter parâmetros de filtro
+    # Obter parÃ¢metros de filtro
     filtro_grupo = request.args.get("grupo", "")
     filtro_tipo = request.args.get("tipo", "todos")
     filtro_data_inicio = request.args.get("data_inicio", "")
@@ -3332,7 +3533,7 @@ def relatorios():
     if filtro_tipo in ["todos", "inventario"]:
         itens = db.execute(query_itens, params_itens).fetchall()
 
-    # Filtro para empréstimos
+    # Filtro para emprÃ©stimos
     where_clauses_emprestimos = []
     params_emprestimos = []
 
@@ -3344,7 +3545,7 @@ def relatorios():
         where_clauses_emprestimos.append("date(e.data_emprestimo) <= date(?)")
         params_emprestimos.append(filtro_data_fim)
 
-    # Consultar empréstimos (com itens agrupados)
+    # Consultar emprÃ©stimos (com itens agrupados)
     emprestimos = []
     if filtro_tipo in ["todos", "emprestimos"]:
         query_emprestimos = f"""
@@ -3367,13 +3568,13 @@ def relatorios():
             {grupo_join}
             JOIN usuarios u ON e.usuario_id = u.id
         """
-         # ✅ Adicione estas linhas AQUI
+         # âœ… Adicione estas linhas AQUI
         if where_clauses_emprestimos:
             query_emprestimos += " WHERE " + " AND ".join(where_clauses_emprestimos)
 
         query_emprestimos += " GROUP BY e.id ORDER BY e.data_emprestimo DESC"
 
-        # ✅ Agora execute a query
+        # âœ… Agora execute a query
         emprestimos_raw = db.execute(query_emprestimos, params_emprestimos).fetchall()
 
         emprestimos = [{
@@ -3394,11 +3595,11 @@ def relatorios():
     total_geral = sum(item['valor_unitario'] * item['quantidade'] for item in itens if item['valor_unitario'] is not None)
     total_geral_html = f"R$ {total_geral:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-    # Carregar grupos disponíveis
-# Carregar grupos disponíveis corretamente da tabela `grupos`
+    # Carregar grupos disponÃ­veis
+# Carregar grupos disponÃ­veis corretamente da tabela `grupos`
     grupos_disponiveis = [row['nome'] for row in db.execute("SELECT nome FROM grupos WHERE nome IS NOT NULL AND nome != '' ORDER BY nome").fetchall()]
 
-    formato = request.args.get("formato", "")  # ✅ fora do render_template
+    formato = request.args.get("formato", "")  # âœ… fora do render_template
 
     if formato == "pdf":
         return exportar_pdf(
@@ -3431,8 +3632,8 @@ def formata_brl(valor):
 
     # Exportar itens (sempre exporta se houver itens, independente do filtro_tipo)
     if itens:
-        writer.writerow(["INVENTÁRIO - ITENS"])
-        writer.writerow(["Tombamento", "Descrição", "Grupo", "Marca", "Valor", "Qtd"])
+        writer.writerow(["INVENTÃRIO - ITENS"])
+        writer.writerow(["Tombamento", "DescriÃ§Ã£o", "Grupo", "Marca", "Valor", "Qtd"])
         for item in itens:
             writer.writerow([
                 item["tombamento"],
@@ -3445,14 +3646,14 @@ def formata_brl(valor):
 
         writer.writerow([]) # Linha em branco para separar
 
-    # Exportar empréstimos
+    # Exportar emprÃ©stimos
     if emprestimos and filtro_tipo in ["todos", "emprestimos"]:
-        writer.writerow(["EMPRÉSTIMOS"])
-        writer.writerow(["Data Empréstimo", "Data Devolução", "Item (Tombamento)", "Descrição", "Qtd", "Responsável", "Contato", "Status"])
+        writer.writerow(["EMPRÃ‰STIMOS"])
+        writer.writerow(["Data EmprÃ©stimo", "Data DevoluÃ§Ã£o", "Item (Tombamento)", "DescriÃ§Ã£o", "Qtd", "ResponsÃ¡vel", "Contato", "Status"])
         for e in emprestimos:
             writer.writerow([
                 format_date(e["data_emprestimo"]),
-                format_date(e["data_devolucao"]) if e["data_devolucao"] else "Não devolvido",
+                format_date(e["data_devolucao"]) if e["data_devolucao"] else "NÃ£o devolvido",
                 e["tombamento"],
                 e["descricao"],
                 e["quantidade"],
@@ -3481,9 +3682,9 @@ def exportar_pdf(itens, emprestimos, filtro_tipo, filtro_grupo, filtro_data_inic
     )
     elements = []
 
-    # Título
+    # TÃ­tulo
     title_style = ParagraphStyle("Title", parent=styles["Heading1"], alignment=1)
-    elements.append(Paragraph("RELATÓRIO DE INVENTÁRIO - OAIBV", title_style))
+    elements.append(Paragraph("RELATÃ“RIO DE INVENTÃRIO - OAIBV", title_style))
     elements.append(Spacer(1, 0.2*inch))
 
     # Agrupar itens por grupo
@@ -3510,13 +3711,13 @@ def exportar_pdf(itens, emprestimos, filtro_tipo, filtro_grupo, filtro_data_inic
 
     for grupo_nome, itens_grupo in grupos_dict.items():
         
-        # Título do grupo
+        # TÃ­tulo do grupo
         elements.append(Spacer(1, 0.2*inch))
         elements.append(Paragraph(grupo_nome, ParagraphStyle(name="Grupo", alignment=1, fontSize=12)))
         elements.append(Spacer(1, 0.1*inch))
 
         # Tabela de itens do grupo
-        data = [["Tombamento", "Descrição", "Marca", "Qtd", "Valor (R$)"]]
+        data = [["Tombamento", "DescriÃ§Ã£o", "Marca", "Qtd", "Valor (R$)"]]
         total = 0
         for i in itens_grupo:
             valor = i["valor_unitario"] or 0
@@ -3542,7 +3743,7 @@ def exportar_pdf(itens, emprestimos, filtro_tipo, filtro_grupo, filtro_data_inic
     if total_geral > 0:
         elements.append(Spacer(1, 0.4*inch))
         elements.append(Paragraph(
-            f"<b>Resumo Financeiro:</b> O valor total de todos os itens inventariados neste relatório é de <b>{formata_brl(total_geral)}</b>.",
+            f"<b>Resumo Financeiro:</b> O valor total de todos os itens inventariados neste relatÃ³rio Ã© de <b>{formata_brl(total_geral)}</b>.",
             styles["Normal"]
         ))
         elements.append(Spacer(1, 0.3*inch))
@@ -3551,9 +3752,9 @@ def exportar_pdf(itens, emprestimos, filtro_tipo, filtro_grupo, filtro_data_inic
         # elements.append(Paragraph(f"<b>Total do grupo:</b> R$ {total:.2f}", styles["Normal"]))
         # elements.append(Spacer(1, 0.2*inch))
 
-    # Empréstimos
+    # EmprÃ©stimos
     if emprestimos and filtro_tipo in ["todos", "emprestimos"]:
-        elements.append(Paragraph("EMPRÉSTIMOS", styles["Heading2"]))
+        elements.append(Paragraph("EMPRÃ‰STIMOS", styles["Heading2"]))
 
         descricao_style = ParagraphStyle(
             "DescricaoStyle",
@@ -3563,7 +3764,7 @@ def exportar_pdf(itens, emprestimos, filtro_tipo, filtro_grupo, filtro_data_inic
             wordWrap='CJK'
         )
 
-        data_emprestimos_pdf = [["Data Emp.", "Data Dev.", "Tombamento", "Descrição", "Qtd", "Responsável", "Status"]]
+        data_emprestimos_pdf = [["Data Emp.", "Data Dev.", "Tombamento", "DescriÃ§Ã£o", "Qtd", "ResponsÃ¡vel", "Status"]]
 
         for emp in emprestimos:
             tombamentos = emp.get("tombamentos", [])
@@ -3597,15 +3798,15 @@ def exportar_pdf(itens, emprestimos, filtro_tipo, filtro_grupo, filtro_data_inic
         elements.append(table_emp)
         elements.append(Spacer(1, 0.2*inch))
 
-    # 📆 Data de geração do documento
+    # ðŸ“† Data de geraÃ§Ã£o do documento
     elements.append(Spacer(1, 0.4 * inch))
     elements.append(Paragraph(f"<b>Documento gerado em:</b> {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}", styles["Normal"]))
     elements.append(Spacer(1, 0.3 * inch))
 
-    # ✍️ Assinatura
+    # âœï¸ Assinatura
     assinatura = Table([
         ["________________________", "________________________"],
-        ["Assinatura do Responsável", "Data"]
+        ["Assinatura do ResponsÃ¡vel", "Data"]
     ], colWidths=[3*inch, 3*inch])
 
     assinatura.setStyle(TableStyle([
@@ -3625,14 +3826,14 @@ def exportar_pdf(itens, emprestimos, filtro_tipo, filtro_grupo, filtro_data_inic
     response.headers["Content-Disposition"] = "attachment; filename=relatorio_oaibv.pdf"
     return response 
     
-    # Informações do filtro
+    # InformaÃ§Ãµes do filtro
     filtro_info = []
     if filtro_grupo:
         filtro_info.append(f"Grupo: {filtro_grupo}")
     if filtro_tipo != "todos":
         filtro_info.append(f"Tipo: {filtro_tipo.capitalize()}")
     if filtro_data_inicio:
-        filtro_info.append(f"Data Início: {format_date(filtro_data_inicio)}")
+        filtro_info.append(f"Data InÃ­cio: {format_date(filtro_data_inicio)}")
     if filtro_data_fim:
         filtro_info.append(f"Data Fim: {format_date(filtro_data_fim)}")
 
@@ -3652,7 +3853,7 @@ def exportar_pdf(itens, emprestimos, filtro_tipo, filtro_grupo, filtro_data_inic
         <table>
             <tr>
                 <th>Tombamento</th>
-                <th>Descrição</th>
+                <th>DescriÃ§Ã£o</th>
                 <th>Marca</th>
                 <th>Valor</th>
                 <th>Qtd</th>
@@ -3690,18 +3891,18 @@ def exportar_pdf(itens, emprestimos, filtro_tipo, filtro_grupo, filtro_data_inic
         """
 
                 
-    # Exportar empréstimos
+    # Exportar emprÃ©stimos
     if emprestimos and filtro_tipo in ["todos", "emprestimos"]:
         html_content += """
-        <h2>EMPRÉSTIMOS</h2>
+        <h2>EMPRÃ‰STIMOS</h2>
         <table>
             <tr>
                 <th>Data Emp.</th>
                 <th>Data Dev.</th>
                 <th>Item (Tomb.)</th>
-                <th>Descrição</th>
+                <th>DescriÃ§Ã£o</th>
                 <th>Qtd</th>
-                <th>Responsável</th>
+                <th>ResponsÃ¡vel</th>
                 <th>Status</th>
             </tr>
         """
@@ -3723,40 +3924,39 @@ def exportar_pdf(itens, emprestimos, filtro_tipo, filtro_grupo, filtro_data_inic
                 
                 html_content += "</table>"
             
-            # Rodapé
+            # RodapÃ©
             html_content += f"""
                 <div class="footer">
-                    <p>OAIBV – Organização e Apoio à Igreja em Boa Vista</p>
-                    <p>Relatório gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}</p>
+                    <p>OAIBV â€“ OrganizaÃ§Ã£o e Apoio Ã  Igreja em Boa Vista</p>
+                    <p>RelatÃ³rio gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}</p>
                 </div>
             </body>
             </html>
             """
     
-    # Salvar o HTML em um arquivo temporário
-    # Usar um nome de arquivo temporário seguro
+    # Salvar o HTML em um arquivo temporÃ¡rio
+    # Usar um nome de arquivo temporÃ¡rio seguro
     temp_fd, temp_html_path = tempfile.mkstemp(suffix=".html")
     with os.fdopen(temp_fd, "wb") as f:
         f.write(html_content.encode("utf-8"))
     
-    # Ler o conteúdo do arquivo HTML
+    # Ler o conteÃºdo do arquivo HTML
     with open(temp_html_path, "rb") as f:
         html_data = f.read()
     
-    # Limpar o arquivo temporário
+    # Limpar o arquivo temporÃ¡rio
     os.unlink(temp_html_path)
 
-# Rotas de Usuários
+# Rotas de UsuÃ¡rios
 @app.route("/usuarios")
 @app.route("/usuarios/")
 @login_required
 def usuarios():
-    db = get_db()
     pode_gerenciar_usuarios = usuario_pode_gerenciar_usuarios(current_user)
-    if pode_gerenciar_usuarios:
-        usuarios = db.execute("SELECT * FROM usuarios ORDER BY nome").fetchall()
-    else:
-        usuarios = db.execute("SELECT * FROM usuarios WHERE id = ?", (current_user.id,)).fetchall()
+    if not pode_gerenciar_usuarios:
+        return redirect(url_for("meu_usuario"))
+    db = get_db()
+    usuarios = db.execute("SELECT * FROM usuarios ORDER BY nome").fetchall()
     return render_template("usuarios_admin.html", usuarios=usuarios, pode_gerenciar_usuarios=pode_gerenciar_usuarios)
 
 @app.route("/usuarios/ativar/<int:id>", methods=["POST"])
@@ -3812,7 +4012,7 @@ def novo_usuario():
         
         try:
             db = get_db()
-            # Verificar se usuário ou e-mail já existem
+            # Verificar se usuÃ¡rio ou e-mail jÃ¡ existem
             user_existente = db.execute(
                 "SELECT * FROM usuarios WHERE lower(usuario) = lower(?) OR lower(coalesce(email, '')) = lower(?)",
                 (usuario, email),
@@ -3830,13 +4030,13 @@ def novo_usuario():
             """, (nome, usuario, email, senha_hash, tipo, 1, datetime.now(), pode_acessar_inventario, pode_editar_igreja))
             db.commit()
             
-            registrar_log(f"Usuário cadastrado: {nome} ({usuario})")
+            registrar_log(f"UsuÃ¡rio cadastrado: {nome} ({usuario})")
             db.commit()
-            flash("Usuário cadastrado com sucesso!", "success")
+            flash("UsuÃ¡rio cadastrado com sucesso!", "success")
             return redirect(url_for("usuarios"))
             
         except Exception as e:
-            flash(f"Erro ao cadastrar usuário: {str(e)}", "danger")
+            flash(f"Erro ao cadastrar usuÃ¡rio: {str(e)}", "danger")
     
     return render_template("novo_usuario_simples.html")
 
@@ -3848,87 +4048,77 @@ def editar_usuario(id):
     db = get_db()
     usuario = db.execute("SELECT * FROM usuarios WHERE id = ?", (id,)).fetchone()
     eh_proprio_usuario = False
-    
+
     if not usuario:
-        flash("Usuário não encontrado.", "danger")
+        flash("Usuario nao encontrado.", "danger")
         return redirect(url_for("usuarios"))
-    
+
+    if int(usuario["id"]) == int(current_user.id):
+        return redirect(url_for("meu_usuario"))
+
     if request.method == "POST":
-        nome = request.form.get("nome")
-        usuario_login = request.form.get("usuario")
-        email = validar_email_informado(request.form.get("email"))
-        senha = ""
-        tipo = request.form.get("tipo")
+        nome = (request.form.get("nome") or "").strip()
+        usuario_login = usuario["usuario"]
+        email = usuario["email"]
+        tipo = "admin" if request.form.get("tipo") == "admin" else "comum"
         pode_acessar_inventario = 1 if request.form.get("pode_acessar_inventario") == "1" else 0
         pode_editar_igreja = 1 if request.form.get("pode_editar_igreja") == "1" else 0
-        
-        if not nome or not usuario_login or not email:
-            flash("Nome, usuario e e-mail sao obrigatorios.", "danger")
-            return render_template("editar_usuario_simples.html", usuario=usuario, eh_proprio_usuario=eh_proprio_usuario, pode_gerenciar_usuarios=True)
-        
+
+        if not nome:
+            flash("O nome do usuario e obrigatorio.", "danger")
+            return render_template(
+                "editar_usuario_simples.html",
+                usuario=usuario,
+                eh_proprio_usuario=eh_proprio_usuario,
+                pode_gerenciar_usuarios=True,
+            )
+
         try:
-            # Verificar se o novo nome de usuário ou e-mail já existem
-            if usuario_login != usuario["usuario"] or normalizar_email(email) != normalizar_email(usuario["email"]):
-                user_existente = db.execute(
-                    """
-                    SELECT * FROM usuarios
-                    WHERE id != ? AND (lower(usuario) = lower(?) OR lower(coalesce(email, '')) = lower(?))
-                    """,
-                    (id, usuario_login, email),
-                ).fetchone()
-                if user_existente:
-                    flash("Nome de usuario ou e-mail ja cadastrado.", "danger")
-                    return render_template("editar_usuario_simples.html", usuario=usuario, eh_proprio_usuario=eh_proprio_usuario, pode_gerenciar_usuarios=True)
-            
-            # Atualizar usuário
-            if senha:
-                # Se senha foi fornecida, atualizar com nova senha
-                senha_hash = generate_password_hash(senha)
-                db.execute("""
-                    UPDATE usuarios 
-                    SET nome = ?, usuario = ?, email = ?, senha_hash = ?, tipo = ?, pode_acessar_inventario = ?, pode_editar_igreja = ? 
-                    WHERE id = ?
-                """, (nome, usuario_login, email, senha_hash, tipo, pode_acessar_inventario, pode_editar_igreja, id))
-            else:
-                # Se senha não foi fornecida, manter a senha atual
-                db.execute("""
-                    UPDATE usuarios 
-                    SET nome = ?, usuario = ?, email = ?, tipo = ?, pode_acessar_inventario = ?, pode_editar_igreja = ? 
-                    WHERE id = ?
-                """, (nome, usuario_login, email, tipo, pode_acessar_inventario, pode_editar_igreja, id))
-            
+            db.execute(
+                """
+                UPDATE usuarios
+                SET nome = ?, usuario = ?, email = ?, tipo = ?, pode_acessar_inventario = ?, pode_editar_igreja = ?
+                WHERE id = ?
+                """,
+                (nome, usuario_login, email, tipo, pode_acessar_inventario, pode_editar_igreja, id),
+            )
             db.commit()
-            
-            registrar_log(f"Usuário editado: {nome} ({usuario_login})")
+            registrar_log(f"Usuario editado: {nome} ({usuario_login})")
             db.commit()
-            flash("Usuário atualizado com sucesso!", "success")
+            flash("Usuario atualizado com sucesso.", "success")
             return redirect(url_for("usuarios"))
-            
         except Exception as e:
-            flash(f"Erro ao atualizar usuário: {str(e)}", "danger")
-    
-    return render_template("editar_usuario_simples.html", usuario=usuario, eh_proprio_usuario=eh_proprio_usuario, pode_gerenciar_usuarios=True)
+            db.rollback()
+            flash(f"Erro ao atualizar usuario: {str(e)}", "danger")
+
+    return render_template(
+        "editar_usuario_simples.html",
+        usuario=usuario,
+        eh_proprio_usuario=eh_proprio_usuario,
+        pode_gerenciar_usuarios=True,
+    )
+
 @app.route("/usuarios/excluir/<int:id>", methods=["POST"])
 @login_required
 @admin_required
 def excluir_usuario(id):
     db = get_db()
     if id == current_user.id:
-        flash("Você não pode excluir a si mesmo.", "warning")
+        flash("VocÃª nÃ£o pode excluir a si mesmo.", "warning")
         return redirect(url_for("usuarios"))
     try:
         usuario = db.execute("SELECT * FROM usuarios WHERE id = ?", (id,)).fetchone()
         if not usuario:
-            flash("Usuário não encontrado.", "danger")
+            flash("UsuÃ¡rio nÃ£o encontrado.", "danger")
             return redirect(url_for("usuarios"))
 
         db.execute("DELETE FROM usuarios WHERE id = ?", (id,))
         db.commit()
-        registrar_log(f"Usuário excluído: {usuario['nome']} ({usuario['usuario']})")
-        flash("Usuário excluído com sucesso!", "success")
+        registrar_log(f"UsuÃ¡rio excluÃ­do: {usuario['nome']} ({usuario['usuario']})")
+        flash("UsuÃ¡rio excluÃ­do com sucesso!", "success")
     except Exception as e:
         db.rollback()
-        flash(f"Erro ao excluir usuário: {str(e)}", "danger")
+        flash(f"Erro ao excluir usuÃ¡rio: {str(e)}", "danger")
     return redirect(url_for("usuarios"))
 
 # Rotas de Logs
@@ -3948,7 +4138,7 @@ def logs():
     
     return render_template("logs.html", logs=logs, format_date=format_date)
 
-# Criar tabelas se não existirem
+# Criar tabelas se nÃ£o existirem
 def create_tables():
     os.makedirs(os.path.dirname(DATABASE), exist_ok=True)
     with app.app_context():
@@ -3988,9 +4178,10 @@ def create_tables():
     conn.close()
     
 if __name__ == "__main__":
-    # Criar banco de dados e tabelas se não existirem
-    # A função create_tables agora também cria o admin e adiciona a coluna valor
+    # Criar banco de dados e tabelas se nÃ£o existirem
+    # A funÃ§Ã£o create_tables agora tambÃ©m cria o admin e adiciona a coluna valor
     with app.app_context():
         create_tables()
     
     pass  # debug run removed for safety
+

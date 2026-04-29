@@ -70,7 +70,7 @@
                                         </button>
                                     </form>
                                     {% endif %}
-                                    <a href="{{ url_for('editar_usuario', id=usuario.id) if pode_gerenciar_usuarios else url_for('meu_usuario') }}" class="btn btn-sm btn-outline-primary" title="Editar">
+                                    <a href="{% if pode_gerenciar_usuarios and usuario.id != current_user.id %}{{ url_for('editar_usuario', id=usuario.id) }}{% else %}{{ url_for('meu_usuario') }}{% endif %}" class="btn btn-sm btn-outline-primary" title="Editar">
                                         <i class="fas fa-edit"></i>
                                     </a>
                                     {% if pode_gerenciar_usuarios %}
