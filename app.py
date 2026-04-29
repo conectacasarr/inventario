@@ -349,6 +349,17 @@ def get_table_columns(db_conn, table_name):
     return {row["name"] for row in db_conn.execute(f"PRAGMA table_info({table_name})").fetchall()}
 
 
+def adicionar_coluna_se_faltar(db_conn, tabela, coluna, definicao_sql):
+    colunas = get_table_columns(db_conn, tabela)
+    if coluna in colunas:
+        return
+    try:
+        db_conn.execute(f"ALTER TABLE {tabela} ADD COLUMN {coluna} {definicao_sql}")
+    except sqlite3.OperationalError as e:
+        if "duplicate column name" not in str(e).lower():
+            raise
+
+
 def request_host_base():
     return (request.host or "").split(":")[0].strip().lower()
 
@@ -478,20 +489,12 @@ def conectacasa_criar_tabelas():
         )
         """
     )
-    colunas_config = get_table_columns(conn, "conectacasa_config")
-    if "acesso_usuario" not in colunas_config:
-        conn.execute("ALTER TABLE conectacasa_config ADD COLUMN acesso_usuario TEXT NOT NULL DEFAULT 'admin'")
-    if "acesso_senha_hash" not in colunas_config:
-        conn.execute("ALTER TABLE conectacasa_config ADD COLUMN acesso_senha_hash TEXT")
-    if "pix_imagem_path" not in colunas_config:
-        conn.execute("ALTER TABLE conectacasa_config ADD COLUMN pix_imagem_path TEXT")
-    colunas = get_table_columns(conn, "conectacasa_orcamentos")
-    if "audio_path" not in colunas:
-        conn.execute("ALTER TABLE conectacasa_orcamentos ADD COLUMN audio_path TEXT")
-    if "audio_transcricao" not in colunas:
-        conn.execute("ALTER TABLE conectacasa_orcamentos ADD COLUMN audio_transcricao TEXT")
-    if "audio_observacoes" not in colunas:
-        conn.execute("ALTER TABLE conectacasa_orcamentos ADD COLUMN audio_observacoes TEXT")
+    adicionar_coluna_se_faltar(conn, "conectacasa_config", "acesso_usuario", "TEXT NOT NULL DEFAULT 'admin'")
+    adicionar_coluna_se_faltar(conn, "conectacasa_config", "acesso_senha_hash", "TEXT")
+    adicionar_coluna_se_faltar(conn, "conectacasa_config", "pix_imagem_path", "TEXT")
+    adicionar_coluna_se_faltar(conn, "conectacasa_orcamentos", "audio_path", "TEXT")
+    adicionar_coluna_se_faltar(conn, "conectacasa_orcamentos", "audio_transcricao", "TEXT")
+    adicionar_coluna_se_faltar(conn, "conectacasa_orcamentos", "audio_observacoes", "TEXT")
     conn.execute(
         """
         INSERT INTO conectacasa_config (id, empresa_nome)
@@ -577,20 +580,12 @@ def igreja_criar_tabelas():
         )
         """
     )
-    colunas_materiais = get_table_columns(conn, "igreja_materiais")
-    if "capa_path" not in colunas_materiais:
-        conn.execute("ALTER TABLE igreja_materiais ADD COLUMN capa_path TEXT")
-    colunas_config = get_table_columns(conn, "igreja_config")
-    if "historia_titulo" not in colunas_config:
-        conn.execute("ALTER TABLE igreja_config ADD COLUMN historia_titulo TEXT")
-    if "historia_texto" not in colunas_config:
-        conn.execute("ALTER TABLE igreja_config ADD COLUMN historia_texto TEXT")
-    if "historia_videos" not in colunas_config:
-        conn.execute("ALTER TABLE igreja_config ADD COLUMN historia_videos TEXT")
-    if "apostilas_titulo" not in colunas_config:
-        conn.execute("ALTER TABLE igreja_config ADD COLUMN apostilas_titulo TEXT")
-    if "ensinos_titulo" not in colunas_config:
-        conn.execute("ALTER TABLE igreja_config ADD COLUMN ensinos_titulo TEXT")
+    adicionar_coluna_se_faltar(conn, "igreja_materiais", "capa_path", "TEXT")
+    adicionar_coluna_se_faltar(conn, "igreja_config", "historia_titulo", "TEXT")
+    adicionar_coluna_se_faltar(conn, "igreja_config", "historia_texto", "TEXT")
+    adicionar_coluna_se_faltar(conn, "igreja_config", "historia_videos", "TEXT")
+    adicionar_coluna_se_faltar(conn, "igreja_config", "apostilas_titulo", "TEXT")
+    adicionar_coluna_se_faltar(conn, "igreja_config", "ensinos_titulo", "TEXT")
     conn.execute(
         """
         INSERT INTO igreja_config (
@@ -1674,16 +1669,11 @@ def migrar_usuarios_auth():
             for coluna in conn.execute("PRAGMA table_info(usuarios)").fetchall()
         }
 
-        if "email" not in colunas:
-            conn.execute("ALTER TABLE usuarios ADD COLUMN email TEXT")
-        if "ativo" not in colunas:
-            conn.execute("ALTER TABLE usuarios ADD COLUMN ativo INTEGER NOT NULL DEFAULT 1")
-        if "criado_em" not in colunas:
-            conn.execute("ALTER TABLE usuarios ADD COLUMN criado_em TIMESTAMP")
-        if "pode_acessar_inventario" not in colunas:
-            conn.execute("ALTER TABLE usuarios ADD COLUMN pode_acessar_inventario INTEGER NOT NULL DEFAULT 1")
-        if "pode_editar_igreja" not in colunas:
-            conn.execute("ALTER TABLE usuarios ADD COLUMN pode_editar_igreja INTEGER NOT NULL DEFAULT 0")
+        adicionar_coluna_se_faltar(conn, "usuarios", "email", "TEXT")
+        adicionar_coluna_se_faltar(conn, "usuarios", "ativo", "INTEGER NOT NULL DEFAULT 1")
+        adicionar_coluna_se_faltar(conn, "usuarios", "criado_em", "TIMESTAMP")
+        adicionar_coluna_se_faltar(conn, "usuarios", "pode_acessar_inventario", "INTEGER NOT NULL DEFAULT 1")
+        adicionar_coluna_se_faltar(conn, "usuarios", "pode_editar_igreja", "INTEGER NOT NULL DEFAULT 0")
 
         usuarios_sem_email = conn.execute(
             "SELECT id, usuario FROM usuarios WHERE email IS NULL OR TRIM(email) = ''"
@@ -4229,11 +4219,7 @@ def create_tables():
             """
         )
 
-    try:
-        conn.execute("ALTER TABLE itens ADD COLUMN valor REAL")
-        print("Coluna 'valor' adicionada a tabela 'itens'.")
-    except sqlite3.OperationalError:
-        pass
+    adicionar_coluna_se_faltar(conn, "itens", "valor", "REAL")
 
     conn.commit()
     conn.close()
