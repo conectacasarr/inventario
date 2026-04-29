@@ -214,6 +214,17 @@
             box-shadow: 0 14px 36px rgba(10, 39, 71, 0.05);
         }
 
+        .ibv-apostila-layout {
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+        }
+
+        .ibv-apostila-capa-wrap {
+            width: min(100%, 260px);
+            margin: 0 auto;
+        }
+
         .ibv-apostila-capa {
             width: 100%;
             aspect-ratio: 3 / 4;
@@ -237,6 +248,26 @@
             color: var(--ibv-muted);
             text-align: center;
             padding: 1rem;
+        }
+
+        .ibv-apostila-conteudo {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        @media (min-width: 992px) {
+            .ibv-apostila-layout {
+                display: grid;
+                grid-template-columns: 220px minmax(0, 1fr);
+                align-items: start;
+                gap: 1.5rem;
+            }
+
+            .ibv-apostila-capa-wrap {
+                width: 220px;
+                margin: 0;
+            }
         }
 
         @media (max-width: 991px) {
@@ -336,29 +367,35 @@
                     {% for material in apostilas %}
                     <div class="col-md-6">
                         <article class="ibv-apostila-card p-4">
-                            {% if material.capa_url %}
-                            <img src="{{ material.capa_url }}" alt="Capa da apostila {{ material.titulo }}" class="ibv-apostila-capa mb-4">
-                            {% else %}
-                            <div class="ibv-apostila-capa-placeholder mb-4">
-                                <i class="fas fa-book-open fa-2x mb-3"></i>
-                                <strong>{{ material.titulo }}</strong>
-                            </div>
-                            {% endif %}
-                            <h3 class="h5 mb-2">{{ material.titulo }}</h3>
-                            {% if material.descricao %}
-                            <div class="ibv-text-content mb-3">{{ rich_text(material.descricao) }}</div>
-                            {% endif %}
-                            <div class="d-flex flex-wrap gap-2">
-                                {% if material.arquivo_url %}
-                                <a href="{{ material.arquivo_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-primary rounded-pill">
-                                    Abrir apostila
-                                </a>
-                                {% endif %}
-                                {% if material.link_url %}
-                                <a href="{{ material.link_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary rounded-pill">
-                                    Material complementar
-                                </a>
-                                {% endif %}
+                            <div class="ibv-apostila-layout">
+                                <div class="ibv-apostila-capa-wrap">
+                                    {% if material.capa_url %}
+                                    <img src="{{ material.capa_url }}" alt="Capa da apostila {{ material.titulo }}" class="ibv-apostila-capa">
+                                    {% else %}
+                                    <div class="ibv-apostila-capa-placeholder">
+                                        <i class="fas fa-book-open fa-2x mb-3"></i>
+                                        <strong>{{ material.titulo }}</strong>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                <div class="ibv-apostila-conteudo">
+                                    <h3 class="h5 mb-2">{{ material.titulo }}</h3>
+                                    {% if material.descricao %}
+                                    <div class="ibv-text-content mb-3">{{ rich_text(material.descricao) }}</div>
+                                    {% endif %}
+                                    <div class="d-flex flex-wrap gap-2">
+                                        {% if material.arquivo_url %}
+                                        <a href="{{ material.arquivo_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-primary rounded-pill">
+                                            Abrir apostila
+                                        </a>
+                                        {% endif %}
+                                        {% if material.link_url %}
+                                        <a href="{{ material.link_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary rounded-pill">
+                                            Material complementar
+                                        </a>
+                                        {% endif %}
+                                    </div>
+                                </div>
                             </div>
                         </article>
                     </div>
