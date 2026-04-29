@@ -2044,6 +2044,8 @@ def meu_usuario():
 def logout():
     registrar_log("Logout realizado")
     logout_user()
+    if host_eh_igreja():
+        return redirect(igreja_path("/"))
     return redirect(url_for("login"))
 
 
