@@ -16,6 +16,10 @@ import tempfile
 import json
 from urllib.parse import quote, urlparse
 from html.parser import HTMLParser
+try:
+    import fitz
+except ImportError:
+    fitz = None
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
@@ -282,8 +286,10 @@ os.makedirs(PIX_UPLOAD_DIR, exist_ok=True)
 IGREJA_UPLOADS_DIR = os.path.join(PROJECT_DIR, "static", "uploads", "igreja")
 IGREJA_DOCUMENTOS_UPLOAD_DIR = os.path.join(IGREJA_UPLOADS_DIR, "documentos")
 IGREJA_CONTEUDO_UPLOAD_DIR = os.path.join(IGREJA_UPLOADS_DIR, "conteudo")
+IGREJA_CAPAS_UPLOAD_DIR = os.path.join(IGREJA_UPLOADS_DIR, "capas")
 os.makedirs(IGREJA_DOCUMENTOS_UPLOAD_DIR, exist_ok=True)
 os.makedirs(IGREJA_CONTEUDO_UPLOAD_DIR, exist_ok=True)
+os.makedirs(IGREJA_CAPAS_UPLOAD_DIR, exist_ok=True)
 
 caminho_absoluto = DATABASE
 app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{caminho_absoluto}"
@@ -562,6 +568,7 @@ def igreja_criar_tabelas():
             titulo TEXT NOT NULL,
             descricao TEXT,
             arquivo_path TEXT,
+            capa_path TEXT,
             link_url TEXT,
             ordem INTEGER NOT NULL DEFAULT 0,
             ativo INTEGER NOT NULL DEFAULT 1,
@@ -570,6 +577,9 @@ def igreja_criar_tabelas():
         )
         """
     )
+    colunas_materiais = get_table_columns(conn, "igreja_materiais")
+    if "capa_path" not in colunas_materiais:
+        conn.execute("ALTER TABLE igreja_materiais ADD COLUMN capa_path TEXT")
     colunas_config = get_table_columns(conn, "igreja_config")
     if "historia_titulo" not in colunas_config:
         conn.execute("ALTER TABLE igreja_config ADD COLUMN historia_titulo TEXT")
@@ -653,7 +663,19 @@ def igreja_listar_avisos(conn, somente_ativos=False):
 def igreja_preparar_material(material):
     material = dict(material)
     material["arquivo_url"] = url_for("static", filename=material["arquivo_path"]) if material.get("arquivo_path") else None
+    material["capa_url"] = url_for("static", filename=material["capa_path"]) if material.get("capa_path") else None
     return material
+
+
+def igreja_remover_arquivo_relativo(arquivo_relativo):
+    if not arquivo_relativo:
+        return
+    caminho_arquivo = os.path.join(PROJECT_DIR, "static", arquivo_relativo.replace("/", os.sep))
+    if os.path.exists(caminho_arquivo):
+        try:
+            os.remove(caminho_arquivo)
+        except OSError:
+            pass
 
 
 def igreja_listar_materiais(conn, categoria=None, somente_ativos=False):
@@ -668,7 +690,17 @@ def igreja_listar_materiais(conn, categoria=None, somente_ativos=False):
     if filtros:
         query += " WHERE " + " AND ".join(filtros)
     query += " ORDER BY ordem ASC, atualizado_em DESC, id DESC"
-    return [igreja_preparar_material(item) for item in conn.execute(query, params).fetchall()]
+    materiais = []
+    for item in conn.execute(query, params).fetchall():
+        item_dict = dict(item)
+        if item_dict.get("arquivo_path") and not item_dict.get("capa_path"):
+            capa_path, _ = igreja_gerar_capa_pdf(item_dict["arquivo_path"])
+            if capa_path:
+                conn.execute("UPDATE igreja_materiais SET capa_path = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?", (capa_path, item_dict["id"]))
+                conn.commit()
+                item_dict["capa_path"] = capa_path
+        materiais.append(igreja_preparar_material(item_dict))
+    return materiais
 
 
 def igreja_salvar_config(conn, form):
@@ -761,6 +793,29 @@ def igreja_salvar_documento_pdf(arquivo):
     return f"uploads/igreja/documentos/{nome_arquivo}", None
 
 
+def igreja_gerar_capa_pdf(arquivo_relativo):
+    if not arquivo_relativo or fitz is None:
+        return None, None
+
+    caminho_pdf = os.path.join(PROJECT_DIR, "static", arquivo_relativo.replace("/", os.sep))
+    if not os.path.exists(caminho_pdf):
+        return None, None
+
+    try:
+        with fitz.open(caminho_pdf) as pdf:
+            if pdf.page_count < 1:
+                return None, None
+            pagina = pdf.load_page(0)
+            pix = pagina.get_pixmap(matrix=fitz.Matrix(1.6, 1.6), alpha=False)
+            nome_base = os.path.splitext(os.path.basename(arquivo_relativo))[0]
+            nome_capa = f"{nome_base}-capa.jpg"
+            caminho_capa = os.path.join(IGREJA_CAPAS_UPLOAD_DIR, nome_capa)
+            pix.save(caminho_capa, "jpeg")
+            return f"uploads/igreja/capas/{nome_capa}", None
+    except Exception as e:
+        return None, str(e)
+
+
 def igreja_salvar_imagem_conteudo(arquivo):
     if not arquivo or not arquivo.filename:
         return None, "Selecione uma imagem valida."
@@ -791,17 +846,24 @@ def igreja_salvar_material(conn, form, arquivo=None, material_id=None):
         return False, "Informe um titulo para o material."
 
     arquivo_path = None
+    capa_path = None
+    capa_antiga = None
     if material_id:
         existente = conn.execute("SELECT * FROM igreja_materiais WHERE id = ?", (material_id,)).fetchone()
         if not existente:
             return False, "Material nao encontrado."
         arquivo_path = existente["arquivo_path"]
+        capa_path = existente["capa_path"] if "capa_path" in existente.keys() else None
+        capa_antiga = capa_path
 
     novo_arquivo_path, erro_upload = igreja_salvar_documento_pdf(arquivo)
     if erro_upload:
         return False, erro_upload
     if novo_arquivo_path:
         arquivo_path = novo_arquivo_path
+        nova_capa_path, _ = igreja_gerar_capa_pdf(novo_arquivo_path)
+        if nova_capa_path:
+            capa_path = nova_capa_path
 
     if not arquivo_path and not link_url:
         return False, "Envie um PDF ou informe um link para o material."
@@ -810,21 +872,23 @@ def igreja_salvar_material(conn, form, arquivo=None, material_id=None):
         conn.execute(
             """
             UPDATE igreja_materiais
-            SET categoria = ?, titulo = ?, descricao = ?, arquivo_path = ?, link_url = ?, ordem = ?, ativo = ?,
+            SET categoria = ?, titulo = ?, descricao = ?, arquivo_path = ?, capa_path = ?, link_url = ?, ordem = ?, ativo = ?,
                 atualizado_em = CURRENT_TIMESTAMP
             WHERE id = ?
             """,
-            (categoria, titulo, descricao, arquivo_path, link_url, ordem, ativo, material_id),
+            (categoria, titulo, descricao, arquivo_path, capa_path, link_url, ordem, ativo, material_id),
         )
     else:
         conn.execute(
             """
-            INSERT INTO igreja_materiais (categoria, titulo, descricao, arquivo_path, link_url, ordem, ativo)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO igreja_materiais (categoria, titulo, descricao, arquivo_path, capa_path, link_url, ordem, ativo)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (categoria, titulo, descricao, arquivo_path, link_url, ordem, ativo),
+            (categoria, titulo, descricao, arquivo_path, capa_path, link_url, ordem, ativo),
         )
     conn.commit()
+    if material_id and capa_antiga and capa_antiga != capa_path:
+        igreja_remover_arquivo_relativo(capa_antiga)
     return True, None
 
 
@@ -834,14 +898,9 @@ def igreja_excluir_material(conn, material_id):
         return False
     conn.execute("DELETE FROM igreja_materiais WHERE id = ?", (material_id,))
     conn.commit()
-    arquivo_relativo = material["arquivo_path"]
-    if arquivo_relativo:
-        caminho_arquivo = os.path.join(PROJECT_DIR, "static", arquivo_relativo.replace("/", os.sep))
-        if os.path.exists(caminho_arquivo):
-            try:
-                os.remove(caminho_arquivo)
-            except OSError:
-                pass
+    igreja_remover_arquivo_relativo(material["arquivo_path"])
+    if "capa_path" in material.keys():
+        igreja_remover_arquivo_relativo(material["capa_path"])
     return True
 
 

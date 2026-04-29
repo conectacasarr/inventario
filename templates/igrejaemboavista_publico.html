@@ -214,6 +214,31 @@
             box-shadow: 0 14px 36px rgba(10, 39, 71, 0.05);
         }
 
+        .ibv-apostila-capa {
+            width: 100%;
+            aspect-ratio: 3 / 4;
+            object-fit: cover;
+            border-radius: 18px;
+            border: 1px solid rgba(16, 44, 79, 0.08);
+            background: linear-gradient(180deg, rgba(16, 44, 79, 0.04), rgba(16, 44, 79, 0.1));
+            box-shadow: 0 14px 24px rgba(10, 39, 71, 0.08);
+        }
+
+        .ibv-apostila-capa-placeholder {
+            width: 100%;
+            aspect-ratio: 3 / 4;
+            border-radius: 18px;
+            border: 1px dashed rgba(16, 44, 79, 0.18);
+            background: linear-gradient(180deg, rgba(248, 251, 255, 0.98), rgba(235, 243, 255, 0.98));
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--ibv-muted);
+            text-align: center;
+            padding: 1rem;
+        }
+
         @media (max-width: 991px) {
             .ibv-top-tabs-shell {
                 top: 76px;
@@ -311,6 +336,14 @@
                     {% for material in apostilas %}
                     <div class="col-md-6">
                         <article class="ibv-apostila-card p-4">
+                            {% if material.capa_url %}
+                            <img src="{{ material.capa_url }}" alt="Capa da apostila {{ material.titulo }}" class="ibv-apostila-capa mb-4">
+                            {% else %}
+                            <div class="ibv-apostila-capa-placeholder mb-4">
+                                <i class="fas fa-book-open fa-2x mb-3"></i>
+                                <strong>{{ material.titulo }}</strong>
+                            </div>
+                            {% endif %}
                             <h3 class="h5 mb-2">{{ material.titulo }}</h3>
                             {% if material.descricao %}
                             <div class="ibv-text-content mb-3">{{ rich_text(material.descricao) }}</div>

@@ -12,3 +12,4 @@ reportlab
 werkzeug
 qrcode
 Pillow
+PyMuPDF
