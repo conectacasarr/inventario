@@ -280,8 +280,10 @@ os.makedirs(os.path.dirname(DATABASE), exist_ok=True)
 UPLOADS_DIR = os.path.join(PROJECT_DIR, "static", "uploads", "conectacasa")
 LOGO_UPLOAD_DIR = os.path.join(UPLOADS_DIR, "logos")
 PIX_UPLOAD_DIR = os.path.join(UPLOADS_DIR, "pix")
+PROMO_UPLOAD_DIR = os.path.join(UPLOADS_DIR, "promos")
 os.makedirs(LOGO_UPLOAD_DIR, exist_ok=True)
 os.makedirs(PIX_UPLOAD_DIR, exist_ok=True)
+os.makedirs(PROMO_UPLOAD_DIR, exist_ok=True)
 
 IGREJA_UPLOADS_DIR = os.path.join(PROJECT_DIR, "static", "uploads", "igreja")
 IGREJA_DOCUMENTOS_UPLOAD_DIR = os.path.join(IGREJA_UPLOADS_DIR, "documentos")
@@ -485,6 +487,21 @@ def conectacasa_criar_tabelas():
             pix_beneficiario TEXT,
             acesso_usuario TEXT NOT NULL DEFAULT 'admin',
             acesso_senha_hash TEXT,
+            atualizado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS conectacasa_promos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            titulo TEXT NOT NULL,
+            descricao TEXT,
+            mensagem_whatsapp TEXT,
+            imagem_path TEXT NOT NULL,
+            ativo INTEGER NOT NULL DEFAULT 1,
+            ordem INTEGER NOT NULL DEFAULT 0,
+            criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             atualizado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
         """
@@ -934,6 +951,30 @@ def conectacasa_salvar_logo(arquivo):
 
 def conectacasa_salvar_pix_imagem(arquivo):
     return conectacasa_salvar_upload_imagem(arquivo, PIX_UPLOAD_DIR, "pix", "uploads/conectacasa/pix")
+
+
+def conectacasa_salvar_promo_imagem(arquivo):
+    return conectacasa_salvar_upload_imagem(arquivo, PROMO_UPLOAD_DIR, "promo", "uploads/conectacasa/promos")
+
+
+def conectacasa_preparar_promo(item):
+    item = dict(item)
+    item["imagem_url"] = url_for("static", filename=item["imagem_path"]) if item.get("imagem_path") else None
+    item["mensagem_whatsapp"] = (
+        item.get("mensagem_whatsapp")
+        or f"Olá! Segue um material da {item.get('titulo') or 'ConectaCasa'} para você."
+    )
+    return item
+
+
+def conectacasa_listar_promos(conn, somente_ativos=False):
+    query = "SELECT * FROM conectacasa_promos"
+    params = []
+    if somente_ativos:
+        query += " WHERE ativo = 1"
+    query += " ORDER BY ordem ASC, atualizado_em DESC, id DESC"
+    registros = conn.execute(query, params).fetchall()
+    return [conectacasa_preparar_promo(item) for item in registros]
 
 
 def conectacasa_gerar_codigo(conn):
@@ -2276,6 +2317,65 @@ def conectacasa_configuracoes():
 
     config = conectacasa_preparar_urls_config(config)
     return render_template("conectacasa_configuracoes.html", config=config)
+
+
+@app.route("/propagandas", methods=["GET", "POST"])
+@app.route("/propagandas/", methods=["GET", "POST"])
+@app.route("/conectacasa/propagandas", methods=["GET", "POST"])
+@app.route("/conectacasa/propagandas/", methods=["GET", "POST"])
+@conectacasa_required
+def conectacasa_propagandas():
+    conn = get_db()
+    config = conectacasa_preparar_urls_config(conectacasa_obter_config(conn))
+
+    if request.method == "POST":
+        titulo = (request.form.get("titulo") or "").strip()
+        descricao = (request.form.get("descricao") or "").strip()
+        mensagem_whatsapp = (request.form.get("mensagem_whatsapp") or "").strip()
+        ativo = 1 if request.form.get("ativo") == "1" else 0
+        try:
+            ordem = int(request.form.get("ordem") or 0)
+        except ValueError:
+            ordem = 0
+
+        imagem_path = conectacasa_salvar_promo_imagem(request.files.get("imagem_arquivo"))
+        if not titulo:
+            flash("Informe um titulo para a propaganda.", "danger")
+        elif not imagem_path:
+            flash("Envie uma imagem PNG, JPG, JPEG ou WEBP para a propaganda.", "danger")
+        else:
+            conn.execute(
+                """
+                INSERT INTO conectacasa_promos (titulo, descricao, mensagem_whatsapp, imagem_path, ativo, ordem)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (titulo, descricao, mensagem_whatsapp, imagem_path, ativo, ordem),
+            )
+            conn.commit()
+            flash("Propaganda salva com sucesso.", "success")
+            return redirect(conectacasa_path("/propagandas"))
+
+    promos = conectacasa_listar_promos(conn)
+    return render_template("conectacasa_propagandas.html", config=config, promos=promos)
+
+
+@app.route("/propagandas/<int:promo_id>/excluir", methods=["POST"])
+@app.route("/propagandas/<int:promo_id>/excluir/", methods=["POST"])
+@app.route("/conectacasa/propagandas/<int:promo_id>/excluir", methods=["POST"])
+@app.route("/conectacasa/propagandas/<int:promo_id>/excluir/", methods=["POST"])
+@conectacasa_required
+def conectacasa_excluir_propaganda(promo_id):
+    conn = get_db()
+    promo = conn.execute("SELECT imagem_path FROM conectacasa_promos WHERE id = ?", (promo_id,)).fetchone()
+    if not promo:
+        flash("Propaganda nao encontrada.", "danger")
+        return redirect(conectacasa_path("/propagandas"))
+
+    conn.execute("DELETE FROM conectacasa_promos WHERE id = ?", (promo_id,))
+    conn.commit()
+    igreja_remover_arquivo_relativo(promo["imagem_path"])
+    flash("Propaganda removida.", "success")
+    return redirect(conectacasa_path("/propagandas"))
 
 
 @app.route("/novo", methods=["GET", "POST"])

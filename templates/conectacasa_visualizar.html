@@ -273,7 +273,10 @@ function montarLinkWhatsapp(telefone, mensagem) {
 
 enviarWhatsappBtn?.addEventListener('click', async function () {
     const telefone = normalizarTelefoneWhatsapp({{ (orcamento.cliente_telefone or '')|tojson }});
-    const mensagem = `Ola, {{ orcamento.cliente_nome }}! Segue o orcamento {{ orcamento.codigo }} da ConectaCasa no valor de {{ formata_brl(orcamento.valor_total) }}.`;
+    const mensagem = `Olá, {{ orcamento.cliente_nome }}!
+Segue o orçamento elaborado pela ConectaCasa, conforme solicitado. O documento contempla a solução proposta de acordo com a necessidade apresentada.
+
+Ficamos à disposição para esclarecimentos, ajustes ou agendamento da execução.`;
     const linkWhatsapp = montarLinkWhatsapp(telefone, mensagem);
 
     const textoOriginal = enviarWhatsappBtn.textContent;

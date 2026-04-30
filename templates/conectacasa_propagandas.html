@@ -1,0 +1,193 @@
+{% extends 'base_conectacasa.html' %}
+
+{% block title %}ConectaCasa - Propagandas{% endblock %}
+
+{% block head_extra %}
+<style>
+    .cc-promo-image {
+        width: 100%;
+        aspect-ratio: 4 / 5;
+        object-fit: cover;
+        border-radius: 20px;
+        border: 1px solid rgba(15, 23, 42, 0.08);
+        background: #f8fafc;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="row g-4 align-items-start">
+    <div class="col-lg-4">
+        <div class="cc-panel p-4 p-lg-5">
+            <span class="cc-badge"><i class="fas fa-bullhorn"></i> Propagandas</span>
+            <h1 class="mt-3 mb-2 fw-bold">Salvar imagens para compartilhar</h1>
+            <p class="cc-muted mb-4">Guarde as artes da ConectaCasa no sistema e compartilhe no WhatsApp quando precisar.</p>
+
+            <form method="POST" enctype="multipart/form-data" class="d-grid gap-3">
+                <div>
+                    <label class="form-label">Titulo</label>
+                    <input type="text" class="form-control" name="titulo" required>
+                </div>
+                <div>
+                    <label class="form-label">Descricao</label>
+                    <textarea class="form-control" name="descricao" rows="3" placeholder="Ex.: promocao, fachada, moveis planejados..."></textarea>
+                </div>
+                <div>
+                    <label class="form-label">Mensagem para WhatsApp</label>
+                    <textarea class="form-control" name="mensagem_whatsapp" rows="4" placeholder="Olá! Segue uma arte da ConectaCasa para você."></textarea>
+                </div>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Ordem</label>
+                        <input type="number" class="form-control" name="ordem" value="0">
+                    </div>
+                    <div class="col-md-6 d-flex align-items-end">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="1" id="ativo" name="ativo" checked>
+                            <label class="form-check-label" for="ativo">Ativa</label>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <label class="form-label">Imagem</label>
+                    <input type="file" class="form-control" name="imagem_arquivo" accept=".png,.jpg,.jpeg,.webp,image/*" required>
+                </div>
+                <button type="submit" class="btn cc-btn-primary rounded-pill px-4">Salvar propaganda</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="col-lg-8">
+        <div class="cc-panel p-4 p-lg-5">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2 class="h4 mb-1">Imagens salvas</h2>
+                    <p class="cc-muted mb-0">Compartilhe direto daqui, no mesmo fluxo usado para os orcamentos.</p>
+                </div>
+            </div>
+
+            {% if promos %}
+            <div class="row g-4">
+                {% for promo in promos %}
+                <div class="col-md-6">
+                    <article class="cc-panel p-3 h-100">
+                        <img src="{{ promo.imagem_url }}" alt="{{ promo.titulo }}" class="cc-promo-image mb-3">
+                        <div class="d-flex justify-content-between align-items-start gap-3 mb-2">
+                            <div>
+                                <h3 class="h5 mb-1">{{ promo.titulo }}</h3>
+                                {% if promo.descricao %}
+                                <p class="cc-muted mb-0">{{ promo.descricao }}</p>
+                                {% endif %}
+                            </div>
+                            {% if not promo.ativo %}
+                            <span class="badge text-bg-secondary">Inativa</span>
+                            {% endif %}
+                        </div>
+                        <div class="d-flex flex-wrap gap-2 mt-3">
+                            <button
+                                type="button"
+                                class="btn cc-btn-primary rounded-pill px-3 cc-share-promo-btn"
+                                data-image-url="{{ promo.imagem_url }}"
+                                data-message="{{ promo.mensagem_whatsapp }}"
+                                data-file-name="{{ promo.titulo|replace(' ', '-')|lower }}.png"
+                            >
+                                Compartilhar no WhatsApp
+                            </button>
+                            <a href="{{ promo.imagem_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-secondary rounded-pill px-3">Abrir</a>
+                            <form method="POST" action="{{ conectacasa_path('/propagandas/' ~ promo.id ~ '/excluir') }}" onsubmit="return confirm('Deseja excluir esta propaganda?');">
+                                <button type="submit" class="btn btn-outline-danger rounded-pill px-3">Excluir</button>
+                            </form>
+                        </div>
+                    </article>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center py-5">
+                <i class="fas fa-images fa-3x text-warning mb-3"></i>
+                <h3 class="h5">Nenhuma propaganda salva ainda</h3>
+                <p class="cc-muted mb-0">Envie a primeira imagem para deixar tudo pronto para compartilhar.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function montarLinkWhatsappGenerico(mensagem) {
+    return `https://wa.me/?text=${encodeURIComponent(mensagem)}`;
+}
+
+async function obterBlobImagem(url) {
+    const resposta = await fetch(url);
+    if (!resposta.ok) {
+        throw new Error('Nao foi possivel carregar a imagem.');
+    }
+    return await resposta.blob();
+}
+
+document.querySelectorAll('.cc-share-promo-btn').forEach(function (botao) {
+    botao.addEventListener('click', async function () {
+        const imageUrl = this.dataset.imageUrl;
+        const mensagem = this.dataset.message || 'Olá! Segue um material da ConectaCasa para você.';
+        const fileName = this.dataset.fileName || 'conectacasa.png';
+        const linkWhatsapp = montarLinkWhatsappGenerico(mensagem);
+        const textoOriginal = this.textContent;
+
+        this.disabled = true;
+        this.textContent = 'Preparando...';
+
+        try {
+            const blob = await obterBlobImagem(imageUrl);
+            const arquivo = new File([blob], fileName, { type: blob.type || 'image/png' });
+
+            if (navigator.canShare && navigator.canShare({ files: [arquivo] })) {
+                await navigator.share({
+                    files: [arquivo],
+                    title: 'ConectaCasa',
+                    text: mensagem,
+                });
+                return;
+            }
+
+            let imagemCopiada = false;
+            if (navigator.clipboard && window.ClipboardItem) {
+                try {
+                    await navigator.clipboard.write([
+                        new ClipboardItem({
+                            [blob.type || 'image/png']: blob,
+                        }),
+                    ]);
+                    imagemCopiada = true;
+                } catch (error) {
+                    imagemCopiada = false;
+                }
+            }
+
+            window.open(linkWhatsapp, '_blank');
+
+            if (imagemCopiada) {
+                alert('WhatsApp aberto. A imagem foi copiada para voce colar na conversa.');
+                return;
+            }
+
+            const link = document.createElement('a');
+            link.download = fileName;
+            link.href = URL.createObjectURL(blob);
+            link.click();
+            setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+            alert('WhatsApp aberto. Se a imagem nao seguir automaticamente, anexe o arquivo baixado na conversa.');
+        } catch (error) {
+            console.error(error);
+            window.open(linkWhatsapp, '_blank');
+            alert('WhatsApp aberto. Se necessario, envie a imagem manualmente.');
+        } finally {
+            this.disabled = false;
+            this.textContent = textoOriginal;
+        }
+    });
+});
+</script>
+{% endblock %}
