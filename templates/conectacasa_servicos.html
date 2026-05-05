@@ -1,0 +1,309 @@
+{% extends 'base_conectacasa.html' %}
+
+{% block title %}ConectaCasa - Servicos{% endblock %}
+
+{% block head_extra %}
+<style>
+    .cc-status-pill {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        padding: 0.3rem 0.7rem;
+        font-size: 0.78rem;
+        font-weight: 700;
+    }
+
+    .cc-status-pill.is-active {
+        background: rgba(22, 163, 74, 0.12);
+        color: #15803d;
+    }
+
+    .cc-status-pill.is-inactive {
+        background: rgba(148, 163, 184, 0.16);
+        color: #475569;
+    }
+
+    .cc-value-highlight {
+        font-size: 1rem;
+        font-weight: 800;
+        color: #b45309;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="row g-4">
+    <div class="col-xl-4">
+        <div class="cc-panel p-4 p-lg-5">
+            <span class="cc-badge"><i class="fas fa-toolbox"></i> Base de servicos</span>
+            <h1 class="mt-3 mb-2 fw-bold">{{ 'Editar servico' if servico_edicao else 'Novo servico' }}</h1>
+            <p class="cc-muted mb-4">Cadastre e mantenha a base de precos da ConectaCasa sem precisar mexer no codigo.</p>
+
+            <form method="POST" class="d-grid gap-3" id="servico-form">
+                <input type="hidden" name="acao" value="salvar">
+                <input type="hidden" name="servico_id" value="{{ servico_edicao.id if servico_edicao else '' }}">
+
+                <div>
+                    <label class="form-label">Categoria</label>
+                    <input class="form-control" list="categorias-base" name="categoria" value="{{ servico_edicao.categoria if servico_edicao else '' }}" required>
+                    <datalist id="categorias-base">
+                        {% for categoria in categorias_base %}
+                        <option value="{{ categoria }}"></option>
+                        {% endfor %}
+                    </datalist>
+                </div>
+
+                <div>
+                    <label class="form-label">Subcategoria</label>
+                    <input type="text" class="form-control" name="subcategoria" value="{{ servico_edicao.subcategoria if servico_edicao else '' }}">
+                </div>
+
+                <div>
+                    <label class="form-label">Nome do servico</label>
+                    <input type="text" class="form-control" name="servico" value="{{ servico_edicao.servico if servico_edicao else '' }}" required>
+                </div>
+
+                <div>
+                    <label class="form-label">Descricao</label>
+                    <textarea class="form-control" name="descricao" rows="3">{{ servico_edicao.descricao if servico_edicao else '' }}</textarea>
+                </div>
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Unidade</label>
+                        <select class="form-select" name="unidade" required>
+                            {% set unidade_selecionada = servico_edicao.unidade if servico_edicao else 'servico' %}
+                            {% for unidade in unidades %}
+                            <option value="{{ unidade }}" {% if unidade == unidade_selecionada %}selected{% endif %}>{{ unidade|title }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Regiao</label>
+                        <input type="text" class="form-control" name="regiao" value="{{ servico_edicao.regiao if servico_edicao else 'Norte' }}">
+                    </div>
+                </div>
+
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Valor minimo</label>
+                        <input type="number" step="0.01" min="0" class="form-control" name="valor_minimo" value="{{ servico_edicao.valor_minimo if servico_edicao and servico_edicao.valor_minimo is not none else '' }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Valor maximo</label>
+                        <input type="number" step="0.01" min="0" class="form-control" name="valor_maximo" value="{{ servico_edicao.valor_maximo if servico_edicao and servico_edicao.valor_maximo is not none else '' }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Valor sugerido</label>
+                        <input type="number" step="0.01" min="0" class="form-control" name="valor_sugerido" value="{{ servico_edicao.valor_sugerido if servico_edicao and servico_edicao.valor_sugerido is not none else '' }}">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="form-label">Observacao</label>
+                    <textarea class="form-control" name="observacao" rows="2">{{ servico_edicao.observacao if servico_edicao else '' }}</textarea>
+                </div>
+
+                <div>
+                    <label class="form-label">Fonte</label>
+                    <input type="text" class="form-control" name="fonte" value="{{ servico_edicao.fonte if servico_edicao else 'Cadastro manual ConectaCasa' }}">
+                </div>
+
+                <div class="d-flex flex-wrap gap-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" value="1" id="ativo" name="ativo" {% if not servico_edicao or servico_edicao.ativo %}checked{% endif %}>
+                        <label class="form-check-label" for="ativo">Ativo</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" value="1" id="material_incluso" name="material_incluso" {% if servico_edicao and servico_edicao.material_incluso %}checked{% endif %}>
+                        <label class="form-check-label" for="material_incluso">Material incluso</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" value="1" id="preco_sob_consulta" name="preco_sob_consulta" {% if servico_edicao and servico_edicao.preco_sob_consulta %}checked{% endif %}>
+                        <label class="form-check-label" for="preco_sob_consulta">Preco sob consulta</label>
+                    </div>
+                </div>
+
+                <div class="d-flex flex-wrap gap-2">
+                    <button type="submit" class="btn cc-btn-primary rounded-pill px-4">{{ 'Atualizar servico' if servico_edicao else 'Salvar servico' }}</button>
+                    {% if servico_edicao %}
+                    <a href="{{ conectacasa_path('/servicos') }}" class="btn btn-outline-secondary rounded-pill px-4">Cancelar edicao</a>
+                    {% endif %}
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="col-xl-8">
+        <div class="cc-panel p-4 p-lg-5">
+            <div class="d-flex justify-content-between align-items-center gap-3 flex-wrap mb-4">
+                <div>
+                    <h2 class="h4 mb-1">Base de servicos cadastrada</h2>
+                    <p class="cc-muted mb-0">Pesquise, filtre, edite e desative servicos conforme novas necessidades.</p>
+                </div>
+                <a href="{{ conectacasa_path('/servicos') }}" class="btn btn-outline-dark rounded-pill px-4">Novo servico</a>
+            </div>
+
+            <form method="GET" class="row g-3 mb-4">
+                <div class="col-md-4">
+                    <label class="form-label">Pesquisar</label>
+                    <input type="text" class="form-control" name="q" id="servico-search" value="{{ busca }}" placeholder="Digite led, tomada, quadro, automacao...">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Categoria</label>
+                    <select class="form-select" name="categoria">
+                        <option value="">Todas</option>
+                        {% for categoria in categorias %}
+                        <option value="{{ categoria }}" {% if categoria == categoria_filtro %}selected{% endif %}>{{ categoria }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Subcategoria</label>
+                    <select class="form-select" name="subcategoria">
+                        <option value="">Todas</option>
+                        {% for subcategoria in subcategorias %}
+                        <option value="{{ subcategoria }}" {% if subcategoria == subcategoria_filtro %}selected{% endif %}>{{ subcategoria }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Unidade</label>
+                    <select class="form-select" name="unidade">
+                        <option value="">Todas</option>
+                        {% for unidade in unidades %}
+                        <option value="{{ unidade }}" {% if unidade == unidade_filtro %}selected{% endif %}>{{ unidade|title }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Regiao</label>
+                    <select class="form-select" name="regiao">
+                        <option value="">Todas</option>
+                        {% for regiao in regioes %}
+                        <option value="{{ regiao }}" {% if regiao == regiao_filtro %}selected{% endif %}>{{ regiao }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Status</label>
+                    <select class="form-select" name="status">
+                        <option value="todos" {% if status_filtro == 'todos' %}selected{% endif %}>Todos</option>
+                        <option value="ativos" {% if status_filtro == 'ativos' %}selected{% endif %}>Ativos</option>
+                        <option value="inativos" {% if status_filtro == 'inativos' %}selected{% endif %}>Inativos</option>
+                    </select>
+                </div>
+                <div class="col-md-3 d-grid">
+                    <label class="d-none d-md-block">&nbsp;</label>
+                    <button type="submit" class="btn btn-outline-secondary rounded-pill px-4">Aplicar filtros</button>
+                </div>
+            </form>
+
+            <div class="table-responsive">
+                <table class="table align-middle" id="servicos-table">
+                    <thead>
+                        <tr>
+                            <th>Servico</th>
+                            <th>Detalhes</th>
+                            <th class="text-end">Valor sugerido</th>
+                            <th>Status</th>
+                            <th class="text-end">Acoes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for servico in servicos %}
+                        <tr data-search="{{ (servico.categoria ~ ' ' ~ (servico.subcategoria or '') ~ ' ' ~ servico.servico ~ ' ' ~ (servico.descricao or '') ~ ' ' ~ servico.unidade ~ ' ' ~ servico.regiao)|lower }}">
+                            <td>
+                                <div class="fw-semibold">{{ servico.servico }}</div>
+                                <div class="small text-muted">{{ servico.categoria }}{% if servico.subcategoria %} / {{ servico.subcategoria }}{% endif %}</div>
+                            </td>
+                            <td>
+                                <div class="small">{{ servico.descricao or '-' }}</div>
+                                <div class="small text-muted mt-1">{{ servico.unidade }} | {{ servico.regiao }}{% if servico.observacao %} | {{ servico.observacao[:90] }}{% if servico.observacao|length > 90 %}...{% endif %}{% endif %}</div>
+                            </td>
+                            <td class="text-end">
+                                <div class="cc-value-highlight">
+                                    {% if servico.preco_sob_consulta or servico.valor_sugerido is none %}
+                                    Preco sob consulta
+                                    {% else %}
+                                    {{ formata_brl(servico.valor_sugerido) }}
+                                    {% endif %}
+                                </div>
+                                {% if servico.valor_minimo is not none or servico.valor_maximo is not none %}
+                                <div class="small text-muted">
+                                    {% if servico.valor_minimo is not none %}Min {{ formata_brl(servico.valor_minimo) }}{% endif %}
+                                    {% if servico.valor_maximo is not none %} | Max {{ formata_brl(servico.valor_maximo) }}{% endif %}
+                                </div>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="cc-status-pill {% if servico.ativo %}is-active{% else %}is-inactive{% endif %}">
+                                    {{ 'Ativo' if servico.ativo else 'Inativo' }}
+                                </span>
+                            </td>
+                            <td class="text-end">
+                                <div class="d-flex flex-wrap justify-content-end gap-2">
+                                    <a href="{{ conectacasa_path('/servicos') }}?editar={{ servico.id }}" class="btn btn-sm btn-outline-dark rounded-pill px-3">Editar</a>
+                                    <form method="POST" class="d-inline">
+                                        <input type="hidden" name="acao" value="alternar">
+                                        <input type="hidden" name="servico_id" value="{{ servico.id }}">
+                                        <button type="submit" class="btn btn-sm btn-outline-secondary rounded-pill px-3">
+                                            {{ 'Desativar' if servico.ativo else 'Ativar' }}
+                                        </button>
+                                    </form>
+                                    <form method="POST" class="d-inline" onsubmit="return confirm('Excluir este servico?');">
+                                        <input type="hidden" name="acao" value="excluir">
+                                        <input type="hidden" name="servico_id" value="{{ servico.id }}">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-3">Excluir</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5" class="text-center text-muted py-4">Nenhum servico encontrado com os filtros atuais.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('servico-search')?.addEventListener('input', function () {
+    const termo = this.value.trim().toLowerCase();
+    document.querySelectorAll('#servicos-table tbody tr').forEach(function (row) {
+        const base = row.dataset.search || '';
+        row.style.display = !termo || base.includes(termo) ? '' : 'none';
+    });
+});
+
+const precoSobConsulta = document.getElementById('preco_sob_consulta');
+const valorMinimoInput = document.querySelector('[name="valor_minimo"]');
+const valorMaximoInput = document.querySelector('[name="valor_maximo"]');
+const valorSugeridoInput = document.querySelector('[name="valor_sugerido"]');
+
+function sincronizarCamposDePreco() {
+    const sobConsulta = precoSobConsulta?.checked;
+    [valorMinimoInput, valorMaximoInput, valorSugeridoInput].forEach(function (campo) {
+        if (!campo) return;
+        campo.disabled = !!sobConsulta;
+        if (sobConsulta) {
+            campo.value = '';
+        }
+    });
+}
+
+precoSobConsulta?.addEventListener('change', sincronizarCamposDePreco);
+valorMaximoInput?.addEventListener('blur', function () {
+    if (!valorSugeridoInput.value.trim() && this.value.trim()) {
+        valorSugeridoInput.value = this.value;
+    }
+});
+sincronizarCamposDePreco();
+</script>
+{% endblock %}

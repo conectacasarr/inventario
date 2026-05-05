@@ -1027,6 +1027,33 @@ def conectacasa_fontes_catalogo():
     }
 
 
+def conectacasa_unidades_servico():
+    return [
+        "diaria",
+        "unidade",
+        "metro",
+        "ponto",
+        "empreita",
+        "servico",
+        "projeto",
+    ]
+
+
+def conectacasa_categorias_servico():
+    return [
+        "Eletrica",
+        "Iluminacao e LED",
+        "Mao de obra",
+        "Instalacao eletrica",
+        "Manutencao eletrica",
+        "Infraestrutura eletrica",
+        "Quadros eletricos",
+        "Empreita eletrica",
+        "Automacao",
+        "Outros",
+    ]
+
+
 def conectacasa_catalogo_servicos_inicial():
     fontes = conectacasa_fontes_catalogo()
     norte_ref = "Valores da coluna Regiao Norte; mao de obra sem materiais, salvo observacao em contrario."
@@ -1195,14 +1222,153 @@ def conectacasa_seed_servicos_orcamento(conn):
             )
 
 
-def conectacasa_listar_servicos_orcamento(conn, categoria=None):
-    query = "SELECT * FROM servicos_orcamento WHERE ativo = 1"
+def conectacasa_obter_servico_orcamento(conn, servico_id):
+    servico = conn.execute("SELECT * FROM servicos_orcamento WHERE id = ?", (servico_id,)).fetchone()
+    return dict(servico) if servico else None
+
+
+def conectacasa_listar_servicos_orcamento(
+    conn,
+    categoria=None,
+    subcategoria=None,
+    unidade=None,
+    regiao=None,
+    ativo=None,
+    busca=None,
+):
+    query = "SELECT * FROM servicos_orcamento WHERE 1 = 1"
     params = []
+    if ativo is not None:
+        query += " AND ativo = ?"
+        params.append(1 if ativo else 0)
     if categoria:
         query += " AND categoria = ?"
         params.append(categoria)
-    query += " ORDER BY categoria, subcategoria, servico"
+    if subcategoria:
+        query += " AND COALESCE(subcategoria, '') = ?"
+        params.append(subcategoria)
+    if unidade:
+        query += " AND unidade = ?"
+        params.append(unidade)
+    if regiao:
+        query += " AND regiao = ?"
+        params.append(regiao)
+    if busca:
+        termo = f"%{busca.strip()}%"
+        query += """
+            AND (
+                servico LIKE ? OR
+                categoria LIKE ? OR
+                COALESCE(subcategoria, '') LIKE ? OR
+                COALESCE(descricao, '') LIKE ? OR
+                unidade LIKE ? OR
+                regiao LIKE ?
+            )
+        """
+        params.extend([termo, termo, termo, termo, termo, termo])
+    query += " ORDER BY ativo DESC, categoria, subcategoria, servico"
     return [dict(item) for item in conn.execute(query, params).fetchall()]
+
+
+def conectacasa_salvar_servico_orcamento(conn, form, servico_id=None):
+    categoria = (form.get("categoria") or "").strip()
+    subcategoria = (form.get("subcategoria") or "").strip()
+    servico = (form.get("servico") or "").strip()
+    descricao = (form.get("descricao") or "").strip()
+    unidade = (form.get("unidade") or "").strip() or "unidade"
+    regiao = (form.get("regiao") or "").strip() or "Norte"
+    observacao = (form.get("observacao") or "").strip()
+    fonte = (form.get("fonte") or "").strip() or "Cadastro manual ConectaCasa"
+    ativo = 1 if form.get("ativo") == "1" else 0
+    material_incluso = 1 if form.get("material_incluso") == "1" else 0
+    preco_sob_consulta = 1 if form.get("preco_sob_consulta") == "1" else 0
+
+    if not categoria:
+        return False, "Informe a categoria do servico."
+    if not servico:
+        return False, "Informe o nome do servico."
+    if not unidade:
+        return False, "Informe a unidade do servico."
+
+    def parse_valor(chave):
+        valor = (form.get(chave) or "").strip()
+        if not valor:
+            return None
+        try:
+            return float(valor.replace(",", "."))
+        except ValueError:
+            return None
+
+    valor_minimo = parse_valor("valor_minimo")
+    valor_maximo = parse_valor("valor_maximo")
+    valor_sugerido = parse_valor("valor_sugerido")
+
+    if preco_sob_consulta:
+        valor_minimo = None
+        valor_maximo = None
+        valor_sugerido = None
+    else:
+        if valor_sugerido is None and valor_maximo is not None:
+            valor_sugerido = valor_maximo
+        if valor_sugerido is None:
+            return False, "Informe o valor sugerido ou marque como preco sob consulta."
+        if valor_minimo is not None and valor_maximo is not None and valor_minimo > valor_maximo:
+            return False, "O valor minimo nao pode ser maior que o valor maximo."
+
+    valores = (
+        categoria,
+        subcategoria or None,
+        servico,
+        descricao,
+        unidade,
+        regiao,
+        valor_minimo,
+        valor_maximo,
+        valor_sugerido,
+        material_incluso,
+        observacao,
+        fonte,
+        ativo,
+        preco_sob_consulta,
+    )
+
+    if servico_id:
+        conn.execute(
+            """
+            UPDATE servicos_orcamento
+            SET categoria = ?, subcategoria = ?, servico = ?, descricao = ?, unidade = ?, regiao = ?,
+                valor_minimo = ?, valor_maximo = ?, valor_sugerido = ?, material_incluso = ?,
+                observacao = ?, fonte = ?, ativo = ?, preco_sob_consulta = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            valores + (servico_id,),
+        )
+    else:
+        conn.execute(
+            """
+            INSERT INTO servicos_orcamento (
+                categoria, subcategoria, servico, descricao, unidade, regiao,
+                valor_minimo, valor_maximo, valor_sugerido, material_incluso,
+                observacao, fonte, ativo, preco_sob_consulta, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            """,
+            valores,
+        )
+    conn.commit()
+    return True, None
+
+
+def conectacasa_servico_em_uso(conn, servico_id):
+    registros = conn.execute("SELECT itens_json FROM conectacasa_orcamentos").fetchall()
+    for registro in registros:
+        try:
+            itens = json.loads(registro["itens_json"] or "[]")
+        except (TypeError, json.JSONDecodeError):
+            continue
+        for item in itens:
+            if int(item.get("servico_base_id") or 0) == int(servico_id):
+                return True
+    return False
 
 
 def conectacasa_percentual_float(valor):
@@ -1290,7 +1456,16 @@ def conectacasa_mes_label(valor):
     return f"{nomes_meses[data_ref.month - 1]} de {data_ref.year}"
 
 
-def conectacasa_normalizar_item(descricao, quantidade, valor_unitario, unidade):
+def conectacasa_normalizar_item(
+    descricao,
+    quantidade,
+    valor_unitario,
+    unidade,
+    observacao=None,
+    acrescimo_pct=None,
+    acrescimo_motivo=None,
+    servico_base_id=None,
+):
     descricao = (descricao or "").strip()
     unidade = (unidade or "").strip() or "un"
     if not descricao:
@@ -1306,15 +1481,27 @@ def conectacasa_normalizar_item(descricao, quantidade, valor_unitario, unidade):
     except ValueError:
         valor_unitario = 0
 
+    try:
+        acrescimo_pct = float((acrescimo_pct or "0").replace(",", "."))
+    except ValueError:
+        acrescimo_pct = 0
+
     quantidade = max(quantidade, 0)
     valor_unitario = max(valor_unitario, 0)
-    total = round(quantidade * valor_unitario, 2)
+    acrescimo_pct = max(acrescimo_pct, 0)
+    subtotal = round(quantidade * valor_unitario, 2)
+    total = round(subtotal + (subtotal * (acrescimo_pct / 100)), 2)
 
     return {
         "descricao": descricao,
         "quantidade": quantidade,
         "unidade": unidade,
         "valor_unitario": valor_unitario,
+        "subtotal": subtotal,
+        "acrescimo_pct": acrescimo_pct,
+        "acrescimo_motivo": (acrescimo_motivo or "").strip(),
+        "observacao": (observacao or "").strip(),
+        "servico_base_id": int(servico_base_id or 0) if str(servico_base_id or "").isdigit() else None,
         "total": total,
     }
 
@@ -1324,10 +1511,32 @@ def conectacasa_itens_do_formulario(form):
     quantidades = form.getlist("item_quantidade[]")
     valores = form.getlist("item_valor[]")
     unidades = form.getlist("item_unidade[]")
+    observacoes = form.getlist("item_observacao[]")
+    acrescimos_pct = form.getlist("item_acrescimo_pct[]")
+    acrescimos_motivo = form.getlist("item_acrescimo_motivo[]")
+    servicos_base = form.getlist("item_servico_base_id[]")
 
     itens = []
-    for descricao, quantidade, valor_unitario, unidade in zip(descricoes, quantidades, valores, unidades):
-        item = conectacasa_normalizar_item(descricao, quantidade, valor_unitario, unidade)
+    for descricao, quantidade, valor_unitario, unidade, observacao, acrescimo_pct, acrescimo_motivo, servico_base_id in zip(
+        descricoes,
+        quantidades,
+        valores,
+        unidades,
+        observacoes,
+        acrescimos_pct,
+        acrescimos_motivo,
+        servicos_base,
+    ):
+        item = conectacasa_normalizar_item(
+            descricao,
+            quantidade,
+            valor_unitario,
+            unidade,
+            observacao=observacao,
+            acrescimo_pct=acrescimo_pct,
+            acrescimo_motivo=acrescimo_motivo,
+            servico_base_id=servico_base_id,
+        )
         if item:
             itens.append(item)
     return itens
@@ -2600,6 +2809,95 @@ def conectacasa_configuracoes():
 
     config = conectacasa_preparar_urls_config(config)
     return render_template("conectacasa_configuracoes.html", config=config)
+
+
+@app.route("/servicos", methods=["GET", "POST"])
+@app.route("/servicos/", methods=["GET", "POST"])
+@app.route("/conectacasa/servicos", methods=["GET", "POST"])
+@app.route("/conectacasa/servicos/", methods=["GET", "POST"])
+@conectacasa_required
+def conectacasa_servicos():
+    conn = get_db()
+    config = conectacasa_preparar_urls_config(conectacasa_obter_config(conn))
+    servico_id = request.form.get("servico_id") or request.args.get("editar")
+    servico_edicao = None
+
+    if request.method == "POST":
+        acao = (request.form.get("acao") or "salvar").strip()
+        if acao == "alternar":
+            alvo_id = int(request.form.get("servico_id") or 0)
+            servico = conectacasa_obter_servico_orcamento(conn, alvo_id)
+            if not servico:
+                flash("Servico nao encontrado.", "danger")
+            else:
+                conn.execute(
+                    "UPDATE servicos_orcamento SET ativo = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    (0 if servico.get("ativo") else 1, alvo_id),
+                )
+                conn.commit()
+                flash("Status do servico atualizado.", "success")
+            return redirect(conectacasa_path("/servicos"))
+        if acao == "excluir":
+            alvo_id = int(request.form.get("servico_id") or 0)
+            servico = conectacasa_obter_servico_orcamento(conn, alvo_id)
+            if not servico:
+                flash("Servico nao encontrado.", "danger")
+            elif conectacasa_servico_em_uso(conn, alvo_id):
+                flash("Este servico ja foi usado em orcamentos e nao pode ser excluido.", "warning")
+            else:
+                conn.execute("DELETE FROM servicos_orcamento WHERE id = ?", (alvo_id,))
+                conn.commit()
+                flash("Servico excluido com sucesso.", "success")
+            return redirect(conectacasa_path("/servicos"))
+
+        alvo_id = int(servico_id or 0) if str(servico_id or "").isdigit() else None
+        ok, erro = conectacasa_salvar_servico_orcamento(conn, request.form, servico_id=alvo_id)
+        if not ok:
+            flash(erro, "danger")
+            servico_edicao = dict(request.form)
+            servico_edicao["id"] = alvo_id
+        else:
+            flash("Servico salvo com sucesso.", "success")
+            return redirect(conectacasa_path("/servicos"))
+
+    categoria_filtro = (request.args.get("categoria") or "").strip()
+    subcategoria_filtro = (request.args.get("subcategoria") or "").strip()
+    unidade_filtro = (request.args.get("unidade") or "").strip()
+    regiao_filtro = (request.args.get("regiao") or "").strip()
+    busca = (request.args.get("q") or "").strip()
+    status_filtro = (request.args.get("status") or "todos").strip()
+    ativo = None if status_filtro == "todos" else 1 if status_filtro == "ativos" else 0
+    servicos = conectacasa_listar_servicos_orcamento(
+        conn,
+        categoria=categoria_filtro or None,
+        subcategoria=subcategoria_filtro or None,
+        unidade=unidade_filtro or None,
+        regiao=regiao_filtro or None,
+        ativo=ativo,
+        busca=busca or None,
+    )
+    if not servico_edicao and str(servico_id or "").isdigit():
+        servico_edicao = conectacasa_obter_servico_orcamento(conn, int(servico_id))
+    categorias = [row["categoria"] for row in conn.execute("SELECT DISTINCT categoria FROM servicos_orcamento ORDER BY categoria").fetchall()]
+    subcategorias = [row["subcategoria"] or "" for row in conn.execute("SELECT DISTINCT subcategoria FROM servicos_orcamento WHERE COALESCE(subcategoria, '') <> '' ORDER BY subcategoria").fetchall()]
+    regioes = [row["regiao"] for row in conn.execute("SELECT DISTINCT regiao FROM servicos_orcamento ORDER BY regiao").fetchall()]
+    return render_template(
+        "conectacasa_servicos.html",
+        config=config,
+        servicos=servicos,
+        categorias=categorias,
+        subcategorias=subcategorias,
+        regioes=regioes,
+        unidades=conectacasa_unidades_servico(),
+        categorias_base=conectacasa_categorias_servico(),
+        categoria_filtro=categoria_filtro,
+        subcategoria_filtro=subcategoria_filtro,
+        unidade_filtro=unidade_filtro,
+        regiao_filtro=regiao_filtro,
+        busca=busca,
+        status_filtro=status_filtro,
+        servico_edicao=servico_edicao,
+    )
 
 
 @app.route("/propagandas", methods=["GET", "POST"])
