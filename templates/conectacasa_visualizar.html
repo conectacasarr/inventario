@@ -103,9 +103,33 @@
             <div class="col-md-6">
                 <h3 class="h6 text-uppercase text-muted">Resumo</h3>
                 <div>Subtotal: <strong>{{ formata_brl(orcamento.subtotal) }}</strong></div>
+                <div>Acréscimos: <strong>{{ formata_brl(orcamento.acrescimo_total or 0) }}</strong></div>
                 <div>Desconto: <strong>{{ formata_brl(orcamento.desconto) }}</strong></div>
             </div>
         </div>
+
+        {% if (orcamento.acrescimo_noturno_pct or 0) or (orcamento.acrescimo_final_semana_pct or 0) or (orcamento.acrescimo_feriado_pct or 0) or (orcamento.acrescimo_dificil_pct or 0) or (orcamento.acrescimo_emergencia_pct or 0) %}
+        <div class="mb-4">
+            <h3 class="h6 text-uppercase text-muted">Acréscimos aplicados</h3>
+            <div class="row g-2">
+                {% if orcamento.acrescimo_noturno_pct %}
+                <div class="col-md-4">Noturno: <strong>{{ orcamento.acrescimo_noturno_pct }}%</strong></div>
+                {% endif %}
+                {% if orcamento.acrescimo_final_semana_pct %}
+                <div class="col-md-4">Fim de semana: <strong>{{ orcamento.acrescimo_final_semana_pct }}%</strong></div>
+                {% endif %}
+                {% if orcamento.acrescimo_feriado_pct %}
+                <div class="col-md-4">Feriado: <strong>{{ orcamento.acrescimo_feriado_pct }}%</strong></div>
+                {% endif %}
+                {% if orcamento.acrescimo_dificil_pct %}
+                <div class="col-md-6">Dificil acesso / altura / risco: <strong>{{ orcamento.acrescimo_dificil_pct }}%</strong></div>
+                {% endif %}
+                {% if orcamento.acrescimo_emergencia_pct %}
+                <div class="col-md-6">Emergencia: <strong>{{ orcamento.acrescimo_emergencia_pct }}%</strong></div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
 
         {% if orcamento.descricao %}
         <div class="mb-4">
@@ -220,6 +244,7 @@
                 <div class="col-5">
                     <div class="small text-uppercase fw-bold text-muted mb-3">Resumo</div>
                     <div class="d-flex justify-content-between mb-2"><span>Subtotal</span><strong>{{ formata_brl(orcamento.subtotal) }}</strong></div>
+                    <div class="d-flex justify-content-between mb-2"><span>Acréscimos</span><strong>{{ formata_brl(orcamento.acrescimo_total or 0) }}</strong></div>
                     <div class="d-flex justify-content-between mb-2"><span>Desconto</span><strong>{{ formata_brl(orcamento.desconto) }}</strong></div>
                     <div class="d-flex justify-content-between mb-4"><span>Status</span><strong>{{ orcamento.status_label }}</strong></div>
                     <div class="p-4 rounded-4" style="background:#fff8ef;">

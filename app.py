@@ -463,12 +463,41 @@ def conectacasa_criar_tabelas():
             validade_dias INTEGER NOT NULL DEFAULT 7,
             desconto REAL NOT NULL DEFAULT 0,
             subtotal REAL NOT NULL DEFAULT 0,
+            acrescimo_total REAL NOT NULL DEFAULT 0,
+            acrescimo_noturno_pct REAL NOT NULL DEFAULT 0,
+            acrescimo_final_semana_pct REAL NOT NULL DEFAULT 0,
+            acrescimo_feriado_pct REAL NOT NULL DEFAULT 0,
+            acrescimo_dificil_pct REAL NOT NULL DEFAULT 0,
+            acrescimo_emergencia_pct REAL NOT NULL DEFAULT 0,
             valor_total REAL NOT NULL DEFAULT 0,
             itens_json TEXT NOT NULL,
             criado_por INTEGER,
             criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             atualizado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (criado_por) REFERENCES usuarios(id)
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS servicos_orcamento (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            categoria TEXT NOT NULL,
+            subcategoria TEXT,
+            servico TEXT NOT NULL,
+            descricao TEXT,
+            unidade TEXT NOT NULL,
+            regiao TEXT NOT NULL,
+            valor_minimo REAL,
+            valor_maximo REAL,
+            valor_sugerido REAL,
+            material_incluso INTEGER NOT NULL DEFAULT 0,
+            observacao TEXT,
+            fonte TEXT,
+            ativo INTEGER NOT NULL DEFAULT 1,
+            preco_sob_consulta INTEGER NOT NULL DEFAULT 0,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
         """
     )
@@ -509,9 +538,22 @@ def conectacasa_criar_tabelas():
     adicionar_coluna_se_faltar(conn, "conectacasa_config", "acesso_usuario", "TEXT NOT NULL DEFAULT 'admin'")
     adicionar_coluna_se_faltar(conn, "conectacasa_config", "acesso_senha_hash", "TEXT")
     adicionar_coluna_se_faltar(conn, "conectacasa_config", "pix_imagem_path", "TEXT")
+    adicionar_coluna_se_faltar(conn, "conectacasa_orcamentos", "acrescimo_total", "REAL NOT NULL DEFAULT 0")
+    adicionar_coluna_se_faltar(conn, "conectacasa_orcamentos", "acrescimo_noturno_pct", "REAL NOT NULL DEFAULT 0")
+    adicionar_coluna_se_faltar(conn, "conectacasa_orcamentos", "acrescimo_final_semana_pct", "REAL NOT NULL DEFAULT 0")
+    adicionar_coluna_se_faltar(conn, "conectacasa_orcamentos", "acrescimo_feriado_pct", "REAL NOT NULL DEFAULT 0")
+    adicionar_coluna_se_faltar(conn, "conectacasa_orcamentos", "acrescimo_dificil_pct", "REAL NOT NULL DEFAULT 0")
+    adicionar_coluna_se_faltar(conn, "conectacasa_orcamentos", "acrescimo_emergencia_pct", "REAL NOT NULL DEFAULT 0")
+    adicionar_coluna_se_faltar(conn, "servicos_orcamento", "preco_sob_consulta", "INTEGER NOT NULL DEFAULT 0")
     adicionar_coluna_se_faltar(conn, "conectacasa_orcamentos", "audio_path", "TEXT")
     adicionar_coluna_se_faltar(conn, "conectacasa_orcamentos", "audio_transcricao", "TEXT")
     adicionar_coluna_se_faltar(conn, "conectacasa_orcamentos", "audio_observacoes", "TEXT")
+    conn.execute(
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_servicos_orcamento_unique
+        ON servicos_orcamento (categoria, COALESCE(subcategoria, ''), servico, regiao)
+        """
+    )
     conn.execute(
         """
         INSERT INTO conectacasa_config (id, empresa_nome)
@@ -525,6 +567,7 @@ def conectacasa_criar_tabelas():
             "UPDATE conectacasa_config SET acesso_senha_hash = ? WHERE id = 1",
             (generate_password_hash("conectacasa123"),),
         )
+    conectacasa_seed_servicos_orcamento(conn)
     conn.commit()
 
 
@@ -977,6 +1020,198 @@ def conectacasa_listar_promos(conn, somente_ativos=False):
     return [conectacasa_preparar_promo(item) for item in registros]
 
 
+def conectacasa_fontes_catalogo():
+    return {
+        "guia": "Tabela de Preço - Guia do Eletricista 2026..pdf",
+        "led": "Tabela de Preços ILUMINAÇÃO de Led.pdf",
+    }
+
+
+def conectacasa_catalogo_servicos_inicial():
+    fontes = conectacasa_fontes_catalogo()
+    norte_ref = "Valores da coluna Regiao Norte; mao de obra sem materiais, salvo observacao em contrario."
+    led_ref = "Valor nacional usado como referencia."
+    return [
+        {"categoria": "Diarias", "subcategoria": "Eletricista", "servico": "Eletricista experiente", "descricao": "Diaria do eletricista experiente.", "unidade": "diaria", "regiao": "Norte", "valor_minimo": 240.0, "valor_maximo": 395.0, "valor_sugerido": 395.0, "material_incluso": 0, "observacao": norte_ref, "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Diarias", "subcategoria": "Eletricista", "servico": "Eletricista intermediario", "descricao": "Diaria do eletricista intermediario.", "unidade": "diaria", "regiao": "Norte", "valor_minimo": 220.0, "valor_maximo": 340.0, "valor_sugerido": 340.0, "material_incluso": 0, "observacao": norte_ref, "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Diarias", "subcategoria": "Eletricista", "servico": "Eletricista meio oficial", "descricao": "Diaria do eletricista meio oficial.", "unidade": "diaria", "regiao": "Norte", "valor_minimo": 155.0, "valor_maximo": 250.0, "valor_sugerido": 250.0, "material_incluso": 0, "observacao": norte_ref, "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Diarias", "subcategoria": "Ajudante", "servico": "Ajudante experiente", "descricao": "Diaria do ajudante experiente.", "unidade": "diaria", "regiao": "Norte", "valor_minimo": 135.0, "valor_maximo": 240.0, "valor_sugerido": 240.0, "material_incluso": 0, "observacao": norte_ref, "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Diarias", "subcategoria": "Ajudante", "servico": "Ajudante intermediario", "descricao": "Diaria do ajudante intermediario.", "unidade": "diaria", "regiao": "Norte", "valor_minimo": 115.0, "valor_maximo": 200.0, "valor_sugerido": 200.0, "material_incluso": 0, "observacao": norte_ref, "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Diarias", "subcategoria": "Ajudante", "servico": "Ajudante iniciante", "descricao": "Diaria do ajudante iniciante.", "unidade": "diaria", "regiao": "Norte", "valor_minimo": 95.0, "valor_maximo": 180.0, "valor_sugerido": 180.0, "material_incluso": 0, "observacao": norte_ref, "fonte": fontes["guia"], "preco_sob_consulta": 0},
+
+        {"categoria": "Instalacoes por tipo de imovel", "subcategoria": "Residencial", "servico": "Casa terrea popular ate 70 m2", "descricao": "Valor por ponto para instalacao eletrica basica.", "unidade": "ponto", "regiao": "Norte", "valor_minimo": 85.0, "valor_maximo": 120.0, "valor_sugerido": 120.0, "material_incluso": 0, "observacao": "Cobre tubulacao, fiacao, conexoes e testes. Materiais a parte.", "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Instalacoes por tipo de imovel", "subcategoria": "Residencial", "servico": "Casa padrao medio 70 a 150 m2", "descricao": "Instalacao completa por ponto.", "unidade": "ponto", "regiao": "Norte", "valor_minimo": 105.0, "valor_maximo": 165.0, "valor_sugerido": 165.0, "material_incluso": 0, "observacao": "Inclui distribuicao de circuitos e montagem de QDC de 12 a 24 disjuntores.", "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Instalacoes por tipo de imovel", "subcategoria": "Residencial", "servico": "Sobrado 150 a 250 m2", "descricao": "Instalacao completa de dois pavimentos por ponto.", "unidade": "ponto", "regiao": "Norte", "valor_minimo": 145.0, "valor_maximo": 210.0, "valor_sugerido": 210.0, "material_incluso": 0, "observacao": "Necessario projeto eletrico.", "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Instalacoes por tipo de imovel", "subcategoria": "Residencial", "servico": "Residencia de alto padrao acima de 250 m2", "descricao": "Infraestrutura e distribuicao por ponto.", "unidade": "ponto", "regiao": "Norte", "valor_minimo": 200.0, "valor_maximo": 310.0, "valor_sugerido": 310.0, "material_incluso": 0, "observacao": "Pode variar conforme automacao e cabeamento estruturado.", "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Instalacoes por tipo de imovel", "subcategoria": "Residencial", "servico": "Kitnet ou estudio ate 40 m2", "descricao": "Instalacao simples com ate 10 pontos.", "unidade": "ponto", "regiao": "Norte", "valor_minimo": 75.0, "valor_maximo": 110.0, "valor_sugerido": 110.0, "material_incluso": 0, "observacao": "Ideal para obras rapidas e padrao economico.", "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Instalacoes por tipo de imovel", "subcategoria": "Residencial", "servico": "Area externa garagem varanda", "descricao": "Pontos de iluminacao e tomadas externas.", "unidade": "ponto", "regiao": "Norte", "valor_minimo": 65.0, "valor_maximo": 95.0, "valor_sugerido": 95.0, "material_incluso": 0, "observacao": "Varia conforme protecao IP65/IP67.", "fonte": fontes["guia"], "preco_sob_consulta": 0},
+
+        {"categoria": "Edificios e condominios", "subcategoria": "Predial", "servico": "Apartamento pequeno ate 60 m2", "descricao": "Instalacao simples e QDC ate 24 disjuntores.", "unidade": "ponto", "regiao": "Norte", "valor_minimo": 95.0, "valor_maximo": 140.0, "valor_sugerido": 140.0, "material_incluso": 0, "observacao": "Avaliar pontos complexos para precificacao.", "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Edificios e condominios", "subcategoria": "Predial", "servico": "Apartamento medio 60 a 120 m2", "descricao": "Instalacao eletrica completa por ponto.", "unidade": "ponto", "regiao": "Norte", "valor_minimo": 130.0, "valor_maximo": 190.0, "valor_sugerido": 190.0, "material_incluso": 0, "observacao": "Materiais e mao de obra em areas comuns podem ser cobrados a parte.", "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Edificios e condominios", "subcategoria": "Predial", "servico": "Apartamento grande acima de 120 m2", "descricao": "Instalacao de alta complexidade.", "unidade": "ponto", "regiao": "Norte", "valor_minimo": 185.0, "valor_maximo": 280.0, "valor_sugerido": 280.0, "material_incluso": 0, "observacao": "Requer projeto e laudo eletrico conforme NBR 5410.", "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Edificios e condominios", "subcategoria": "Predial", "servico": "Areas comuns de condominio", "descricao": "Iluminacao de garagem, halls, portarias, interfones e quadros.", "unidade": "ponto", "regiao": "Norte", "valor_minimo": 70.0, "valor_maximo": 120.0, "valor_sugerido": 120.0, "material_incluso": 0, "observacao": "Pode incluir eletrocalhas e caixas de passagem.", "fonte": fontes["guia"], "preco_sob_consulta": 0},
+
+        {"categoria": "Estabelecimentos comerciais", "subcategoria": "Comercial", "servico": "Loja de pequeno porte ate 60 m2", "descricao": "Instalacao com ate 20 pontos e quadro de 12 disjuntores.", "unidade": "ponto", "regiao": "Norte", "valor_minimo": 120.0, "valor_maximo": 180.0, "valor_sugerido": 180.0, "material_incluso": 0, "observacao": "Inclui tomadas, iluminacao e circuito de ar-condicionado.", "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Estabelecimentos comerciais", "subcategoria": "Comercial", "servico": "Loja media 60 a 150 m2", "descricao": "Instalacao completa de iluminacao, tomadas e cargas especificas.", "unidade": "ponto", "regiao": "Norte", "valor_minimo": 160.0, "valor_maximo": 240.0, "valor_sugerido": 240.0, "material_incluso": 0, "observacao": "Lojas de shopping podem receber acrescimo de 35% no valor total.", "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Estabelecimentos comerciais", "subcategoria": "Comercial", "servico": "Restaurante bar lanchonete", "descricao": "Instalacao com circuitos de equipamentos de alta carga.", "unidade": "ponto", "regiao": "Norte", "valor_minimo": 200.0, "valor_maximo": 290.0, "valor_sugerido": 290.0, "material_incluso": 0, "observacao": "Atentar as normas aplicaveis ao tipo de estabelecimento.", "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Estabelecimentos comerciais", "subcategoria": "Comercial", "servico": "Escritorios e consultorios", "descricao": "Pontos de informatica e iluminacao comercial.", "unidade": "ponto", "regiao": "Norte", "valor_minimo": 130.0, "valor_maximo": 200.0, "valor_sugerido": 200.0, "material_incluso": 0, "observacao": "Atentar as normas ABNT NBR aplicaveis.", "fonte": fontes["guia"], "preco_sob_consulta": 0},
+
+        {"categoria": "Instalacao geral por empreita", "subcategoria": "Casa medio padrao", "servico": "Casa 4 comodos", "descricao": "Empreita completa para casa de 4 comodos.", "unidade": "empreita", "regiao": "Norte", "valor_minimo": 2750.0, "valor_maximo": 3950.0, "valor_sugerido": 3950.0, "material_incluso": 0, "observacao": "Preco fechado por resultado entregue.", "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Instalacao geral por empreita", "subcategoria": "Casa medio padrao", "servico": "Casa 5 comodos", "descricao": "Empreita completa para casa de 5 comodos.", "unidade": "empreita", "regiao": "Norte", "valor_minimo": 3150.0, "valor_maximo": 4450.0, "valor_sugerido": 4450.0, "material_incluso": 0, "observacao": "Preco fechado por resultado entregue.", "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Instalacao geral por empreita", "subcategoria": "Casa medio padrao", "servico": "Casa 6 comodos", "descricao": "Empreita completa para casa de 6 comodos.", "unidade": "empreita", "regiao": "Norte", "valor_minimo": 3650.0, "valor_maximo": 5350.0, "valor_sugerido": 5350.0, "material_incluso": 0, "observacao": "Preco fechado por resultado entregue.", "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Instalacao geral por empreita", "subcategoria": "Sobrado", "servico": "Sobrado 5 comodos", "descricao": "Empreita completa para sobrado de 5 comodos.", "unidade": "empreita", "regiao": "Norte", "valor_minimo": 2650.0, "valor_maximo": 4550.0, "valor_sugerido": 4550.0, "material_incluso": 0, "observacao": "Preco fechado por resultado entregue.", "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Instalacao geral por empreita", "subcategoria": "Sobrado", "servico": "Sobrado 6 comodos", "descricao": "Empreita completa para sobrado de 6 comodos.", "unidade": "empreita", "regiao": "Norte", "valor_minimo": 4100.0, "valor_maximo": 6000.0, "valor_sugerido": 6000.0, "material_incluso": 0, "observacao": "Preco fechado por resultado entregue.", "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Instalacao geral por empreita", "subcategoria": "Sobrado", "servico": "Sobrado 7 comodos", "descricao": "Empreita completa para sobrado de 7 comodos.", "unidade": "empreita", "regiao": "Norte", "valor_minimo": 4650.0, "valor_maximo": 6650.0, "valor_sugerido": 6650.0, "material_incluso": 0, "observacao": "Preco fechado por resultado entregue.", "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Instalacao geral por empreita", "subcategoria": "Sobrado", "servico": "Sobrado 8 comodos", "descricao": "Empreita completa para sobrado de 8 comodos.", "unidade": "empreita", "regiao": "Norte", "valor_minimo": 5050.0, "valor_maximo": 7150.0, "valor_sugerido": 7150.0, "material_incluso": 0, "observacao": "Preco fechado por resultado entregue.", "fonte": fontes["guia"], "preco_sob_consulta": 0},
+
+        {"categoria": "Quadros eletricos", "subcategoria": "QDC", "servico": "Quadro eletrico 16 disjuntores", "descricao": "Montagem e instalacao de quadro eletrico.", "unidade": "quadro", "regiao": "Norte", "valor_minimo": 520.0, "valor_maximo": 870.0, "valor_sugerido": 870.0, "material_incluso": 0, "observacao": "DPS e IDR obrigatorios; materiais a parte.", "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Quadros eletricos", "subcategoria": "QDC", "servico": "Quadro eletrico 24 disjuntores", "descricao": "Montagem e instalacao de quadro eletrico.", "unidade": "quadro", "regiao": "Norte", "valor_minimo": 820.0, "valor_maximo": 1250.0, "valor_sugerido": 1250.0, "material_incluso": 0, "observacao": "DPS e IDR obrigatorios; materiais a parte.", "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Quadros eletricos", "subcategoria": "QDC", "servico": "Quadro eletrico 32 disjuntores", "descricao": "Montagem e instalacao de quadro eletrico.", "unidade": "quadro", "regiao": "Norte", "valor_minimo": 1050.0, "valor_maximo": 1550.0, "valor_sugerido": 1550.0, "material_incluso": 0, "observacao": "DPS e IDR obrigatorios; materiais a parte.", "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Quadros eletricos", "subcategoria": "QDC", "servico": "Quadro eletrico 48 disjuntores", "descricao": "Montagem e instalacao de quadro eletrico.", "unidade": "quadro", "regiao": "Norte", "valor_minimo": 1350.0, "valor_maximo": 2000.0, "valor_sugerido": 2000.0, "material_incluso": 0, "observacao": "DPS e IDR obrigatorios; materiais a parte.", "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Quadros eletricos", "subcategoria": "QDC", "servico": "Quadro eletrico 50 disjuntores", "descricao": "Montagem e instalacao de quadro eletrico.", "unidade": "quadro", "regiao": "Norte", "valor_minimo": 1550.0, "valor_maximo": 2200.0, "valor_sugerido": 2200.0, "material_incluso": 0, "observacao": "DPS e IDR obrigatorios; materiais a parte.", "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Quadros eletricos", "subcategoria": "QDC", "servico": "Quadro eletrico 72 disjuntores", "descricao": "Montagem e instalacao de quadro eletrico.", "unidade": "quadro", "regiao": "Norte", "valor_minimo": 2100.0, "valor_maximo": 2800.0, "valor_sugerido": 2800.0, "material_incluso": 0, "observacao": "DPS e IDR obrigatorios; materiais a parte.", "fonte": fontes["guia"], "preco_sob_consulta": 0},
+
+        {"categoria": "Infraestrutura por metro", "subcategoria": "Infraestrutura", "servico": "Eletroduto galvanizado", "descricao": "Instalacao por metro.", "unidade": "metro", "regiao": "Norte", "valor_minimo": 24.0, "valor_maximo": 48.0, "valor_sugerido": 48.0, "material_incluso": 0, "observacao": norte_ref, "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Infraestrutura por metro", "subcategoria": "Infraestrutura", "servico": "Calha perfurada", "descricao": "Instalacao por metro.", "unidade": "metro", "regiao": "Norte", "valor_minimo": 25.0, "valor_maximo": 95.0, "valor_sugerido": 95.0, "material_incluso": 0, "observacao": norte_ref, "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Infraestrutura por metro", "subcategoria": "Infraestrutura", "servico": "Eletroduto corrugado", "descricao": "Instalacao por metro.", "unidade": "metro", "regiao": "Norte", "valor_minimo": 18.0, "valor_maximo": 38.0, "valor_sugerido": 38.0, "material_incluso": 0, "observacao": norte_ref, "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Infraestrutura por metro", "subcategoria": "Infraestrutura", "servico": "Passagem de cabo em calha", "descricao": "Passagem de cabo por metro.", "unidade": "metro", "regiao": "Norte", "valor_minimo": 14.0, "valor_maximo": 32.0, "valor_sugerido": 32.0, "material_incluso": 0, "observacao": norte_ref, "fonte": fontes["guia"], "preco_sob_consulta": 0},
+
+        {"categoria": "Caixas e passagem", "subcategoria": "Caixas", "servico": "Caixa 4x2 instalacao", "descricao": "Instalacao de caixa 4x2.", "unidade": "unidade", "regiao": "Norte", "valor_minimo": 10.0, "valor_maximo": 25.0, "valor_sugerido": 25.0, "material_incluso": 0, "observacao": norte_ref, "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Caixas e passagem", "subcategoria": "Caixas", "servico": "Caixa 4x4 instalacao", "descricao": "Instalacao de caixa 4x4.", "unidade": "unidade", "regiao": "Norte", "valor_minimo": 20.0, "valor_maximo": 50.0, "valor_sugerido": 50.0, "material_incluso": 0, "observacao": norte_ref, "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Caixas e passagem", "subcategoria": "Caixas", "servico": "Caixa de passagem embutir", "descricao": "Instalacao de caixa de passagem.", "unidade": "unidade", "regiao": "Norte", "valor_minimo": 18.0, "valor_maximo": 55.0, "valor_sugerido": 55.0, "material_incluso": 0, "observacao": norte_ref, "fonte": fontes["guia"], "preco_sob_consulta": 0},
+
+        {"categoria": "Servicos de instalacao e manutencao eletrica", "subcategoria": "Manutencao", "servico": "Troca dos condutores do chuveiro", "descricao": "Substituicao dos condutores do chuveiro.", "unidade": "servico", "regiao": "Norte", "valor_minimo": 80.0, "valor_maximo": 145.0, "valor_sugerido": 145.0, "material_incluso": 0, "observacao": norte_ref, "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Servicos de instalacao e manutencao eletrica", "subcategoria": "Manutencao", "servico": "Troca de disjuntor simples", "descricao": "Troca de disjuntor simples.", "unidade": "servico", "regiao": "Norte", "valor_minimo": 32.0, "valor_maximo": 55.0, "valor_sugerido": 55.0, "material_incluso": 0, "observacao": norte_ref, "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Servicos de instalacao e manutencao eletrica", "subcategoria": "Protecao", "servico": "Instalacao de disjuntor DR", "descricao": "Instalacao de disjuntor DR.", "unidade": "servico", "regiao": "Norte", "valor_minimo": 52.0, "valor_maximo": 95.0, "valor_sugerido": 95.0, "material_incluso": 0, "observacao": norte_ref, "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Servicos de instalacao e manutencao eletrica", "subcategoria": "Tomadas e interruptores", "servico": "Instalacao de ponto de tomada", "descricao": "Instalacao de ponto de tomada.", "unidade": "ponto", "regiao": "Norte", "valor_minimo": 48.0, "valor_maximo": 85.0, "valor_sugerido": 85.0, "material_incluso": 0, "observacao": "Ligacao ao circuito existente proximo.", "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Servicos de instalacao e manutencao eletrica", "subcategoria": "Tomadas e interruptores", "servico": "Instalacao de tomada 220V", "descricao": "Instalacao de tomada 220V.", "unidade": "ponto", "regiao": "Norte", "valor_minimo": 62.0, "valor_maximo": 115.0, "valor_sugerido": 115.0, "material_incluso": 0, "observacao": "Nao inclui novo circuito dedicado.", "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Servicos de instalacao e manutencao eletrica", "subcategoria": "Tomadas e interruptores", "servico": "Instalacao de interruptor simples", "descricao": "Instalacao de interruptor simples.", "unidade": "unidade", "regiao": "Norte", "valor_minimo": 25.0, "valor_maximo": 48.0, "valor_sugerido": 48.0, "material_incluso": 0, "observacao": norte_ref, "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Servicos de instalacao e manutencao eletrica", "subcategoria": "Tomadas e interruptores", "servico": "Instalacao de interruptor paralelo", "descricao": "Instalacao de interruptor paralelo.", "unidade": "unidade", "regiao": "Norte", "valor_minimo": 52.0, "valor_maximo": 78.0, "valor_sugerido": 78.0, "material_incluso": 0, "observacao": norte_ref, "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Servicos de instalacao e manutencao eletrica", "subcategoria": "Iluminacao", "servico": "Instalacao de ponto de iluminacao", "descricao": "Instalacao de ponto de iluminacao.", "unidade": "ponto", "regiao": "Norte", "valor_minimo": 42.0, "valor_maximo": 75.0, "valor_sugerido": 75.0, "material_incluso": 0, "observacao": norte_ref, "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Servicos de instalacao e manutencao eletrica", "subcategoria": "Iluminacao", "servico": "Troca de chuveiro eletrico", "descricao": "Troca de chuveiro eletrico.", "unidade": "servico", "regiao": "Norte", "valor_minimo": 80.0, "valor_maximo": 145.0, "valor_sugerido": 145.0, "material_incluso": 0, "observacao": "Nao inclui adequacao de circuito.", "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Servicos de instalacao e manutencao eletrica", "subcategoria": "Iluminacao", "servico": "Instalacao de luminaria de teto", "descricao": "Instalacao de luminaria de teto.", "unidade": "unidade", "regiao": "Norte", "valor_minimo": 65.0, "valor_maximo": 125.0, "valor_sugerido": 125.0, "material_incluso": 0, "observacao": norte_ref, "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Servicos de instalacao e manutencao eletrica", "subcategoria": "LED", "servico": "Instalacao de perfil de LED embutido", "descricao": "Instalacao de perfil de LED embutido por metro.", "unidade": "metro", "regiao": "Norte", "valor_minimo": 65.0, "valor_maximo": 125.0, "valor_sugerido": 125.0, "material_incluso": 0, "observacao": "Acabamento e embutimento nao inclusos.", "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Servicos de instalacao e manutencao eletrica", "subcategoria": "Iluminacao", "servico": "Instalacao de ventilador de teto", "descricao": "Instalacao de ventilador de teto.", "unidade": "unidade", "regiao": "Norte", "valor_minimo": 100.0, "valor_maximo": 190.0, "valor_sugerido": 190.0, "material_incluso": 0, "observacao": norte_ref, "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Servicos de instalacao e manutencao eletrica", "subcategoria": "Manutencao", "servico": "Reparo de curto-circuito", "descricao": "Diagnostico e reparo de curto-circuito.", "unidade": "servico", "regiao": "Norte", "valor_minimo": 80.0, "valor_maximo": 135.0, "valor_sugerido": 135.0, "material_incluso": 0, "observacao": "Pode variar conforme necessidade de rastreamento.", "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Servicos de instalacao e manutencao eletrica", "subcategoria": "Iluminacao", "servico": "Instalacao de arandela de parede", "descricao": "Instalacao de arandela de parede.", "unidade": "unidade", "regiao": "Norte", "valor_minimo": 40.0, "valor_maximo": 75.0, "valor_sugerido": 75.0, "material_incluso": 0, "observacao": norte_ref, "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Servicos de instalacao e manutencao eletrica", "subcategoria": "Automacao", "servico": "Instalacao de campainha eletrica", "descricao": "Instalacao de campainha eletrica.", "unidade": "unidade", "regiao": "Norte", "valor_minimo": 52.0, "valor_maximo": 95.0, "valor_sugerido": 95.0, "material_incluso": 0, "observacao": norte_ref, "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Servicos de instalacao e manutencao eletrica", "subcategoria": "Automacao", "servico": "Instalacao de sensor de presenca", "descricao": "Instalacao de sensor de presenca.", "unidade": "unidade", "regiao": "Norte", "valor_minimo": 80.0, "valor_maximo": 145.0, "valor_sugerido": 145.0, "material_incluso": 0, "observacao": norte_ref, "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Servicos de instalacao e manutencao eletrica", "subcategoria": "Climatizacao", "servico": "Instalacao de fiacao para ar-condicionado", "descricao": "Instalacao de fiacao para ar-condicionado.", "unidade": "servico", "regiao": "Norte", "valor_minimo": 195.0, "valor_maximo": 370.0, "valor_sugerido": 370.0, "material_incluso": 0, "observacao": "Nao inclui material e novo circuito no quadro.", "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Servicos de instalacao e manutencao eletrica", "subcategoria": "Automacao", "servico": "Instalacao de dimmer", "descricao": "Instalacao de dimmer para controle de intensidade.", "unidade": "unidade", "regiao": "Norte", "valor_minimo": 55.0, "valor_maximo": 95.0, "valor_sugerido": 95.0, "material_incluso": 0, "observacao": norte_ref, "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Servicos de instalacao e manutencao eletrica", "subcategoria": "Tomadas e interruptores", "servico": "Instalacao de tomada USB", "descricao": "Instalacao de tomada USB.", "unidade": "unidade", "regiao": "Norte", "valor_minimo": 42.0, "valor_maximo": 75.0, "valor_sugerido": 75.0, "material_incluso": 0, "observacao": norte_ref, "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Servicos de instalacao e manutencao eletrica", "subcategoria": "Infraestrutura", "servico": "Passagem de conduite em parede", "descricao": "Passagem de conduite em parede por metro.", "unidade": "metro", "regiao": "Norte", "valor_minimo": 15.0, "valor_maximo": 25.0, "valor_sugerido": 25.0, "material_incluso": 0, "observacao": "Nao inclui conduites e acabamento civil.", "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Servicos de instalacao e manutencao eletrica", "subcategoria": "Iluminacao", "servico": "Troca de lampada de LED", "descricao": "Troca de lampada de LED por unidade.", "unidade": "unidade", "regiao": "Norte", "valor_minimo": 12.0, "valor_maximo": 20.0, "valor_sugerido": 20.0, "material_incluso": 0, "observacao": norte_ref, "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Servicos de instalacao e manutencao eletrica", "subcategoria": "Automacao", "servico": "Instalacao de interruptor remoto Wi-Fi", "descricao": "Instalacao de interruptor remoto Wi-Fi.", "unidade": "unidade", "regiao": "Norte", "valor_minimo": 80.0, "valor_maximo": 140.0, "valor_sugerido": 140.0, "material_incluso": 0, "observacao": norte_ref, "fonte": fontes["guia"], "preco_sob_consulta": 0},
+
+        {"categoria": "Acrescimos e observacoes tecnicas", "subcategoria": "Percentuais", "servico": "Trabalho noturno", "descricao": "Acrescimo percentual sobre o valor base.", "unidade": "percentual", "regiao": "Norte", "valor_minimo": 25.0, "valor_maximo": 30.0, "valor_sugerido": 25.0, "material_incluso": 0, "observacao": "Aplicar sobre o valor base do servico.", "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Acrescimos e observacoes tecnicas", "subcategoria": "Percentuais", "servico": "Final de semana", "descricao": "Acrescimo percentual sobre o valor base.", "unidade": "percentual", "regiao": "Norte", "valor_minimo": 30.0, "valor_maximo": 50.0, "valor_sugerido": 30.0, "material_incluso": 0, "observacao": "Aplicar conforme urgencia.", "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Acrescimos e observacoes tecnicas", "subcategoria": "Percentuais", "servico": "Feriado", "descricao": "Acrescimo percentual sobre o valor base.", "unidade": "percentual", "regiao": "Norte", "valor_minimo": 50.0, "valor_maximo": 50.0, "valor_sugerido": 50.0, "material_incluso": 0, "observacao": "Aplicar sobre o valor base do servico.", "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Acrescimos e observacoes tecnicas", "subcategoria": "Percentuais", "servico": "Dificil acesso altura ou risco", "descricao": "Acrescimo percentual sobre o valor base.", "unidade": "percentual", "regiao": "Norte", "valor_minimo": 15.0, "valor_maximo": 40.0, "valor_sugerido": 15.0, "material_incluso": 0, "observacao": "Aplicar conforme complexidade.", "fonte": fontes["guia"], "preco_sob_consulta": 0},
+        {"categoria": "Acrescimos e observacoes tecnicas", "subcategoria": "Percentuais", "servico": "Emergencia", "descricao": "Acrescimo percentual sobre o valor base.", "unidade": "percentual", "regiao": "Norte", "valor_minimo": 25.0, "valor_maximo": 100.0, "valor_sugerido": 25.0, "material_incluso": 0, "observacao": "Aplicar conforme urgencia e disponibilidade.", "fonte": fontes["guia"], "preco_sob_consulta": 0},
+
+        {"categoria": "Iluminacao e LED", "subcategoria": "Iluminacao", "servico": "Lampada simples com soquete", "descricao": "Instalacao de lampada com soquete simples no teto.", "unidade": "unidade", "regiao": "Nacional", "valor_minimo": 50.0, "valor_maximo": 80.0, "valor_sugerido": 80.0, "material_incluso": 0, "observacao": led_ref, "fonte": fontes["led"], "preco_sob_consulta": 0},
+        {"categoria": "Iluminacao e LED", "subcategoria": "Iluminacao", "servico": "Plafon pequeno ate 30 cm", "descricao": "Instalacao de plafon simples ou embutido.", "unidade": "unidade", "regiao": "Nacional", "valor_minimo": 70.0, "valor_maximo": 100.0, "valor_sugerido": 100.0, "material_incluso": 0, "observacao": led_ref, "fonte": fontes["led"], "preco_sob_consulta": 0},
+        {"categoria": "Iluminacao e LED", "subcategoria": "Iluminacao", "servico": "Plafon grande ou LED integrado", "descricao": "Instalacao de plafons grandes com conectores de LED integrado.", "unidade": "unidade", "regiao": "Nacional", "valor_minimo": 100.0, "valor_maximo": 150.0, "valor_sugerido": 150.0, "material_incluso": 0, "observacao": led_ref, "fonte": fontes["led"], "preco_sob_consulta": 0},
+        {"categoria": "Iluminacao e LED", "subcategoria": "Iluminacao", "servico": "Spot de embutir por unidade", "descricao": "Instalacao de spots em teto de gesso ou drywall.", "unidade": "unidade", "regiao": "Nacional", "valor_minimo": 30.0, "valor_maximo": 50.0, "valor_sugerido": 50.0, "material_incluso": 0, "observacao": led_ref, "fonte": fontes["led"], "preco_sob_consulta": 0},
+        {"categoria": "Iluminacao e LED", "subcategoria": "Iluminacao", "servico": "Kit de spots 3 a 5 unidades", "descricao": "Instalacao de kits em sequencia.", "unidade": "kit", "regiao": "Nacional", "valor_minimo": 120.0, "valor_maximo": 200.0, "valor_sugerido": 200.0, "material_incluso": 0, "observacao": led_ref, "fonte": fontes["led"], "preco_sob_consulta": 0},
+        {"categoria": "Iluminacao e LED", "subcategoria": "Iluminacao", "servico": "Pendente simples", "descricao": "Instalacao de pendente decorativo de pequeno porte.", "unidade": "unidade", "regiao": "Nacional", "valor_minimo": 90.0, "valor_maximo": 120.0, "valor_sugerido": 120.0, "material_incluso": 0, "observacao": led_ref, "fonte": fontes["led"], "preco_sob_consulta": 0},
+        {"categoria": "Iluminacao e LED", "subcategoria": "Iluminacao", "servico": "Pendente grande ou multiplo", "descricao": "Instalacao de pendentes maiores ou com varias lampadas.", "unidade": "unidade", "regiao": "Nacional", "valor_minimo": 150.0, "valor_maximo": 250.0, "valor_sugerido": 250.0, "material_incluso": 0, "observacao": led_ref, "fonte": fontes["led"], "preco_sob_consulta": 0},
+        {"categoria": "Iluminacao e LED", "subcategoria": "Iluminacao", "servico": "Lustre pequeno ou medio", "descricao": "Instalacao de lustres de ate 10kg com ligacao simples.", "unidade": "unidade", "regiao": "Nacional", "valor_minimo": 150.0, "valor_maximo": 250.0, "valor_sugerido": 250.0, "material_incluso": 0, "observacao": led_ref, "fonte": fontes["led"], "preco_sob_consulta": 0},
+        {"categoria": "Iluminacao e LED", "subcategoria": "Iluminacao", "servico": "Lustre grande ou de cristais", "descricao": "Instalacao de lustres grandes ou complexos.", "unidade": "unidade", "regiao": "Nacional", "valor_minimo": 300.0, "valor_maximo": 600.0, "valor_sugerido": 600.0, "material_incluso": 0, "observacao": led_ref, "fonte": fontes["led"], "preco_sob_consulta": 0},
+        {"categoria": "Iluminacao e LED", "subcategoria": "Iluminacao", "servico": "Arandela de parede", "descricao": "Instalacao de arandelas decorativas.", "unidade": "unidade", "regiao": "Nacional", "valor_minimo": 70.0, "valor_maximo": 120.0, "valor_sugerido": 120.0, "material_incluso": 0, "observacao": led_ref, "fonte": fontes["led"], "preco_sob_consulta": 0},
+        {"categoria": "Iluminacao e LED", "subcategoria": "Iluminacao", "servico": "Balizadores", "descricao": "Instalacao de balizadores embutidos ou fixados em parede.", "unidade": "unidade", "regiao": "Nacional", "valor_minimo": 70.0, "valor_maximo": 150.0, "valor_sugerido": 150.0, "material_incluso": 0, "observacao": led_ref, "fonte": fontes["led"], "preco_sob_consulta": 0},
+        {"categoria": "Iluminacao e LED", "subcategoria": "LED", "servico": "Fita de LED por metro", "descricao": "Instalacao de fita LED simples com fonte de alimentacao.", "unidade": "metro", "regiao": "Nacional", "valor_minimo": 40.0, "valor_maximo": 70.0, "valor_sugerido": 70.0, "material_incluso": 0, "observacao": led_ref, "fonte": fontes["led"], "preco_sob_consulta": 0},
+        {"categoria": "Iluminacao e LED", "subcategoria": "LED", "servico": "Perfil de LED com difusor por metro", "descricao": "Instalacao em perfis de aluminio para acabamento decorativo.", "unidade": "metro", "regiao": "Nacional", "valor_minimo": 70.0, "valor_maximo": 100.0, "valor_sugerido": 100.0, "material_incluso": 0, "observacao": led_ref, "fonte": fontes["led"], "preco_sob_consulta": 0},
+        {"categoria": "Iluminacao e LED", "subcategoria": "Iluminacao", "servico": "Ventilador de teto com iluminacao", "descricao": "Instalacao completa com ajustes e fixacao.", "unidade": "unidade", "regiao": "Nacional", "valor_minimo": 150.0, "valor_maximo": 300.0, "valor_sugerido": 300.0, "material_incluso": 0, "observacao": led_ref, "fonte": fontes["led"], "preco_sob_consulta": 0},
+        {"categoria": "Iluminacao e LED", "subcategoria": "Iluminacao", "servico": "Ajuste de ponto eletrico", "descricao": "Alteracao ou criacao de ponto eletrico para iluminacao.", "unidade": "ponto", "regiao": "Nacional", "valor_minimo": 80.0, "valor_maximo": 150.0, "valor_sugerido": 150.0, "material_incluso": 0, "observacao": led_ref, "fonte": fontes["led"], "preco_sob_consulta": 0},
+        {"categoria": "Iluminacao e LED", "subcategoria": "Automacao", "servico": "Sensor de presenca para iluminacao", "descricao": "Instalacao de sensor integrado em luminaria ou circuito.", "unidade": "unidade", "regiao": "Nacional", "valor_minimo": 100.0, "valor_maximo": 200.0, "valor_sugerido": 200.0, "material_incluso": 0, "observacao": led_ref, "fonte": fontes["led"], "preco_sob_consulta": 0},
+        {"categoria": "Iluminacao e LED", "subcategoria": "Decorativa", "servico": "Iluminacao no frame", "descricao": "Instalacao de lampadas ou fitas LED em molduras decorativas.", "unidade": "servico", "regiao": "Nacional", "valor_minimo": 150.0, "valor_maximo": 300.0, "valor_sugerido": 300.0, "material_incluso": 0, "observacao": led_ref, "fonte": fontes["led"], "preco_sob_consulta": 0},
+        {"categoria": "Iluminacao e LED", "subcategoria": "Decorativa", "servico": "Iluminacao em nicho ou sanca de gesso", "descricao": "Instalacao de iluminacao indireta em sancas ou nichos.", "unidade": "servico", "regiao": "Nacional", "valor_minimo": 100.0, "valor_maximo": 200.0, "valor_sugerido": 200.0, "material_incluso": 0, "observacao": led_ref, "fonte": fontes["led"], "preco_sob_consulta": 0},
+        {"categoria": "Iluminacao e LED", "subcategoria": "Decorativa", "servico": "Iluminacao de quadro foco", "descricao": "Instalacao de focos direcionados para quadros ou obras de arte.", "unidade": "servico", "regiao": "Nacional", "valor_minimo": 80.0, "valor_maximo": 150.0, "valor_sugerido": 150.0, "material_incluso": 0, "observacao": led_ref, "fonte": fontes["led"], "preco_sob_consulta": 0},
+        {"categoria": "Iluminacao e LED", "subcategoria": "Decorativa", "servico": "Iluminacao de jardim", "descricao": "Instalacao de spots ou fitas LED em jardins ou areas externas.", "unidade": "servico", "regiao": "Nacional", "valor_minimo": 100.0, "valor_maximo": 250.0, "valor_sugerido": 250.0, "material_incluso": 0, "observacao": led_ref, "fonte": fontes["led"], "preco_sob_consulta": 0},
+        {"categoria": "Iluminacao e LED", "subcategoria": "LED", "servico": "Fita de LED RGB por metro", "descricao": "Instalacao de fita RGB com fonte e controlador.", "unidade": "metro", "regiao": "Nacional", "valor_minimo": 60.0, "valor_maximo": 90.0, "valor_sugerido": 90.0, "material_incluso": 0, "observacao": led_ref, "fonte": fontes["led"], "preco_sob_consulta": 0},
+        {"categoria": "Iluminacao e LED", "subcategoria": "LED", "servico": "Perfil de aluminio por metro", "descricao": "Instalacao com difusores e fixacao em sancas, nichos ou paredes.", "unidade": "metro", "regiao": "Nacional", "valor_minimo": 70.0, "valor_maximo": 100.0, "valor_sugerido": 100.0, "material_incluso": 0, "observacao": led_ref, "fonte": fontes["led"], "preco_sob_consulta": 0},
+        {"categoria": "Iluminacao e LED", "subcategoria": "LED", "servico": "Perfil com fita LED RGB por metro", "descricao": "Instalacao com montagem de perfis e controle RGB.", "unidade": "metro", "regiao": "Nacional", "valor_minimo": 100.0, "valor_maximo": 150.0, "valor_sugerido": 150.0, "material_incluso": 0, "observacao": led_ref, "fonte": fontes["led"], "preco_sob_consulta": 0},
+        {"categoria": "Iluminacao e LED", "subcategoria": "LED", "servico": "Fita de LED com sensor de movimento", "descricao": "Instalacao em escadas, armarios ou corredores com sensor.", "unidade": "metro", "regiao": "Nacional", "valor_minimo": 80.0, "valor_maximo": 120.0, "valor_sugerido": 120.0, "material_incluso": 0, "observacao": led_ref, "fonte": fontes["led"], "preco_sob_consulta": 0},
+        {"categoria": "Iluminacao e LED", "subcategoria": "LED", "servico": "Fonte para fita de LED", "descricao": "Instalacao e configuracao de fontes compativeis.", "unidade": "unidade", "regiao": "Nacional", "valor_minimo": 50.0, "valor_maximo": 80.0, "valor_sugerido": 80.0, "material_incluso": 0, "observacao": led_ref, "fonte": fontes["led"], "preco_sob_consulta": 0},
+        {"categoria": "Iluminacao e LED", "subcategoria": "LED", "servico": "Controlador simples para fita LED", "descricao": "Configuracao de controlador basico para fita LED.", "unidade": "unidade", "regiao": "Nacional", "valor_minimo": 70.0, "valor_maximo": 120.0, "valor_sugerido": 120.0, "material_incluso": 0, "observacao": led_ref, "fonte": fontes["led"], "preco_sob_consulta": 0},
+        {"categoria": "Iluminacao e LED", "subcategoria": "LED", "servico": "Controlador inteligente Wi-Fi ou Bluetooth", "descricao": "Instalacao e configuracao de controladores compativeis com apps.", "unidade": "unidade", "regiao": "Nacional", "valor_minimo": 100.0, "valor_maximo": 150.0, "valor_sugerido": 150.0, "material_incluso": 0, "observacao": led_ref, "fonte": fontes["led"], "preco_sob_consulta": 0},
+        {"categoria": "Iluminacao e LED", "subcategoria": "LED", "servico": "Programacao de LED sequencial simples", "descricao": "Configuracao basica de efeitos sequenciais.", "unidade": "servico", "regiao": "Nacional", "valor_minimo": 150.0, "valor_maximo": 250.0, "valor_sugerido": 250.0, "material_incluso": 0, "observacao": led_ref, "fonte": fontes["led"], "preco_sob_consulta": 0},
+        {"categoria": "Iluminacao e LED", "subcategoria": "LED", "servico": "Programacao de LED avancada por metro", "descricao": "Configuracao de efeitos personalizados complexos.", "unidade": "metro", "regiao": "Nacional", "valor_minimo": 300.0, "valor_maximo": 600.0, "valor_sugerido": 600.0, "material_incluso": 0, "observacao": led_ref, "fonte": fontes["led"], "preco_sob_consulta": 0},
+        {"categoria": "Iluminacao e LED", "subcategoria": "LED", "servico": "Fita LED enderecavel WS2812 ou similar", "descricao": "Instalacao e programacao de LEDs enderecaveis com controladores dedicados.", "unidade": "metro", "regiao": "Nacional", "valor_minimo": 400.0, "valor_maximo": 800.0, "valor_sugerido": 800.0, "material_incluso": 0, "observacao": led_ref, "fonte": fontes["led"], "preco_sob_consulta": 0},
+        {"categoria": "Iluminacao e LED", "subcategoria": "LED", "servico": "Substituicao de fita LED por metro", "descricao": "Retirada de fita antiga e substituicao por nova.", "unidade": "metro", "regiao": "Nacional", "valor_minimo": 30.0, "valor_maximo": 50.0, "valor_sugerido": 50.0, "material_incluso": 0, "observacao": led_ref, "fonte": fontes["led"], "preco_sob_consulta": 0},
+        {"categoria": "Iluminacao e LED", "subcategoria": "LED", "servico": "Instalacao em sancas ou nichos por metro", "descricao": "Fixacao de fitas em locais embutidos com acabamento decorativo.", "unidade": "metro", "regiao": "Nacional", "valor_minimo": 50.0, "valor_maximo": 80.0, "valor_sugerido": 80.0, "material_incluso": 0, "observacao": led_ref, "fonte": fontes["led"], "preco_sob_consulta": 0},
+        {"categoria": "Iluminacao e LED", "subcategoria": "Automacao", "servico": "Integracao com automacao residencial", "descricao": "Configuracao de fitas e controladores com Alexa, Google e similares.", "unidade": "servico", "regiao": "Nacional", "valor_minimo": 200.0, "valor_maximo": 500.0, "valor_sugerido": 500.0, "material_incluso": 0, "observacao": led_ref, "fonte": fontes["led"], "preco_sob_consulta": 0},
+        {"categoria": "Iluminacao e LED", "subcategoria": "Manutencao", "servico": "Manutencao de sistemas LED", "descricao": "Diagnostico e reparo de fitas, fontes ou controladores.", "unidade": "servico", "regiao": "Nacional", "valor_minimo": 100.0, "valor_maximo": 200.0, "valor_sugerido": 200.0, "material_incluso": 0, "observacao": led_ref, "fonte": fontes["led"], "preco_sob_consulta": 0},
+        {"categoria": "Iluminacao e LED", "subcategoria": "Projetos", "servico": "Projeto decorativo de iluminacao LED", "descricao": "Consultoria, planejamento e execucao de iluminacao com fita LED.", "unidade": "projeto", "regiao": "Nacional", "valor_minimo": None, "valor_maximo": None, "valor_sugerido": None, "material_incluso": 0, "observacao": "Sob consulta. " + led_ref, "fonte": fontes["led"], "preco_sob_consulta": 1},
+    ]
+
+
+def conectacasa_seed_servicos_orcamento(conn):
+    for item in conectacasa_catalogo_servicos_inicial():
+        existente = conn.execute(
+            """
+            SELECT id FROM servicos_orcamento
+            WHERE categoria = ? AND COALESCE(subcategoria, '') = COALESCE(?, '') AND servico = ? AND regiao = ?
+            """,
+            (item["categoria"], item.get("subcategoria"), item["servico"], item["regiao"]),
+        ).fetchone()
+        valores = (
+            item["categoria"],
+            item.get("subcategoria"),
+            item["servico"],
+            item.get("descricao"),
+            item["unidade"],
+            item["regiao"],
+            item.get("valor_minimo"),
+            item.get("valor_maximo"),
+            item.get("valor_sugerido"),
+            item.get("material_incluso", 0),
+            item.get("observacao"),
+            item.get("fonte"),
+            item.get("ativo", 1),
+            item.get("preco_sob_consulta", 0),
+        )
+        if existente:
+            conn.execute(
+                """
+                UPDATE servicos_orcamento
+                SET categoria = ?, subcategoria = ?, servico = ?, descricao = ?, unidade = ?, regiao = ?,
+                    valor_minimo = ?, valor_maximo = ?, valor_sugerido = ?, material_incluso = ?,
+                    observacao = ?, fonte = ?, ativo = ?, preco_sob_consulta = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                valores + (existente["id"],),
+            )
+        else:
+            conn.execute(
+                """
+                INSERT INTO servicos_orcamento (
+                    categoria, subcategoria, servico, descricao, unidade, regiao, valor_minimo, valor_maximo,
+                    valor_sugerido, material_incluso, observacao, fonte, ativo, preco_sob_consulta
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                valores,
+            )
+
+
+def conectacasa_listar_servicos_orcamento(conn, categoria=None):
+    query = "SELECT * FROM servicos_orcamento WHERE ativo = 1"
+    params = []
+    if categoria:
+        query += " AND categoria = ?"
+        params.append(categoria)
+    query += " ORDER BY categoria, subcategoria, servico"
+    return [dict(item) for item in conn.execute(query, params).fetchall()]
+
+
+def conectacasa_percentual_float(valor):
+    try:
+        return float(str(valor or "0").replace(",", "."))
+    except ValueError:
+        return 0.0
+
+
 def conectacasa_gerar_codigo(conn):
     prefixo = datetime.now().strftime("CC-%Y%m%d")
     ultimo = conn.execute(
@@ -1098,15 +1333,31 @@ def conectacasa_itens_do_formulario(form):
     return itens
 
 
-def conectacasa_calcular_totais(itens, desconto):
+def conectacasa_obter_acrescimos_formulario(dados_formulario):
+    campos = {
+        "acrescimo_noturno_pct": conectacasa_percentual_float(dados_formulario.get("acrescimo_noturno_pct")),
+        "acrescimo_final_semana_pct": conectacasa_percentual_float(dados_formulario.get("acrescimo_final_semana_pct")),
+        "acrescimo_feriado_pct": conectacasa_percentual_float(dados_formulario.get("acrescimo_feriado_pct")),
+        "acrescimo_dificil_pct": conectacasa_percentual_float(dados_formulario.get("acrescimo_dificil_pct")),
+        "acrescimo_emergencia_pct": conectacasa_percentual_float(dados_formulario.get("acrescimo_emergencia_pct")),
+    }
+    return {chave: max(valor, 0) for chave, valor in campos.items()}
+
+
+def conectacasa_calcular_totais(itens, desconto, acrescimos_percentuais=None):
     subtotal = round(sum(item["total"] for item in itens), 2)
+    acrescimos_percentuais = acrescimos_percentuais or {}
+    acrescimo_total = 0
+    for percentual in acrescimos_percentuais.values():
+        acrescimo_total += subtotal * (max(percentual, 0) / 100)
+    acrescimo_total = round(acrescimo_total, 2)
     try:
         desconto = float((desconto or "0").replace(",", "."))
     except (ValueError, AttributeError):
         desconto = 0
     desconto = max(desconto, 0)
-    valor_total = round(max(subtotal - desconto, 0), 2)
-    return subtotal, desconto, valor_total
+    valor_total = round(max(subtotal + acrescimo_total - desconto, 0), 2)
+    return subtotal, acrescimo_total, desconto, valor_total
 
 
 def conectacasa_carregar_orcamento(conn, orcamento_id):
@@ -1125,11 +1376,25 @@ def conectacasa_carregar_orcamento(conn, orcamento_id):
     dados["status"] = conectacasa_status_normalizado(dados.get("status"))
     dados["itens"] = json.loads(dados.get("itens_json") or "[]")
     dados["status_label"] = conectacasa_status_label(dados.get("status"))
+    for campo in (
+        "acrescimo_total",
+        "acrescimo_noturno_pct",
+        "acrescimo_final_semana_pct",
+        "acrescimo_feriado_pct",
+        "acrescimo_dificil_pct",
+        "acrescimo_emergencia_pct",
+    ):
+        dados[campo] = float(dados.get(campo) or 0)
     return dados
 
 
 def conectacasa_salvar_orcamento(conn, dados_formulario, itens, usuario_id, arquivos=None, orcamento_id=None):
-    subtotal, desconto, valor_total = conectacasa_calcular_totais(itens, dados_formulario.get("desconto"))
+    acrescimos_percentuais = conectacasa_obter_acrescimos_formulario(dados_formulario)
+    subtotal, acrescimo_total, desconto, valor_total = conectacasa_calcular_totais(
+        itens,
+        dados_formulario.get("desconto"),
+        acrescimos_percentuais,
+    )
     titulo = (dados_formulario.get("titulo") or "").strip()
     cliente_nome = (dados_formulario.get("cliente_nome") or "").strip()
     cliente_empresa = (dados_formulario.get("cliente_empresa") or "").strip()
@@ -1158,7 +1423,9 @@ def conectacasa_salvar_orcamento(conn, dados_formulario, itens, usuario_id, arqu
             UPDATE conectacasa_orcamentos
             SET titulo = ?, cliente_nome = ?, cliente_empresa = ?, cliente_email = ?, cliente_telefone = ?,
                 descricao = ?, observacoes = ?, status = ?, validade_dias = ?, desconto = ?,
-                subtotal = ?, valor_total = ?, itens_json = ?, atualizado_em = CURRENT_TIMESTAMP
+                subtotal = ?, acrescimo_total = ?, acrescimo_noturno_pct = ?, acrescimo_final_semana_pct = ?,
+                acrescimo_feriado_pct = ?, acrescimo_dificil_pct = ?, acrescimo_emergencia_pct = ?,
+                valor_total = ?, itens_json = ?, atualizado_em = CURRENT_TIMESTAMP
             WHERE id = ?
             """,
             (
@@ -1173,6 +1440,12 @@ def conectacasa_salvar_orcamento(conn, dados_formulario, itens, usuario_id, arqu
                 validade_dias,
                 desconto,
                 subtotal,
+                acrescimo_total,
+                acrescimos_percentuais["acrescimo_noturno_pct"],
+                acrescimos_percentuais["acrescimo_final_semana_pct"],
+                acrescimos_percentuais["acrescimo_feriado_pct"],
+                acrescimos_percentuais["acrescimo_dificil_pct"],
+                acrescimos_percentuais["acrescimo_emergencia_pct"],
                 valor_total,
                 itens_json,
                 orcamento_id,
@@ -1186,9 +1459,11 @@ def conectacasa_salvar_orcamento(conn, dados_formulario, itens, usuario_id, arqu
         """
         INSERT INTO conectacasa_orcamentos (
             codigo, titulo, cliente_nome, cliente_empresa, cliente_email, cliente_telefone,
-            descricao, observacoes, status, validade_dias, desconto, subtotal, valor_total,
+            descricao, observacoes, status, validade_dias, desconto, subtotal, acrescimo_total,
+            acrescimo_noturno_pct, acrescimo_final_semana_pct, acrescimo_feriado_pct, acrescimo_dificil_pct,
+            acrescimo_emergencia_pct, valor_total,
             itens_json, criado_por
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             codigo,
@@ -1203,6 +1478,12 @@ def conectacasa_salvar_orcamento(conn, dados_formulario, itens, usuario_id, arqu
             validade_dias,
             desconto,
             subtotal,
+            acrescimo_total,
+            acrescimos_percentuais["acrescimo_noturno_pct"],
+            acrescimos_percentuais["acrescimo_final_semana_pct"],
+            acrescimos_percentuais["acrescimo_feriado_pct"],
+            acrescimos_percentuais["acrescimo_dificil_pct"],
+            acrescimos_percentuais["acrescimo_emergencia_pct"],
             valor_total,
             itens_json,
             usuario_id,
@@ -1363,6 +1644,7 @@ def conectacasa_render_pdf(orcamento, config):
             [
                 [Paragraph("Status", resumo_label_style), Paragraph(orcamento["status_label"], resumo_valor_style)],
                 [Paragraph("Subtotal", resumo_label_style), Paragraph(formata_brl(orcamento["subtotal"]), resumo_valor_style)],
+                [Paragraph("Acrescimos", resumo_label_style), Paragraph(formata_brl(orcamento.get("acrescimo_total", 0)), resumo_valor_style)],
                 [Paragraph("Desconto", resumo_label_style), Paragraph(formata_brl(orcamento["desconto"]), resumo_valor_style)],
                 [Paragraph("Valor final", resumo_label_style), Paragraph(formata_brl(orcamento["valor_total"]), valor_final_style)],
             ],
@@ -1434,6 +1716,7 @@ def conectacasa_render_pdf(orcamento, config):
 
     resumo = [
         ["Subtotal", formata_brl(orcamento["subtotal"])],
+        ["Acrescimos", formata_brl(orcamento.get("acrescimo_total", 0))],
         ["Desconto", formata_brl(orcamento["desconto"])],
         ["Valor final", formata_brl(orcamento["valor_total"])],
     ]
@@ -2386,6 +2669,7 @@ def conectacasa_excluir_propaganda(promo_id):
 def conectacasa_novo_orcamento():
     conn = get_db()
     config = conectacasa_preparar_urls_config(conectacasa_obter_config(conn))
+    catalogo_servicos = conectacasa_listar_servicos_orcamento(conn)
     if request.method == "POST":
         itens = conectacasa_itens_do_formulario(request.form)
         ok, erro, orcamento_id = conectacasa_salvar_orcamento(conn, request.form, itens, None, arquivos=request.files)
@@ -2397,6 +2681,7 @@ def conectacasa_novo_orcamento():
                 itens=itens or [{"descricao": "", "quantidade": 1, "unidade": "un", "valor_unitario": 0, "total": 0}],
                 status_opcoes=conectacasa_status_opcoes(),
                 config=config,
+                catalogo_servicos=catalogo_servicos,
                 modo="novo",
             )
         flash("Orcamento criado com sucesso.", "success")
@@ -2404,10 +2689,22 @@ def conectacasa_novo_orcamento():
 
     return render_template(
         "conectacasa_form.html",
-        orcamento={"status": "orcamento", "desconto": 0, "subtotal": 0, "valor_total": 0},
+        orcamento={
+            "status": "orcamento",
+            "desconto": 0,
+            "subtotal": 0,
+            "acrescimo_total": 0,
+            "acrescimo_noturno_pct": 0,
+            "acrescimo_final_semana_pct": 0,
+            "acrescimo_feriado_pct": 0,
+            "acrescimo_dificil_pct": 0,
+            "acrescimo_emergencia_pct": 0,
+            "valor_total": 0,
+        },
         itens=[{"descricao": "", "quantidade": 1, "unidade": "un", "valor_unitario": 0, "total": 0}],
         status_opcoes=conectacasa_status_opcoes(),
         config=config,
+        catalogo_servicos=catalogo_servicos,
         modo="novo",
     )
 
@@ -2439,6 +2736,7 @@ def conectacasa_visualizar_orcamento(orcamento_id):
 def conectacasa_editar_orcamento(orcamento_id):
     conn = get_db()
     config = conectacasa_preparar_urls_config(conectacasa_obter_config(conn))
+    catalogo_servicos = conectacasa_listar_servicos_orcamento(conn)
     orcamento = conectacasa_carregar_orcamento(conn, orcamento_id)
     if not orcamento:
         flash("Orcamento nao encontrado.", "danger")
@@ -2453,12 +2751,13 @@ def conectacasa_editar_orcamento(orcamento_id):
             dados["id"] = orcamento_id
             return render_template(
                 "conectacasa_form.html",
-                orcamento=dados,
-                itens=itens or orcamento["itens"],
-                status_opcoes=conectacasa_status_opcoes(),
-                config=config,
-                modo="editar",
-            )
+                  orcamento=dados,
+                  itens=itens or orcamento["itens"],
+                  status_opcoes=conectacasa_status_opcoes(),
+                  config=config,
+                  catalogo_servicos=catalogo_servicos,
+                  modo="editar",
+              )
         flash("Orcamento atualizado com sucesso.", "success")
         return redirect(conectacasa_path(f"/orcamentos/{orcamento_id}"))
 
@@ -2468,6 +2767,7 @@ def conectacasa_editar_orcamento(orcamento_id):
         itens=orcamento["itens"],
         status_opcoes=conectacasa_status_opcoes(),
         config=config,
+        catalogo_servicos=catalogo_servicos,
         modo="editar",
     )
 
