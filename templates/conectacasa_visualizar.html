@@ -64,10 +64,16 @@
         <h1 class="mt-3 mb-1">{{ orcamento.titulo }}</h1>
         <p class="cc-muted mb-0">{{ orcamento.cliente_nome }}{% if orcamento.cliente_empresa %} • {{ orcamento.cliente_empresa }}{% endif %}</p>
     </div>
-    <div class="d-flex gap-2">
+    <div class="d-flex gap-2 flex-wrap justify-content-end">
+        {% if orcamento.cliente_id %}
+        <a href="{{ conectacasa_path('/clientes') }}?editar={{ orcamento.cliente_id }}" class="btn btn-outline-secondary rounded-pill px-4">Voltar para cliente</a>
+        {% endif %}
         <a href="{{ conectacasa_path('/orcamentos/' ~ orcamento.id ~ '/editar') }}" class="btn btn-outline-dark rounded-pill px-4">Editar</a>
         <a href="{{ conectacasa_path('/orcamentos/' ~ orcamento.id ~ '/pdf') }}" class="btn btn-outline-secondary rounded-pill px-4">PDF</a>
         <button type="button" class="btn cc-btn-primary rounded-pill px-4" id="enviar-whatsapp-btn">Enviar no WhatsApp</button>
+        <form method="POST" action="{{ conectacasa_path('/orcamentos/' ~ orcamento.id ~ '/duplicar') }}">
+            <button type="submit" class="btn btn-outline-dark rounded-pill px-4">Duplicar</button>
+        </form>
     </div>
 </div>
 
@@ -82,7 +88,7 @@
                 {% endif %}
                 <div class="small text-uppercase text-white-50 fw-bold mb-2">ConectaCasa</div>
                 <h2 class="h3 mb-2">{{ orcamento.titulo }}</h2>
-                <p class="mb-0 text-white-50">Orcamento {{ orcamento.codigo }} • {{ orcamento.status_label }}</p>
+                <p class="mb-0 text-white-50">Orçamento {{ orcamento.codigo }} • {{ orcamento.status_label }}</p>
             </div>
             <div class="col-lg-4 text-lg-end">
                 <div class="small text-white-50">Valor final</div>
@@ -98,14 +104,38 @@
                 <div class="fw-semibold">{{ orcamento.cliente_nome }}</div>
                 {% if orcamento.cliente_empresa %}<div>{{ orcamento.cliente_empresa }}</div>{% endif %}
                 {% if orcamento.cliente_email %}<div>{{ orcamento.cliente_email }}</div>{% endif %}
-                {% if orcamento.cliente_telefone %}<div>{{ orcamento.cliente_telefone }}</div>{% endif %}
+                {% if orcamento.cliente_telefone %}
+                <div><a href="{{ orcamento.cliente_whatsapp_url }}" id="cliente-whatsapp-link" target="_blank" rel="noopener">{{ orcamento.cliente_telefone }}</a></div>
+                {% endif %}
+                {% if orcamento.cliente_endereco %}<div>{{ orcamento.cliente_endereco }}</div>{% endif %}
+                {% if orcamento.cliente_cidade or orcamento.cliente_estado %}<div>{{ orcamento.cliente_cidade }}{% if orcamento.cliente_cidade and orcamento.cliente_estado %} / {% endif %}{{ orcamento.cliente_estado }}</div>{% endif %}
             </div>
             <div class="col-md-6">
                 <h3 class="h6 text-uppercase text-muted">Resumo</h3>
+                <div>Data: <strong>{{ orcamento.data_orcamento or '-' }}</strong></div>
+                <div>Validade: <strong>{{ orcamento.validade_orcamento or '-' }}</strong></div>
+                <div>Forma de pagamento: <strong>{{ orcamento.forma_pagamento or '-' }}</strong></div>
+                <div>Prazo de execução: <strong>{{ orcamento.prazo_execucao or '-' }}</strong></div>
+                <div>Garantia: <strong>{{ orcamento.garantia or '-' }}</strong></div>
                 <div>Subtotal: <strong>{{ formata_brl(orcamento.subtotal) }}</strong></div>
                 <div>Acréscimos: <strong>{{ formata_brl(orcamento.acrescimo_total or 0) }}</strong></div>
                 <div>Desconto: <strong>{{ formata_brl(orcamento.desconto) }}</strong></div>
             </div>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2 mb-4">
+            <form method="POST" action="{{ conectacasa_path('/orcamentos/' ~ orcamento.id ~ '/status') }}">
+                <input type="hidden" name="status" value="aprovado">
+                <button type="submit" class="btn btn-outline-success rounded-pill px-4">Marcar como aprovado</button>
+            </form>
+            <form method="POST" action="{{ conectacasa_path('/orcamentos/' ~ orcamento.id ~ '/status') }}">
+                <input type="hidden" name="status" value="recusado">
+                <button type="submit" class="btn btn-outline-danger rounded-pill px-4">Marcar como recusado</button>
+            </form>
+            <form method="POST" action="{{ conectacasa_path('/orcamentos/' ~ orcamento.id ~ '/status') }}">
+                <input type="hidden" name="status" value="enviado">
+                <button type="submit" class="btn btn-outline-primary rounded-pill px-4">Marcar como enviado</button>
+            </form>
         </div>
 
         {% if (orcamento.acrescimo_noturno_pct or 0) or (orcamento.acrescimo_final_semana_pct or 0) or (orcamento.acrescimo_feriado_pct or 0) or (orcamento.acrescimo_dificil_pct or 0) or (orcamento.acrescimo_emergencia_pct or 0) %}
@@ -122,10 +152,10 @@
                 <div class="col-md-4">Feriado: <strong>{{ orcamento.acrescimo_feriado_pct }}%</strong></div>
                 {% endif %}
                 {% if orcamento.acrescimo_dificil_pct %}
-                <div class="col-md-6">Dificil acesso / altura / risco: <strong>{{ orcamento.acrescimo_dificil_pct }}%</strong></div>
+                <div class="col-md-6">Difícil acesso / altura / risco: <strong>{{ orcamento.acrescimo_dificil_pct }}%</strong></div>
                 {% endif %}
                 {% if orcamento.acrescimo_emergencia_pct %}
-                <div class="col-md-6">Emergencia: <strong>{{ orcamento.acrescimo_emergencia_pct }}%</strong></div>
+                <div class="col-md-6">Emergência: <strong>{{ orcamento.acrescimo_emergencia_pct }}%</strong></div>
                 {% endif %}
             </div>
         </div>
@@ -142,7 +172,7 @@
             <table class="table align-middle">
                 <thead>
                     <tr>
-                        <th>Descricao</th>
+                        <th>Descrição</th>
                         <th class="text-end">Qtd.</th>
                         <th class="text-end">Un.</th>
                         <th class="text-end">Valor unit.</th>
@@ -152,7 +182,12 @@
                 <tbody>
                     {% for item in orcamento.itens %}
                     <tr>
-                        <td class="fw-semibold">{{ item.descricao }}</td>
+                        <td class="fw-semibold">
+                            {{ item.descricao }}
+                            {% if item.observacao %}
+                            <div class="small text-muted">{{ item.observacao }}</div>
+                            {% endif %}
+                        </td>
                         <td class="text-end">{{ item.quantidade }}</td>
                         <td class="text-end">{{ item.unidade }}</td>
                         <td class="text-end">{{ formata_brl(item.valor_unitario) }}</td>
@@ -179,7 +214,7 @@
 
         {% if orcamento.observacoes %}
         <div>
-            <h3 class="h6 text-uppercase text-muted">Observacoes</h3>
+            <h3 class="h6 text-uppercase text-muted">Observações</h3>
             <p class="mb-0">{{ orcamento.observacoes }}</p>
         </div>
         {% endif %}
@@ -189,9 +224,9 @@
             <div class="row g-4 align-items-center">
                 <div class="col-md-8">
                     <h3 class="h5 mb-2">Pagamento via PIX</h3>
-                    {% if config.pix_beneficiario %}<div><strong>Beneficiario:</strong> {{ config.pix_beneficiario }}</div>{% endif %}
+                    {% if config.pix_beneficiario %}<div><strong>Beneficiário:</strong> {{ config.pix_beneficiario }}</div>{% endif %}
                     <div><strong>Valor:</strong> {{ formata_brl(orcamento.valor_total) }}</div>
-                    <div class="mt-3 text-muted">Para confirmar este orcamento, utilize o QR Code ao lado e, se desejar, envie o comprovante para agilizar o atendimento.</div>
+                    <div class="mt-3 text-muted">Para confirmar este orçamento, utilize o QR Code ao lado e, se desejar, envie o comprovante para agilizar o atendimento.</div>
                 </div>
                 <div class="col-md-4 text-center">
                     <img src="{{ config.pix_imagem_url }}" alt="Imagem do PIX" style="max-width: 220px; width: 100%; object-fit: contain;">
@@ -237,7 +272,7 @@
                         </li>
                         {% endfor %}
                         {% if orcamento.itens|length > 6 %}
-                        <li class="text-muted">+ {{ (orcamento.itens|length) - 6 }} itens adicionais no orcamento completo</li>
+                        <li class="text-muted">+ {{ (orcamento.itens|length) - 6 }} itens adicionais no orçamento completo</li>
                         {% endif %}
                     </ul>
                 </div>
@@ -249,7 +284,7 @@
                     <div class="d-flex justify-content-between mb-4"><span>Status</span><strong>{{ orcamento.status_label }}</strong></div>
                     <div class="p-4 rounded-4" style="background:#fff8ef;">
                         <div class="fw-bold mb-2">Fale conosco</div>
-                        <div class="mb-2">WhatsApp: 95 99151-9900</div>
+                        <div class="mb-2">WhatsApp: {{ config.telefone_empresa or '95 99151-9900' }}</div>
                         <div class="text-muted">Estamos à disposição para confirmar este orçamento e esclarecer qualquer dúvida.</div>
                     </div>
                 </div>
@@ -296,12 +331,25 @@ function montarLinkWhatsapp(telefone, mensagem) {
     return `${base}?text=${encodeURIComponent(mensagem)}`;
 }
 
+async function marcarComoEnviado() {
+    try {
+        const body = new URLSearchParams();
+        body.append('status', 'enviado');
+        await fetch({{ conectacasa_path('/orcamentos/' ~ orcamento.id ~ '/status')|tojson }}, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+            },
+            body: body.toString(),
+        });
+    } catch (error) {
+        console.error(error);
+    }
+}
+
 enviarWhatsappBtn?.addEventListener('click', async function () {
     const telefone = normalizarTelefoneWhatsapp({{ (orcamento.cliente_telefone or '')|tojson }});
-    const mensagem = `Olá, {{ orcamento.cliente_nome }}!
-Segue o orçamento elaborado pela ConectaCasa, conforme solicitado. O documento contempla a solução proposta de acordo com a necessidade apresentada.
-
-Ficamos à disposição para esclarecimentos, ajustes ou agendamento da execução.`;
+    const mensagem = {{ (orcamento.whatsapp_mensagem or '')|tojson }};
     const linkWhatsapp = montarLinkWhatsapp(telefone, mensagem);
 
     const textoOriginal = enviarWhatsappBtn.textContent;
@@ -318,6 +366,7 @@ Ficamos à disposição para esclarecimentos, ajustes ou agendamento da execuç�
                 title: 'Orcamento {{ orcamento.codigo }}',
                 text: mensagem,
             });
+            await marcarComoEnviado();
             return;
         }
 
@@ -336,9 +385,10 @@ Ficamos à disposição para esclarecimentos, ajustes ou agendamento da execuç�
         }
 
         window.open(linkWhatsapp, '_blank');
+        await marcarComoEnviado();
 
         if (imagemCopiada) {
-            alert('WhatsApp aberto. A imagem do orcamento foi copiada para voce colar na conversa.');
+            alert('WhatsApp aberto. A imagem do orçamento foi copiada para você colar na conversa.');
             return;
         }
 
@@ -347,15 +397,20 @@ Ficamos à disposição para esclarecimentos, ajustes ou agendamento da execuç�
         link.href = URL.createObjectURL(blob);
         link.click();
         setTimeout(() => URL.revokeObjectURL(link.href), 1000);
-        alert('WhatsApp aberto. Se a imagem nao seguir automaticamente, anexe o arquivo do orcamento na conversa.');
+        alert('WhatsApp aberto. Se a imagem nao seguir automaticamente, anexe o arquivo do orçamento na conversa.');
     } catch (error) {
         console.error(error);
         window.open(linkWhatsapp, '_blank');
-        alert('WhatsApp aberto. Se a imagem nao seguir automaticamente, envie o arquivo do orcamento manualmente.');
+        alert('WhatsApp aberto. Se a imagem nao seguir automaticamente, envie o arquivo do orçamento manualmente.');
     } finally {
         enviarWhatsappBtn.disabled = false;
         enviarWhatsappBtn.textContent = textoOriginal;
     }
+});
+
+document.getElementById('cliente-whatsapp-link')?.addEventListener('click', function (event) {
+    event.preventDefault();
+    enviarWhatsappBtn?.click();
 });
 </script>
 {% endblock %}

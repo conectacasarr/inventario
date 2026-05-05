@@ -21,6 +21,38 @@
                 <input type="text" class="form-control" name="empresa_nome" value="{{ config.empresa_nome or 'ConectaCasa' }}">
             </div>
             <div class="mb-3">
+                <label class="form-label">Nome do responsavel</label>
+                <input type="text" class="form-control" name="nome_responsavel" value="{{ config.nome_responsavel or '' }}">
+            </div>
+            <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                    <label class="form-label">Telefone da empresa</label>
+                    <input type="text" class="form-control" name="telefone_empresa" value="{{ config.telefone_empresa or '' }}">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">E-mail da empresa</label>
+                    <input type="email" class="form-control" name="email_empresa" value="{{ config.email_empresa or '' }}">
+                </div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Endereco da empresa</label>
+                <input type="text" class="form-control" name="endereco_empresa" value="{{ config.endereco_empresa or '' }}">
+            </div>
+            <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                    <label class="form-label">Cidade</label>
+                    <input type="text" class="form-control" name="cidade_empresa" value="{{ config.cidade_empresa or '' }}">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Estado</label>
+                    <input type="text" class="form-control" name="estado_empresa" value="{{ config.estado_empresa or '' }}">
+                </div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">CNPJ / CPF</label>
+                <input type="text" class="form-control" name="cnpj_cpf" value="{{ config.cnpj_cpf or '' }}">
+            </div>
+            <div class="mb-3">
                 <label class="form-label">Logo</label>
                 <input type="file" class="form-control" name="logo_arquivo" accept=".png,.jpg,.jpeg,.webp,image/*">
             </div>
@@ -30,6 +62,33 @@
                 <img src="{{ config.logo_url }}" alt="Logo ConectaCasa" style="max-width: 220px; max-height: 96px; object-fit: contain;">
             </div>
             {% endif %}
+        </div>
+
+        <div class="col-lg-6">
+            <h2 class="h5 mb-3">Padroes do orcamento</h2>
+            <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                    <label class="form-label">Validade padrao</label>
+                    <input type="text" class="form-control" name="validade_padrao_orcamento" value="{{ config.validade_padrao_orcamento or '' }}" placeholder="Ex.: 7 dias corridos">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Forma de pagamento padrao</label>
+                    <input type="text" class="form-control" name="forma_pagamento_padrao" value="{{ config.forma_pagamento_padrao or '' }}">
+                </div>
+                <div class="col-12">
+                    <label class="form-label">Garantia padrao</label>
+                    <input type="text" class="form-control" name="garantia_padrao" value="{{ config.garantia_padrao or '' }}">
+                </div>
+                <div class="col-12">
+                    <label class="form-label">Mensagem padrao do WhatsApp</label>
+                    <textarea class="form-control" name="mensagem_padrao_whatsapp" rows="3">{{ config.mensagem_padrao_whatsapp or '' }}</textarea>
+                </div>
+                <div class="col-12">
+                    <label class="form-label">Observacao padrao do orcamento</label>
+                    <textarea class="form-control" name="observacao_padrao_orcamento" rows="3">{{ config.observacao_padrao_orcamento or '' }}</textarea>
+                </div>
+            </div>
+
         </div>
 
         <div class="col-lg-6">

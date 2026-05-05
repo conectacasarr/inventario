@@ -1,0 +1,253 @@
+{% extends 'base_conectacasa.html' %}
+
+{% block title %}ConectaCasa - Clientes{% endblock %}
+
+{% block head_extra %}
+<style>
+    .cc-status-pill {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        padding: 0.3rem 0.7rem;
+        font-size: 0.78rem;
+        font-weight: 700;
+    }
+
+    .cc-status-pill.is-active {
+        background: rgba(22, 163, 74, 0.12);
+        color: #15803d;
+    }
+
+    .cc-status-pill.is-inactive {
+        background: rgba(148, 163, 184, 0.16);
+        color: #475569;
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function formatarTelefoneVisual(valor) {
+    const numeros = (valor || '').replace(/\D/g, '').slice(0, 11);
+    if (numeros.length <= 2) return numeros;
+    if (numeros.length <= 7) return `(${numeros.slice(0, 2)}) ${numeros.slice(2)}`;
+    if (numeros.length <= 10) return `(${numeros.slice(0, 2)}) ${numeros.slice(2, 6)}-${numeros.slice(6)}`;
+    return `(${numeros.slice(0, 2)}) ${numeros.slice(2, 7)}-${numeros.slice(7)}`;
+}
+
+document.querySelector('[name="telefone_whatsapp"]')?.addEventListener('input', function () {
+    this.value = formatarTelefoneVisual(this.value);
+});
+</script>
+{% endblock %}
+
+{% block content %}
+<section class="row g-4">
+    <div class="col-xl-4">
+        <div class="cc-panel p-4 p-lg-5">
+            <span class="cc-badge"><i class="fas fa-address-book"></i> Clientes</span>
+            <h1 class="mt-3 mb-2 fw-bold">{{ 'Editar cliente' if cliente_edicao else 'Novo cliente' }}</h1>
+            <p class="cc-muted mb-4">Mantenha os dados salvos para preencher orcamentos mais rapido.</p>
+
+            <form method="POST" class="d-grid gap-3">
+                <input type="hidden" name="acao" value="salvar">
+                <input type="hidden" name="cliente_id" value="{{ cliente_edicao.id if cliente_edicao else '' }}">
+
+                <div>
+                    <label class="form-label">Nome</label>
+                    <input type="text" class="form-control" name="nome" value="{{ cliente_edicao.nome if cliente_edicao else '' }}" required>
+                </div>
+                <div>
+                    <label class="form-label">Empresa</label>
+                    <input type="text" class="form-control" name="empresa" value="{{ cliente_edicao.empresa if cliente_edicao else '' }}">
+                </div>
+                <div>
+                    <label class="form-label">WhatsApp</label>
+                    <input type="text" class="form-control" name="telefone_whatsapp" value="{{ cliente_edicao.telefone_whatsapp or cliente_edicao.telefone if cliente_edicao else '' }}" required>
+                </div>
+                <div>
+                    <label class="form-label">E-mail</label>
+                    <input type="email" class="form-control" name="email" value="{{ cliente_edicao.email if cliente_edicao else '' }}">
+                </div>
+                <div>
+                    <label class="form-label">CPF / CNPJ</label>
+                    <input type="text" class="form-control" name="cpf_cnpj" value="{{ cliente_edicao.cpf_cnpj if cliente_edicao else '' }}">
+                </div>
+                <div>
+                    <label class="form-label">Endereco</label>
+                    <input type="text" class="form-control" name="endereco" value="{{ cliente_edicao.endereco if cliente_edicao else '' }}">
+                </div>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Bairro</label>
+                        <input type="text" class="form-control" name="bairro" value="{{ cliente_edicao.bairro if cliente_edicao else '' }}">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">CEP</label>
+                        <input type="text" class="form-control" name="cep" value="{{ cliente_edicao.cep if cliente_edicao else '' }}">
+                    </div>
+                    <div class="col-md-8">
+                        <label class="form-label">Cidade</label>
+                        <input type="text" class="form-control" name="cidade" value="{{ cliente_edicao.cidade if cliente_edicao else '' }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Estado</label>
+                        <input type="text" class="form-control" name="estado" value="{{ cliente_edicao.estado if cliente_edicao else '' }}">
+                    </div>
+                </div>
+                <div>
+                    <label class="form-label">Observacoes</label>
+                    <textarea class="form-control" name="observacoes" rows="3">{{ cliente_edicao.observacoes if cliente_edicao else '' }}</textarea>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="1" id="ativo" name="ativo" {% if not cliente_edicao or cliente_edicao.ativo %}checked{% endif %}>
+                    <label class="form-check-label" for="ativo">Ativo</label>
+                </div>
+                <div class="d-flex flex-wrap gap-2">
+                    <button type="submit" class="btn cc-btn-primary rounded-pill px-4">{{ 'Atualizar cliente' if cliente_edicao else 'Salvar cliente' }}</button>
+                    {% if cliente_edicao %}
+                    <a href="{{ conectacasa_path('/clientes') }}" class="btn btn-outline-secondary rounded-pill px-4">Cancelar edicao</a>
+                    {% endif %}
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="col-xl-8">
+        <div class="cc-panel p-4 p-lg-5">
+            <div class="d-flex justify-content-between align-items-center gap-3 flex-wrap mb-4">
+                <div>
+                    <h2 class="h4 mb-1">Clientes cadastrados</h2>
+                    <p class="cc-muted mb-0">Use a busca para localizar cliente rapidamente e reaproveitar no orçamento.</p>
+                </div>
+                <a href="{{ conectacasa_path('/clientes') }}" class="btn btn-outline-dark rounded-pill px-4">Novo cliente</a>
+            </div>
+
+            <form method="GET" class="row g-3 mb-4">
+                <div class="col-md-8">
+                    <label class="form-label">Pesquisar</label>
+                    <input type="text" class="form-control" name="q" value="{{ busca }}" placeholder="Nome, empresa, e-mail ou telefone">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Status</label>
+                    <select class="form-select" name="status" onchange="this.form.submit()">
+                        <option value="ativos" {% if status_filtro == 'ativos' %}selected{% endif %}>Ativos</option>
+                        <option value="inativos" {% if status_filtro == 'inativos' %}selected{% endif %}>Inativos</option>
+                        <option value="todos" {% if status_filtro == 'todos' %}selected{% endif %}>Todos</option>
+                    </select>
+                </div>
+            </form>
+
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead>
+                        <tr>
+                            <th>Cliente</th>
+                            <th>Contato</th>
+                            <th>Status</th>
+                            <th class="text-end">Acoes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for cliente in clientes %}
+                        <tr>
+                            <td>
+                                <div class="fw-semibold">{{ cliente.nome }}</div>
+                                {% if cliente.empresa %}
+                                <div class="small text-muted">{{ cliente.empresa }}</div>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if cliente.email %}<div>{{ cliente.email }}</div>{% endif %}
+                                {% if cliente.telefone_whatsapp or cliente.telefone %}
+                                <div>
+                                    <a href="{{ conectacasa_whatsapp_url(cliente.telefone_whatsapp or cliente.telefone) }}" target="_blank" rel="noopener" class="text-decoration-none">
+                                        {{ cliente.telefone_whatsapp or cliente.telefone }}
+                                    </a>
+                                </div>
+                                {% endif %}
+                                {% if cliente.observacoes %}<div class="small text-muted">{{ cliente.observacoes }}</div>{% endif %}
+                            </td>
+                            <td>
+                                <span class="cc-status-pill {% if cliente.ativo %}is-active{% else %}is-inactive{% endif %}">
+                                    {{ 'Ativo' if cliente.ativo else 'Inativo' }}
+                                </span>
+                            </td>
+                            <td class="text-end">
+                                <div class="d-flex flex-wrap justify-content-end gap-2">
+                                    <a href="{{ conectacasa_path('/clientes') }}?editar={{ cliente.id }}" class="btn btn-sm btn-outline-dark rounded-pill px-3">Editar</a>
+                                    <a href="{{ conectacasa_path('/novo') }}?cliente_id={{ cliente.id }}" class="btn btn-sm btn-outline-secondary rounded-pill px-3">Criar orcamento</a>
+                                    <form method="POST" class="d-inline">
+                                        <input type="hidden" name="acao" value="alternar">
+                                        <input type="hidden" name="cliente_id" value="{{ cliente.id }}">
+                                        <button type="submit" class="btn btn-sm btn-outline-secondary rounded-pill px-3">
+                                            {{ 'Desativar' if cliente.ativo else 'Ativar' }}
+                                        </button>
+                                    </form>
+                                    <form method="POST" class="d-inline" onsubmit="return confirm('Excluir este cliente?');">
+                                        <input type="hidden" name="acao" value="excluir">
+                                        <input type="hidden" name="cliente_id" value="{{ cliente.id }}">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-3">Excluir</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="4" class="text-center text-muted py-4">Nenhum cliente encontrado.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        {% if cliente_edicao and resumo_cliente %}
+        <div class="cc-panel p-4 p-lg-5 mt-4">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
+                <div>
+                    <h2 class="h4 mb-1">Historico do cliente</h2>
+                    <p class="cc-muted mb-0">Acompanhe os orcamentos ja emitidos para {{ cliente_edicao.nome }}.</p>
+                </div>
+                <a href="{{ conectacasa_path('/novo') }}?cliente_id={{ cliente_edicao.id }}" class="btn cc-btn-primary rounded-pill px-4">Criar orcamento para este cliente</a>
+            </div>
+            <div class="row g-3 mb-4">
+                <div class="col-md-3"><div class="cc-panel p-3 h-100"><div class="small text-muted text-uppercase fw-bold">Total</div><div class="h4 fw-bold mb-0">{{ resumo_cliente.total_orcamentos }}</div></div></div>
+                <div class="col-md-3"><div class="cc-panel p-3 h-100"><div class="small text-muted text-uppercase fw-bold">Enviados</div><div class="h4 fw-bold mb-0">{{ resumo_cliente.enviados }}</div></div></div>
+                <div class="col-md-3"><div class="cc-panel p-3 h-100"><div class="small text-muted text-uppercase fw-bold">Aprovados</div><div class="h4 fw-bold mb-0">{{ resumo_cliente.aprovados }}</div></div></div>
+                <div class="col-md-3"><div class="cc-panel p-3 h-100"><div class="small text-muted text-uppercase fw-bold">Valor aprovado</div><div class="h6 fw-bold mb-0">{{ formata_brl(resumo_cliente.valor_total_aprovado) }}</div></div></div>
+            </div>
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead>
+                        <tr>
+                            <th>Numero</th>
+                            <th>Data</th>
+                            <th>Status</th>
+                            <th class="text-end">Valor</th>
+                            <th class="text-end">Acoes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for orcamento in historico_orcamentos %}
+                        <tr>
+                            <td class="fw-semibold">{{ orcamento.codigo }}</td>
+                            <td>{{ orcamento.data_orcamento or orcamento.atualizado_em }}</td>
+                            <td>{{ orcamento.status_label }}</td>
+                            <td class="text-end">{{ formata_brl(orcamento.valor_total or 0) }}</td>
+                            <td class="text-end">
+                                <a href="{{ conectacasa_path('/orcamentos/' ~ orcamento.id) }}" class="btn btn-sm btn-outline-dark">Abrir</a>
+                                <a href="{{ conectacasa_path('/orcamentos/' ~ orcamento.id ~ '/editar') }}" class="btn btn-sm btn-outline-secondary">Editar</a>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="5" class="text-center text-muted py-4">Este cliente ainda nao possui orcamentos.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

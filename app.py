@@ -452,6 +452,7 @@ def conectacasa_criar_tabelas():
         CREATE TABLE IF NOT EXISTS conectacasa_orcamentos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             codigo TEXT UNIQUE NOT NULL,
+            cliente_id INTEGER,
             titulo TEXT NOT NULL,
             cliente_nome TEXT NOT NULL,
             cliente_empresa TEXT,
@@ -474,7 +475,50 @@ def conectacasa_criar_tabelas():
             criado_por INTEGER,
             criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             atualizado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (cliente_id) REFERENCES conectacasa_clientes(id),
             FOREIGN KEY (criado_por) REFERENCES usuarios(id)
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS conectacasa_clientes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL,
+            telefone_whatsapp TEXT,
+            email TEXT,
+            cpf_cnpj TEXT,
+            endereco TEXT,
+            bairro TEXT,
+            cidade TEXT,
+            estado TEXT,
+            cep TEXT,
+            observacoes TEXT,
+            ativo INTEGER NOT NULL DEFAULT 1,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS conectacasa_orcamento_itens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            orcamento_id INTEGER NOT NULL,
+            servico_id INTEGER,
+            descricao TEXT NOT NULL,
+            unidade TEXT NOT NULL,
+            quantidade REAL NOT NULL DEFAULT 0,
+            valor_unitario REAL NOT NULL DEFAULT 0,
+            percentual_acrescimo REAL NOT NULL DEFAULT 0,
+            valor_acrescimo REAL NOT NULL DEFAULT 0,
+            subtotal REAL NOT NULL DEFAULT 0,
+            total REAL NOT NULL DEFAULT 0,
+            observacao TEXT,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (orcamento_id) REFERENCES conectacasa_orcamentos(id),
+            FOREIGN KEY (servico_id) REFERENCES servicos_orcamento(id)
         )
         """
     )
@@ -544,10 +588,37 @@ def conectacasa_criar_tabelas():
     adicionar_coluna_se_faltar(conn, "conectacasa_orcamentos", "acrescimo_feriado_pct", "REAL NOT NULL DEFAULT 0")
     adicionar_coluna_se_faltar(conn, "conectacasa_orcamentos", "acrescimo_dificil_pct", "REAL NOT NULL DEFAULT 0")
     adicionar_coluna_se_faltar(conn, "conectacasa_orcamentos", "acrescimo_emergencia_pct", "REAL NOT NULL DEFAULT 0")
+    adicionar_coluna_se_faltar(conn, "conectacasa_orcamentos", "cliente_id", "INTEGER")
+    adicionar_coluna_se_faltar(conn, "conectacasa_orcamentos", "data_orcamento", "TEXT")
+    adicionar_coluna_se_faltar(conn, "conectacasa_orcamentos", "validade_orcamento", "TEXT")
+    adicionar_coluna_se_faltar(conn, "conectacasa_orcamentos", "forma_pagamento", "TEXT")
+    adicionar_coluna_se_faltar(conn, "conectacasa_orcamentos", "prazo_execucao", "TEXT")
+    adicionar_coluna_se_faltar(conn, "conectacasa_orcamentos", "garantia", "TEXT")
     adicionar_coluna_se_faltar(conn, "servicos_orcamento", "preco_sob_consulta", "INTEGER NOT NULL DEFAULT 0")
     adicionar_coluna_se_faltar(conn, "conectacasa_orcamentos", "audio_path", "TEXT")
     adicionar_coluna_se_faltar(conn, "conectacasa_orcamentos", "audio_transcricao", "TEXT")
     adicionar_coluna_se_faltar(conn, "conectacasa_orcamentos", "audio_observacoes", "TEXT")
+    adicionar_coluna_se_faltar(conn, "conectacasa_clientes", "telefone_whatsapp", "TEXT")
+    adicionar_coluna_se_faltar(conn, "conectacasa_clientes", "cpf_cnpj", "TEXT")
+    adicionar_coluna_se_faltar(conn, "conectacasa_clientes", "endereco", "TEXT")
+    adicionar_coluna_se_faltar(conn, "conectacasa_clientes", "bairro", "TEXT")
+    adicionar_coluna_se_faltar(conn, "conectacasa_clientes", "cidade", "TEXT")
+    adicionar_coluna_se_faltar(conn, "conectacasa_clientes", "estado", "TEXT")
+    adicionar_coluna_se_faltar(conn, "conectacasa_clientes", "cep", "TEXT")
+    adicionar_coluna_se_faltar(conn, "conectacasa_clientes", "empresa", "TEXT")
+    adicionar_coluna_se_faltar(conn, "conectacasa_clientes", "telefone", "TEXT")
+    adicionar_coluna_se_faltar(conn, "conectacasa_config", "nome_responsavel", "TEXT")
+    adicionar_coluna_se_faltar(conn, "conectacasa_config", "telefone_empresa", "TEXT")
+    adicionar_coluna_se_faltar(conn, "conectacasa_config", "email_empresa", "TEXT")
+    adicionar_coluna_se_faltar(conn, "conectacasa_config", "endereco_empresa", "TEXT")
+    adicionar_coluna_se_faltar(conn, "conectacasa_config", "cidade_empresa", "TEXT")
+    adicionar_coluna_se_faltar(conn, "conectacasa_config", "estado_empresa", "TEXT")
+    adicionar_coluna_se_faltar(conn, "conectacasa_config", "cnpj_cpf", "TEXT")
+    adicionar_coluna_se_faltar(conn, "conectacasa_config", "mensagem_padrao_whatsapp", "TEXT")
+    adicionar_coluna_se_faltar(conn, "conectacasa_config", "observacao_padrao_orcamento", "TEXT")
+    adicionar_coluna_se_faltar(conn, "conectacasa_config", "garantia_padrao", "TEXT")
+    adicionar_coluna_se_faltar(conn, "conectacasa_config", "validade_padrao_orcamento", "TEXT")
+    adicionar_coluna_se_faltar(conn, "conectacasa_config", "forma_pagamento_padrao", "TEXT")
     conn.execute(
         """
         CREATE UNIQUE INDEX IF NOT EXISTS idx_servicos_orcamento_unique
@@ -1378,6 +1449,248 @@ def conectacasa_percentual_float(valor):
         return 0.0
 
 
+def conectacasa_normalizar_telefone(telefone):
+    numeros = re.sub(r"\D+", "", telefone or "")
+    return numeros
+
+
+def conectacasa_whatsapp_url(telefone, mensagem=""):
+    numeros = conectacasa_normalizar_telefone(telefone)
+    if numeros and not numeros.startswith("55") and len(numeros) >= 10:
+        numeros = f"55{numeros}"
+    base = f"https://wa.me/{numeros}" if numeros else "https://wa.me/"
+    if mensagem:
+        return f"{base}?text={quote(mensagem)}"
+    return base
+
+
+def conectacasa_mensagem_whatsapp_orcamento(orcamento, config=None):
+    nome = (orcamento.get("cliente_nome") or "cliente").strip()
+    config = config or {}
+    template_personalizado = (config.get("mensagem_padrao_whatsapp") or "").strip()
+    numero = orcamento.get("codigo") or "-"
+    data_orcamento = orcamento.get("data_orcamento") or datetime.now().strftime("%d/%m/%Y")
+    validade = orcamento.get("validade_orcamento") or config.get("validade_padrao_orcamento") or "-"
+    forma_pagamento = orcamento.get("forma_pagamento") or config.get("forma_pagamento_padrao") or "-"
+    prazo_execucao = orcamento.get("prazo_execucao") or "-"
+    garantia = orcamento.get("garantia") or config.get("garantia_padrao") or "-"
+    observacoes = orcamento.get("observacoes") or config.get("observacao_padrao_orcamento") or "-"
+    empresa = config.get("empresa_nome") or "ConectaCasa"
+    itens = orcamento.get("itens") or []
+    itens_texto = "\n".join(
+        f"- {item.get('quantidade', 0)}x {item.get('descricao', '')} — {formata_brl(item.get('total', 0))}"
+        for item in itens
+    ) or "- Sem itens cadastrados"
+    if template_personalizado:
+        return template_personalizado.format(
+            nome_cliente=nome,
+            numero_orcamento=numero,
+            data_orcamento=data_orcamento,
+            validade_orcamento=validade,
+            lista_de_itens=itens_texto,
+            subtotal=formata_brl(orcamento.get("subtotal", 0)),
+            desconto=formata_brl(orcamento.get("desconto", 0)),
+            acrescimo=formata_brl(orcamento.get("acrescimo_total", 0)),
+            valor_total=formata_brl(orcamento.get("valor_total", 0)),
+            forma_pagamento=forma_pagamento,
+            prazo_execucao=prazo_execucao,
+            garantia=garantia,
+            observacoes_gerais=observacoes,
+            nome_empresa=empresa,
+        )
+    return (
+        f"Olá, {nome}! Tudo bem?\n\n"
+        "Segue o orçamento solicitado:\n\n"
+        f"Orçamento nº {numero}\n"
+        f"Data: {data_orcamento}\n"
+        f"Validade: {validade}\n\n"
+        "Serviços:\n"
+        f"{itens_texto}\n\n"
+        f"Subtotal: {formata_brl(orcamento.get('subtotal', 0))}\n"
+        f"Desconto: {formata_brl(orcamento.get('desconto', 0))}\n"
+        f"Acréscimo: {formata_brl(orcamento.get('acrescimo_total', 0))}\n"
+        f"Total: {formata_brl(orcamento.get('valor_total', 0))}\n\n"
+        f"Forma de pagamento: {forma_pagamento}\n"
+        f"Prazo de execução: {prazo_execucao}\n"
+        f"Garantia: {garantia}\n\n"
+        "Observações:\n"
+        f"{observacoes}\n\n"
+        "Fico à disposição para qualquer dúvida.\n\n"
+        f"Atenciosamente,\n{empresa}"
+    )
+
+
+def conectacasa_listar_clientes(conn, busca=None, ativo=None):
+    query = "SELECT * FROM conectacasa_clientes WHERE 1 = 1"
+    params = []
+    if ativo is not None:
+        query += " AND ativo = ?"
+        params.append(1 if ativo else 0)
+    if busca:
+        termo = f"%{busca.strip()}%"
+        query += """
+            AND (
+                nome LIKE ? OR
+                COALESCE(empresa, '') LIKE ? OR
+                COALESCE(email, '') LIKE ? OR
+                COALESCE(telefone_whatsapp, COALESCE(telefone, '')) LIKE ? OR
+                COALESCE(cpf_cnpj, '') LIKE ? OR
+                COALESCE(observacoes, '') LIKE ?
+            )
+        """
+        params.extend([termo, termo, termo, termo, termo, termo])
+    query += " ORDER BY ativo DESC, nome, empresa"
+    return [dict(item) for item in conn.execute(query, params).fetchall()]
+
+
+def conectacasa_obter_cliente(conn, cliente_id):
+    cliente = conn.execute("SELECT * FROM conectacasa_clientes WHERE id = ?", (cliente_id,)).fetchone()
+    return dict(cliente) if cliente else None
+
+
+def conectacasa_salvar_cliente(conn, form, cliente_id=None):
+    nome = (form.get("nome") or "").strip()
+    empresa = (form.get("empresa") or "").strip()
+    email = normalizar_email(form.get("email"))
+    telefone = conectacasa_normalizar_telefone(form.get("telefone_whatsapp") or form.get("telefone"))
+    cpf_cnpj = conectacasa_normalizar_telefone(form.get("cpf_cnpj"))
+    endereco = (form.get("endereco") or "").strip()
+    bairro = (form.get("bairro") or "").strip()
+    cidade = (form.get("cidade") or "").strip()
+    estado = (form.get("estado") or "").strip()
+    cep = conectacasa_normalizar_telefone(form.get("cep"))
+    observacoes = (form.get("observacoes") or "").strip()
+    ativo = 1 if form.get("ativo") == "1" else 0
+
+    if not nome:
+        return False, "Informe o nome do cliente."
+    if not telefone:
+        return False, "Informe o WhatsApp do cliente."
+
+    if cliente_id:
+        conn.execute(
+            """
+            UPDATE conectacasa_clientes
+            SET nome = ?, empresa = ?, email = ?, telefone_whatsapp = ?, telefone = ?, cpf_cnpj = ?, endereco = ?, bairro = ?,
+                cidade = ?, estado = ?, cep = ?, observacoes = ?, ativo = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (
+                nome,
+                empresa or None,
+                email,
+                telefone,
+                telefone,
+                cpf_cnpj or None,
+                endereco or None,
+                bairro or None,
+                cidade or None,
+                estado or None,
+                cep or None,
+                observacoes or None,
+                ativo,
+                cliente_id,
+            ),
+        )
+    else:
+        conn.execute(
+            """
+            INSERT INTO conectacasa_clientes (
+                nome, empresa, email, telefone_whatsapp, telefone, cpf_cnpj, endereco, bairro, cidade, estado, cep, observacoes, ativo
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                nome,
+                empresa or None,
+                email,
+                telefone,
+                telefone,
+                cpf_cnpj or None,
+                endereco or None,
+                bairro or None,
+                cidade or None,
+                estado or None,
+                cep or None,
+                observacoes or None,
+                ativo,
+            ),
+        )
+        cliente_id = conn.execute("SELECT last_insert_rowid() AS id").fetchone()["id"]
+    conn.commit()
+    return True, cliente_id
+
+
+def conectacasa_sincronizar_cliente_orcamento(conn, dados_formulario):
+    cliente_id_raw = (dados_formulario.get("cliente_id") or "").strip()
+    nome = (dados_formulario.get("cliente_nome") or "").strip()
+    empresa = (dados_formulario.get("cliente_empresa") or "").strip()
+    email = normalizar_email(dados_formulario.get("cliente_email"))
+    telefone = conectacasa_normalizar_telefone(dados_formulario.get("cliente_telefone"))
+    endereco = (dados_formulario.get("cliente_endereco") or "").strip()
+    cidade = (dados_formulario.get("cliente_cidade") or "").strip()
+    estado = (dados_formulario.get("cliente_estado") or "").strip()
+    observacoes = (dados_formulario.get("cliente_observacoes") or "").strip()
+
+    if not nome:
+        return None
+
+    if cliente_id_raw.isdigit():
+        cliente_id = int(cliente_id_raw)
+        existente = conectacasa_obter_cliente(conn, cliente_id)
+        if existente:
+            conn.execute(
+                """
+                UPDATE conectacasa_clientes
+                SET nome = ?, empresa = ?, email = ?, telefone_whatsapp = ?, telefone = ?, endereco = ?, cidade = ?, estado = ?,
+                    observacoes = ?, ativo = 1, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                (nome, empresa or None, email, telefone or None, telefone or None, endereco or None, cidade or None, estado or None, observacoes or None, cliente_id),
+            )
+            conn.commit()
+            return cliente_id
+
+    cliente = None
+    if telefone:
+        cliente = conn.execute(
+            "SELECT id FROM conectacasa_clientes WHERE COALESCE(telefone_whatsapp, telefone) = ? ORDER BY id DESC LIMIT 1",
+            (telefone,),
+        ).fetchone()
+    if not cliente and email:
+        cliente = conn.execute(
+            "SELECT id FROM conectacasa_clientes WHERE email = ? ORDER BY id DESC LIMIT 1",
+            (email,),
+        ).fetchone()
+    if not cliente:
+        cliente = conn.execute(
+            "SELECT id FROM conectacasa_clientes WHERE nome = ? AND COALESCE(empresa, '') = COALESCE(?, '') ORDER BY id DESC LIMIT 1",
+            (nome, empresa or None),
+        ).fetchone()
+
+    if cliente:
+        cliente_id = cliente["id"]
+        conn.execute(
+            """
+            UPDATE conectacasa_clientes
+            SET nome = ?, empresa = ?, email = ?, telefone_whatsapp = ?, telefone = ?, endereco = ?, cidade = ?, estado = ?,
+                observacoes = ?, ativo = 1, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (nome, empresa or None, email, telefone or None, telefone or None, endereco or None, cidade or None, estado or None, observacoes or None, cliente_id),
+        )
+    else:
+        cursor = conn.execute(
+            """
+            INSERT INTO conectacasa_clientes (nome, empresa, email, telefone_whatsapp, telefone, endereco, cidade, estado, observacoes, ativo)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+            """,
+            (nome, empresa or None, email, telefone or None, telefone or None, endereco or None, cidade or None, estado or None, observacoes or None),
+        )
+        cliente_id = cursor.lastrowid
+    conn.commit()
+    return cliente_id
+
+
 def conectacasa_gerar_codigo(conn):
     prefixo = datetime.now().strftime("CC-%Y%m%d")
     ultimo = conn.execute(
@@ -1395,27 +1708,59 @@ def conectacasa_gerar_codigo(conn):
 
 def conectacasa_status_opcoes():
     return [
-        ("orcamento", "Orcamento"),
+        ("rascunho", "Rascunho"),
         ("enviado", "Enviado"),
-        ("aceito", "Aceito"),
-        ("finalizado", "Finalizado"),
-        ("rejeitado", "Rejeitado"),
+        ("aprovado", "Aprovado"),
+        ("recusado", "Recusado"),
+        ("cancelado", "Cancelado"),
     ]
 
 
 def conectacasa_status_normalizado(status):
     status = (status or "").strip().lower()
     mapa_legado = {
-        "rascunho": "orcamento",
-        "aprovado": "aceito",
+        "orcamento": "rascunho",
+        "aceito": "aprovado",
+        "finalizado": "aprovado",
+        "rejeitado": "recusado",
     }
-    return mapa_legado.get(status, status or "orcamento")
+    return mapa_legado.get(status, status or "rascunho")
 
 
 def conectacasa_status_label(status):
     mapa = dict(conectacasa_status_opcoes())
     status = conectacasa_status_normalizado(status)
     return mapa.get(status, status.title() if status else "Orcamento")
+
+
+def conectacasa_sincronizar_itens_orcamento(conn, orcamento_id, itens):
+    conn.execute("DELETE FROM conectacasa_orcamento_itens WHERE orcamento_id = ?", (orcamento_id,))
+    for item in itens:
+        subtotal = float(item.get("subtotal") or 0)
+        total = float(item.get("total") or 0)
+        percentual = float(item.get("acrescimo_pct") or 0)
+        valor_acrescimo = round(total - subtotal, 2)
+        conn.execute(
+            """
+            INSERT INTO conectacasa_orcamento_itens (
+                orcamento_id, servico_id, descricao, unidade, quantidade, valor_unitario,
+                percentual_acrescimo, valor_acrescimo, subtotal, total, observacao
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                orcamento_id,
+                item.get("servico_base_id"),
+                item.get("descricao"),
+                item.get("unidade"),
+                item.get("quantidade"),
+                item.get("valor_unitario"),
+                percentual,
+                valor_acrescimo,
+                subtotal,
+                total,
+                item.get("observacao") or item.get("acrescimo_motivo"),
+            ),
+        )
 
 
 def conectacasa_data_referencia(valor_data):
@@ -1572,9 +1917,15 @@ def conectacasa_calcular_totais(itens, desconto, acrescimos_percentuais=None):
 def conectacasa_carregar_orcamento(conn, orcamento_id):
     orcamento = conn.execute(
         """
-        SELECT o.*, u.nome AS criado_por_nome
+        SELECT o.*, u.nome AS criado_por_nome,
+               c.endereco AS cliente_endereco,
+               c.cidade AS cliente_cidade,
+               c.estado AS cliente_estado,
+               c.observacoes AS cliente_observacoes,
+               COALESCE(c.telefone_whatsapp, c.telefone, o.cliente_telefone) AS cliente_telefone_resolvido
         FROM conectacasa_orcamentos o
         LEFT JOIN usuarios u ON u.id = o.criado_por
+        LEFT JOIN conectacasa_clientes c ON c.id = o.cliente_id
         WHERE o.id = ?
         """,
         (orcamento_id,),
@@ -1582,9 +1933,13 @@ def conectacasa_carregar_orcamento(conn, orcamento_id):
     if not orcamento:
         return None
     dados = dict(orcamento)
+    dados["cliente_telefone"] = dados.get("cliente_telefone_resolvido") or dados.get("cliente_telefone")
     dados["status"] = conectacasa_status_normalizado(dados.get("status"))
     dados["itens"] = json.loads(dados.get("itens_json") or "[]")
     dados["status_label"] = conectacasa_status_label(dados.get("status"))
+    config = conectacasa_obter_config(conn)
+    dados["whatsapp_mensagem"] = conectacasa_mensagem_whatsapp_orcamento(dados, config=config)
+    dados["cliente_whatsapp_url"] = conectacasa_whatsapp_url(dados.get("cliente_telefone"), dados["whatsapp_mensagem"])
     for campo in (
         "acrescimo_total",
         "acrescimo_noturno_pct",
@@ -1608,14 +1963,19 @@ def conectacasa_salvar_orcamento(conn, dados_formulario, itens, usuario_id, arqu
     cliente_nome = (dados_formulario.get("cliente_nome") or "").strip()
     cliente_empresa = (dados_formulario.get("cliente_empresa") or "").strip()
     cliente_email = normalizar_email(dados_formulario.get("cliente_email"))
-    cliente_telefone = (dados_formulario.get("cliente_telefone") or "").strip()
+    cliente_telefone = conectacasa_normalizar_telefone(dados_formulario.get("cliente_telefone"))
     descricao = (dados_formulario.get("descricao") or "").strip()
     observacoes = (dados_formulario.get("observacoes") or "").strip()
-    status = conectacasa_status_normalizado(dados_formulario.get("status") or "orcamento")
+    status = conectacasa_status_normalizado(dados_formulario.get("status") or "rascunho")
+    data_orcamento = (dados_formulario.get("data_orcamento") or datetime.now().strftime("%d/%m/%Y")).strip()
+    validade_orcamento = (dados_formulario.get("validade_orcamento") or "").strip()
+    forma_pagamento = (dados_formulario.get("forma_pagamento") or "").strip()
+    prazo_execucao = (dados_formulario.get("prazo_execucao") or "").strip()
+    garantia = (dados_formulario.get("garantia") or "").strip()
 
     status_validos = {codigo for codigo, _ in conectacasa_status_opcoes()}
     if status not in status_validos:
-        status = "orcamento"
+        status = "rascunho"
 
     validade_dias = 7
 
@@ -1624,20 +1984,22 @@ def conectacasa_salvar_orcamento(conn, dados_formulario, itens, usuario_id, arqu
     if not itens:
         return False, "Adicione pelo menos um item ao orcamento.", None
 
+    cliente_id = conectacasa_sincronizar_cliente_orcamento(conn, dados_formulario)
     itens_json = json.dumps(itens, ensure_ascii=False)
 
     if orcamento_id:
         conn.execute(
             """
             UPDATE conectacasa_orcamentos
-            SET titulo = ?, cliente_nome = ?, cliente_empresa = ?, cliente_email = ?, cliente_telefone = ?,
-                descricao = ?, observacoes = ?, status = ?, validade_dias = ?, desconto = ?,
+            SET cliente_id = ?, titulo = ?, cliente_nome = ?, cliente_empresa = ?, cliente_email = ?, cliente_telefone = ?,
+                descricao = ?, observacoes = ?, status = ?, data_orcamento = ?, validade_orcamento = ?, forma_pagamento = ?, prazo_execucao = ?, garantia = ?, validade_dias = ?, desconto = ?,
                 subtotal = ?, acrescimo_total = ?, acrescimo_noturno_pct = ?, acrescimo_final_semana_pct = ?,
                 acrescimo_feriado_pct = ?, acrescimo_dificil_pct = ?, acrescimo_emergencia_pct = ?,
                 valor_total = ?, itens_json = ?, atualizado_em = CURRENT_TIMESTAMP
             WHERE id = ?
             """,
             (
+                cliente_id,
                 titulo,
                 cliente_nome,
                 cliente_empresa,
@@ -1646,6 +2008,11 @@ def conectacasa_salvar_orcamento(conn, dados_formulario, itens, usuario_id, arqu
                 descricao,
                 observacoes,
                 status,
+                data_orcamento,
+                validade_orcamento,
+                forma_pagamento,
+                prazo_execucao,
+                garantia,
                 validade_dias,
                 desconto,
                 subtotal,
@@ -1660,6 +2027,7 @@ def conectacasa_salvar_orcamento(conn, dados_formulario, itens, usuario_id, arqu
                 orcamento_id,
             ),
         )
+        conectacasa_sincronizar_itens_orcamento(conn, orcamento_id, itens)
         conn.commit()
         return True, None, orcamento_id
 
@@ -1667,15 +2035,17 @@ def conectacasa_salvar_orcamento(conn, dados_formulario, itens, usuario_id, arqu
     cursor = conn.execute(
         """
         INSERT INTO conectacasa_orcamentos (
-            codigo, titulo, cliente_nome, cliente_empresa, cliente_email, cliente_telefone,
-            descricao, observacoes, status, validade_dias, desconto, subtotal, acrescimo_total,
+            codigo, cliente_id, titulo, cliente_nome, cliente_empresa, cliente_email, cliente_telefone,
+            descricao, observacoes, status, data_orcamento, validade_orcamento, forma_pagamento, prazo_execucao, garantia,
+            validade_dias, desconto, subtotal, acrescimo_total,
             acrescimo_noturno_pct, acrescimo_final_semana_pct, acrescimo_feriado_pct, acrescimo_dificil_pct,
             acrescimo_emergencia_pct, valor_total,
             itens_json, criado_por
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             codigo,
+            cliente_id,
             titulo,
             cliente_nome,
             cliente_empresa,
@@ -1684,6 +2054,11 @@ def conectacasa_salvar_orcamento(conn, dados_formulario, itens, usuario_id, arqu
             descricao,
             observacoes,
             status,
+            data_orcamento,
+            validade_orcamento,
+            forma_pagamento,
+            prazo_execucao,
+            garantia,
             validade_dias,
             desconto,
             subtotal,
@@ -1698,6 +2073,7 @@ def conectacasa_salvar_orcamento(conn, dados_formulario, itens, usuario_id, arqu
             usuario_id,
         ),
     )
+    conectacasa_sincronizar_itens_orcamento(conn, cursor.lastrowid, itens)
     conn.commit()
     return True, None, cursor.lastrowid
 
@@ -2306,6 +2682,7 @@ def inject_now():
         "formata_brl": formata_brl,
         "rich_text": rich_text_para_html,
         "conectacasa_path": conectacasa_path,
+        "conectacasa_whatsapp_url": conectacasa_whatsapp_url,
         "igreja_path": igreja_path,
         "host_eh_conectacasa": host_eh_conectacasa,
         "host_eh_igreja": host_eh_igreja,
@@ -2724,17 +3101,17 @@ def conectacasa_home():
     orcamentos_filtrados = [item for item in orcamentos if item.get("mes_referencia") == mes_selecionado]
 
     total_orcamentos = len(orcamentos_filtrados)
-    total_em_orcamento = sum(1 for item in orcamentos_filtrados if item["status"] == "orcamento")
+    total_em_orcamento = sum(1 for item in orcamentos_filtrados if item["status"] == "rascunho")
     valor_a_receber = round(
         sum(
             item["valor_total"] or 0
             for item in orcamentos_filtrados
-            if item["status"] in {"enviado", "aceito"}
+            if item["status"] in {"enviado", "aprovado"}
         ),
         2,
     )
     valor_recebido = round(
-        sum(item["valor_total"] or 0 for item in orcamentos_filtrados if item["status"] == "finalizado"),
+        sum(item["valor_total"] or 0 for item in orcamentos_filtrados if item["status"] == "aprovado"),
         2,
     )
 
@@ -2768,6 +3145,18 @@ def conectacasa_configuracoes():
         pix_imagem_path = conectacasa_salvar_pix_imagem(request.files.get("pix_imagem_arquivo")) or config.get("pix_imagem_path")
         dados = {
             "empresa_nome": (request.form.get("empresa_nome") or "ConectaCasa").strip(),
+            "nome_responsavel": (request.form.get("nome_responsavel") or "").strip(),
+            "telefone_empresa": conectacasa_normalizar_telefone(request.form.get("telefone_empresa")),
+            "email_empresa": normalizar_email(request.form.get("email_empresa")),
+            "endereco_empresa": (request.form.get("endereco_empresa") or "").strip(),
+            "cidade_empresa": (request.form.get("cidade_empresa") or "").strip(),
+            "estado_empresa": (request.form.get("estado_empresa") or "").strip(),
+            "cnpj_cpf": conectacasa_normalizar_telefone(request.form.get("cnpj_cpf")),
+            "mensagem_padrao_whatsapp": (request.form.get("mensagem_padrao_whatsapp") or "").strip(),
+            "observacao_padrao_orcamento": (request.form.get("observacao_padrao_orcamento") or "").strip(),
+            "garantia_padrao": (request.form.get("garantia_padrao") or "").strip(),
+            "validade_padrao_orcamento": (request.form.get("validade_padrao_orcamento") or "").strip(),
+            "forma_pagamento_padrao": (request.form.get("forma_pagamento_padrao") or "").strip(),
             "pix_nome": (request.form.get("pix_nome") or "").strip(),
             "pix_chave": (request.form.get("pix_chave") or "").strip(),
             "pix_cidade": (request.form.get("pix_cidade") or "").strip(),
@@ -2783,13 +3172,27 @@ def conectacasa_configuracoes():
         conn.execute(
             """
             UPDATE conectacasa_config
-            SET empresa_nome = ?, logo_path = ?, pix_imagem_path = ?, pix_nome = ?, pix_chave = ?, pix_cidade = ?,
+            SET empresa_nome = ?, nome_responsavel = ?, telefone_empresa = ?, email_empresa = ?, endereco_empresa = ?, cidade_empresa = ?, estado_empresa = ?, cnpj_cpf = ?,
+                mensagem_padrao_whatsapp = ?, observacao_padrao_orcamento = ?, garantia_padrao = ?, validade_padrao_orcamento = ?, forma_pagamento_padrao = ?,
+                logo_path = ?, pix_imagem_path = ?, pix_nome = ?, pix_chave = ?, pix_cidade = ?,
                 pix_identificador = ?, pix_descricao = ?, pix_beneficiario = ?, acesso_usuario = ?, acesso_senha_hash = ?,
                 atualizado_em = CURRENT_TIMESTAMP
             WHERE id = 1
             """,
             (
                 dados["empresa_nome"],
+                dados["nome_responsavel"],
+                dados["telefone_empresa"],
+                dados["email_empresa"],
+                dados["endereco_empresa"],
+                dados["cidade_empresa"],
+                dados["estado_empresa"],
+                dados["cnpj_cpf"],
+                dados["mensagem_padrao_whatsapp"],
+                dados["observacao_padrao_orcamento"],
+                dados["garantia_padrao"],
+                dados["validade_padrao_orcamento"],
+                dados["forma_pagamento_padrao"],
                 dados["logo_path"],
                 dados["pix_imagem_path"],
                 dados["pix_nome"],
@@ -2809,6 +3212,96 @@ def conectacasa_configuracoes():
 
     config = conectacasa_preparar_urls_config(config)
     return render_template("conectacasa_configuracoes.html", config=config)
+
+
+@app.route("/clientes", methods=["GET", "POST"])
+@app.route("/clientes/", methods=["GET", "POST"])
+@app.route("/conectacasa/clientes", methods=["GET", "POST"])
+@app.route("/conectacasa/clientes/", methods=["GET", "POST"])
+@conectacasa_required
+def conectacasa_clientes():
+    conn = get_db()
+    config = conectacasa_preparar_urls_config(conectacasa_obter_config(conn))
+    cliente_id = request.form.get("cliente_id") or request.args.get("editar")
+    cliente_edicao = None
+
+    if request.method == "POST":
+        acao = (request.form.get("acao") or "salvar").strip()
+        if acao == "alternar":
+            alvo_id = int(request.form.get("cliente_id") or 0)
+            cliente = conectacasa_obter_cliente(conn, alvo_id)
+            if not cliente:
+                flash("Cliente nao encontrado.", "danger")
+            else:
+                conn.execute(
+                    "UPDATE conectacasa_clientes SET ativo = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    (0 if cliente.get("ativo") else 1, alvo_id),
+                )
+                conn.commit()
+                flash("Status do cliente atualizado.", "success")
+            return redirect(conectacasa_path("/clientes"))
+        if acao == "excluir":
+            alvo_id = int(request.form.get("cliente_id") or 0)
+            vinculos = conn.execute("SELECT COUNT(1) AS total FROM conectacasa_orcamentos WHERE cliente_id = ?", (alvo_id,)).fetchone()
+            if (vinculos["total"] or 0) > 0:
+                flash("Este cliente possui orcamentos vinculados e nao pode ser excluido.", "warning")
+            else:
+                conn.execute("DELETE FROM conectacasa_clientes WHERE id = ?", (alvo_id,))
+                conn.commit()
+                flash("Cliente excluido com sucesso.", "success")
+            return redirect(conectacasa_path("/clientes"))
+
+        alvo_id = int(cliente_id or 0) if str(cliente_id or "").isdigit() else None
+        ok, resultado = conectacasa_salvar_cliente(conn, request.form, cliente_id=alvo_id)
+        if not ok:
+            flash(resultado, "danger")
+            cliente_edicao = dict(request.form)
+            cliente_edicao["id"] = alvo_id
+        else:
+            flash("Cliente salvo com sucesso.", "success")
+            return redirect(conectacasa_path("/clientes"))
+
+    busca = (request.args.get("q") or "").strip()
+    status_filtro = (request.args.get("status") or "ativos").strip()
+    ativo = None if status_filtro == "todos" else 1 if status_filtro == "ativos" else 0
+    clientes = conectacasa_listar_clientes(conn, busca=busca or None, ativo=ativo)
+    if not cliente_edicao and str(cliente_id or "").isdigit():
+        cliente_edicao = conectacasa_obter_cliente(conn, int(cliente_id))
+    historico_orcamentos = []
+    resumo_cliente = None
+    if cliente_edicao and cliente_edicao.get("id"):
+        historico_orcamentos = [
+            dict(item)
+            for item in conn.execute(
+                """
+                SELECT id, codigo, titulo, status, valor_total, data_orcamento, atualizado_em
+                FROM conectacasa_orcamentos
+                WHERE cliente_id = ?
+                ORDER BY atualizado_em DESC, id DESC
+                """,
+                (cliente_edicao["id"],),
+            ).fetchall()
+        ]
+        for item in historico_orcamentos:
+            item["status"] = conectacasa_status_normalizado(item.get("status"))
+            item["status_label"] = conectacasa_status_label(item.get("status"))
+        resumo_cliente = {
+            "total_orcamentos": len(historico_orcamentos),
+            "enviados": sum(1 for item in historico_orcamentos if item["status"] == "enviado"),
+            "aprovados": sum(1 for item in historico_orcamentos if item["status"] == "aprovado"),
+            "recusados": sum(1 for item in historico_orcamentos if item["status"] == "recusado"),
+            "valor_total_aprovado": round(sum(float(item.get("valor_total") or 0) for item in historico_orcamentos if item["status"] == "aprovado"), 2),
+        }
+    return render_template(
+        "conectacasa_clientes.html",
+        config=config,
+        clientes=clientes,
+        busca=busca,
+        status_filtro=status_filtro,
+        cliente_edicao=cliente_edicao,
+        historico_orcamentos=historico_orcamentos,
+        resumo_cliente=resumo_cliente,
+    )
 
 
 @app.route("/servicos", methods=["GET", "POST"])
@@ -2968,6 +3461,11 @@ def conectacasa_novo_orcamento():
     conn = get_db()
     config = conectacasa_preparar_urls_config(conectacasa_obter_config(conn))
     catalogo_servicos = conectacasa_listar_servicos_orcamento(conn)
+    clientes = conectacasa_listar_clientes(conn, ativo=1)
+    cliente_preselecionado = None
+    cliente_id_query = request.args.get("cliente_id")
+    if str(cliente_id_query or "").isdigit():
+        cliente_preselecionado = conectacasa_obter_cliente(conn, int(cliente_id_query))
     if request.method == "POST":
         itens = conectacasa_itens_do_formulario(request.form)
         ok, erro, orcamento_id = conectacasa_salvar_orcamento(conn, request.form, itens, None, arquivos=request.files)
@@ -2980,6 +3478,7 @@ def conectacasa_novo_orcamento():
                 status_opcoes=conectacasa_status_opcoes(),
                 config=config,
                 catalogo_servicos=catalogo_servicos,
+                clientes=clientes,
                 modo="novo",
             )
         flash("Orcamento criado com sucesso.", "success")
@@ -2988,7 +3487,7 @@ def conectacasa_novo_orcamento():
     return render_template(
         "conectacasa_form.html",
         orcamento={
-            "status": "orcamento",
+            "status": "rascunho",
             "desconto": 0,
             "subtotal": 0,
             "acrescimo_total": 0,
@@ -2998,11 +3497,26 @@ def conectacasa_novo_orcamento():
             "acrescimo_dificil_pct": 0,
             "acrescimo_emergencia_pct": 0,
             "valor_total": 0,
+            "data_orcamento": datetime.now().strftime("%d/%m/%Y"),
+            "validade_orcamento": config.get("validade_padrao_orcamento") or "7 dias",
+            "forma_pagamento": config.get("forma_pagamento_padrao") or "",
+            "garantia": config.get("garantia_padrao") or "",
+            "observacoes": config.get("observacao_padrao_orcamento") or "",
+            "cliente_id": cliente_preselecionado.get("id") if cliente_preselecionado else "",
+            "cliente_nome": cliente_preselecionado.get("nome") if cliente_preselecionado else "",
+            "cliente_empresa": cliente_preselecionado.get("empresa") if cliente_preselecionado else "",
+            "cliente_email": cliente_preselecionado.get("email") if cliente_preselecionado else "",
+            "cliente_telefone": (cliente_preselecionado.get("telefone_whatsapp") or cliente_preselecionado.get("telefone")) if cliente_preselecionado else "",
+            "cliente_endereco": cliente_preselecionado.get("endereco") if cliente_preselecionado else "",
+            "cliente_cidade": cliente_preselecionado.get("cidade") if cliente_preselecionado else "",
+            "cliente_estado": cliente_preselecionado.get("estado") if cliente_preselecionado else "",
+            "cliente_observacoes": cliente_preselecionado.get("observacoes") if cliente_preselecionado else "",
         },
         itens=[{"descricao": "", "quantidade": 1, "unidade": "un", "valor_unitario": 0, "total": 0}],
         status_opcoes=conectacasa_status_opcoes(),
         config=config,
         catalogo_servicos=catalogo_servicos,
+        clientes=clientes,
         modo="novo",
     )
 
@@ -3035,6 +3549,7 @@ def conectacasa_editar_orcamento(orcamento_id):
     conn = get_db()
     config = conectacasa_preparar_urls_config(conectacasa_obter_config(conn))
     catalogo_servicos = conectacasa_listar_servicos_orcamento(conn)
+    clientes = conectacasa_listar_clientes(conn, ativo=1)
     orcamento = conectacasa_carregar_orcamento(conn, orcamento_id)
     if not orcamento:
         flash("Orcamento nao encontrado.", "danger")
@@ -3054,6 +3569,7 @@ def conectacasa_editar_orcamento(orcamento_id):
                   status_opcoes=conectacasa_status_opcoes(),
                   config=config,
                   catalogo_servicos=catalogo_servicos,
+                  clientes=clientes,
                   modo="editar",
               )
         flash("Orcamento atualizado com sucesso.", "success")
@@ -3066,6 +3582,7 @@ def conectacasa_editar_orcamento(orcamento_id):
         status_opcoes=conectacasa_status_opcoes(),
         config=config,
         catalogo_servicos=catalogo_servicos,
+        clientes=clientes,
         modo="editar",
     )
 
@@ -3103,6 +3620,64 @@ def conectacasa_atualizar_status(orcamento_id):
     if mes:
         return redirect(f"{conectacasa_path('/painel')}?mes={mes}")
     return redirect(conectacasa_path("/painel"))
+
+
+@app.route("/orcamentos/<int:orcamento_id>/duplicar", methods=["POST"])
+@app.route("/orcamentos/<int:orcamento_id>/duplicar/", methods=["POST"])
+@app.route("/conectacasa/orcamentos/<int:orcamento_id>/duplicar", methods=["POST"])
+@app.route("/conectacasa/orcamentos/<int:orcamento_id>/duplicar/", methods=["POST"])
+@conectacasa_required
+def conectacasa_duplicar_orcamento(orcamento_id):
+    conn = get_db()
+    original = conectacasa_carregar_orcamento(conn, orcamento_id)
+    if not original:
+        flash("Orcamento nao encontrado.", "danger")
+        return redirect(conectacasa_path("/painel"))
+
+    novo_codigo = conectacasa_gerar_codigo(conn)
+    cursor = conn.execute(
+        """
+        INSERT INTO conectacasa_orcamentos (
+            codigo, cliente_id, titulo, cliente_nome, cliente_empresa, cliente_email, cliente_telefone,
+            descricao, observacoes, status, data_orcamento, validade_orcamento, forma_pagamento, prazo_execucao, garantia,
+            validade_dias, desconto, subtotal, acrescimo_total, acrescimo_noturno_pct, acrescimo_final_semana_pct,
+            acrescimo_feriado_pct, acrescimo_dificil_pct, acrescimo_emergencia_pct, valor_total, itens_json, criado_por
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            novo_codigo,
+            original.get("cliente_id"),
+            f"{original.get('titulo')} (copia)",
+            original.get("cliente_nome"),
+            original.get("cliente_empresa"),
+            original.get("cliente_email"),
+            original.get("cliente_telefone"),
+            original.get("descricao"),
+            original.get("observacoes"),
+            "rascunho",
+            datetime.now().strftime("%d/%m/%Y"),
+            original.get("validade_orcamento"),
+            original.get("forma_pagamento"),
+            original.get("prazo_execucao"),
+            original.get("garantia"),
+            original.get("validade_dias") or 7,
+            original.get("desconto") or 0,
+            original.get("subtotal") or 0,
+            original.get("acrescimo_total") or 0,
+            original.get("acrescimo_noturno_pct") or 0,
+            original.get("acrescimo_final_semana_pct") or 0,
+            original.get("acrescimo_feriado_pct") or 0,
+            original.get("acrescimo_dificil_pct") or 0,
+            original.get("acrescimo_emergencia_pct") or 0,
+            original.get("valor_total") or 0,
+            json.dumps(original.get("itens") or [], ensure_ascii=False),
+            None,
+        ),
+    )
+    conectacasa_sincronizar_itens_orcamento(conn, cursor.lastrowid, original.get("itens") or [])
+    conn.commit()
+    flash("Orcamento duplicado com sucesso.", "success")
+    return redirect(conectacasa_path(f"/orcamentos/{cursor.lastrowid}/editar"))
 
 
 @app.route("/orcamentos/<int:orcamento_id>/pdf")
