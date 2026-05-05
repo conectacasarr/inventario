@@ -149,6 +149,62 @@
                 </div>
             </div>
         </div>
+
+        <div class="col-12">
+            <div class="cc-panel p-4">
+                <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
+                    <div>
+                        <h2 class="h5 mb-1">Google Contacts</h2>
+                        <p class="cc-muted mb-0">Conecte sua conta Google para importar os contatos com telefone diretamente para a aba de clientes.</p>
+                    </div>
+                    {% if config.google_contacts_connected %}
+                    <span class="badge text-bg-success rounded-pill px-3 py-2">Conta conectada</span>
+                    {% else %}
+                    <span class="badge text-bg-secondary rounded-pill px-3 py-2">Nao conectado</span>
+                    {% endif %}
+                </div>
+
+                <div class="row g-3">
+                    <div class="col-lg-6">
+                        <label class="form-label">Google Client ID</label>
+                        <input type="text" class="form-control" name="google_client_id" value="{{ config.google_client_id or '' }}">
+                    </div>
+                    <div class="col-lg-6">
+                        <label class="form-label">Google Client Secret</label>
+                        <input type="password" class="form-control" name="google_client_secret" value="{{ config.google_client_secret or '' }}" placeholder="Cole aqui o secret do OAuth">
+                    </div>
+                    <div class="col-12">
+                        <div class="form-text">
+                            URI de redirecionamento para cadastrar no Google Cloud:
+                            <code>{{ google_redirect_uri }}</code>
+                        </div>
+                    </div>
+                    {% if config.google_contacts_connected %}
+                    <div class="col-md-6">
+                        <label class="form-label">Conta conectada</label>
+                        <input type="text" class="form-control" value="{{ config.google_contacts_connected_name or config.google_contacts_connected_email or 'Conta Google conectada' }}" readonly>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Ultima sincronizacao</label>
+                        <input type="text" class="form-control" value="{{ config.google_contacts_sync_at or 'Ainda nao sincronizado' }}" readonly>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div class="d-flex flex-wrap gap-2 mt-4">
+                    {% if google_oauth_disponivel %}
+                    <a href="{{ conectacasa_path('/clientes/google/conectar') }}" class="btn btn-outline-dark rounded-pill px-4">Conectar conta Google</a>
+                    {% else %}
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4" disabled>Instale as dependencias do Google no servidor</button>
+                    {% endif %}
+                    {% if config.google_contacts_connected %}
+                    <form method="POST" action="{{ conectacasa_path('/clientes/google/desconectar') }}">
+                        <button type="submit" class="btn btn-outline-danger rounded-pill px-4">Desconectar Google</button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
     </div>
 
     <div class="d-flex justify-content-end mt-4">

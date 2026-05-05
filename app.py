@@ -33,6 +33,13 @@ from markupsafe import Markup, escape
 
 load_dotenv()
 
+GOOGLE_CONTACTS_SCOPES = [
+    "https://www.googleapis.com/auth/contacts.readonly",
+    "openid",
+    "email",
+    "profile",
+]
+
 for locale_name in ("pt_BR.UTF-8", "pt_BR.utf8", ""):
     try:
         locale.setlocale(locale.LC_ALL, locale_name)
@@ -619,6 +626,12 @@ def conectacasa_criar_tabelas():
     adicionar_coluna_se_faltar(conn, "conectacasa_config", "garantia_padrao", "TEXT")
     adicionar_coluna_se_faltar(conn, "conectacasa_config", "validade_padrao_orcamento", "TEXT")
     adicionar_coluna_se_faltar(conn, "conectacasa_config", "forma_pagamento_padrao", "TEXT")
+    adicionar_coluna_se_faltar(conn, "conectacasa_config", "google_client_id", "TEXT")
+    adicionar_coluna_se_faltar(conn, "conectacasa_config", "google_client_secret", "TEXT")
+    adicionar_coluna_se_faltar(conn, "conectacasa_config", "google_contacts_token_json", "TEXT")
+    adicionar_coluna_se_faltar(conn, "conectacasa_config", "google_contacts_connected_email", "TEXT")
+    adicionar_coluna_se_faltar(conn, "conectacasa_config", "google_contacts_connected_name", "TEXT")
+    adicionar_coluna_se_faltar(conn, "conectacasa_config", "google_contacts_sync_at", "TEXT")
     conn.execute(
         """
         CREATE UNIQUE INDEX IF NOT EXISTS idx_servicos_orcamento_unique
@@ -652,7 +665,254 @@ def conectacasa_preparar_urls_config(config):
     config = dict(config)
     config["logo_url"] = url_for("static", filename=config["logo_path"]) if config.get("logo_path") else None
     config["pix_imagem_url"] = url_for("static", filename=config["pix_imagem_path"]) if config.get("pix_imagem_path") else None
+    config["google_contacts_connected"] = bool(config.get("google_contacts_token_json"))
     return config
+
+
+def conectacasa_google_redirect_uri():
+    host_publico = (app.config.get("CONECTACASA_PUBLIC_HOST") or "").strip()
+    if host_publico:
+        return f"https://{host_publico}{conectacasa_path('/clientes/google/callback')}"
+    return f"{request.host_url.rstrip('/')}{conectacasa_path('/clientes/google/callback')}"
+
+
+def conectacasa_google_oauth_disponivel():
+    try:
+        from google_auth_oauthlib.flow import Flow  # noqa: F401
+        from google.oauth2.credentials import Credentials  # noqa: F401
+        from google.auth.transport.requests import Request as GoogleRequest  # noqa: F401
+        from googleapiclient.discovery import build  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
+def conectacasa_google_criar_flow(config):
+    from google_auth_oauthlib.flow import Flow
+
+    client_id = (config.get("google_client_id") or "").strip()
+    client_secret = (config.get("google_client_secret") or "").strip()
+    if not client_id or not client_secret:
+        raise ValueError("Informe o Client ID e o Client Secret do Google nas configuracoes da ConectaCasa.")
+
+    client_config = {
+        "web": {
+            "client_id": client_id,
+            "project_id": "conectacasa",
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+            "client_secret": client_secret,
+            "redirect_uris": [conectacasa_google_redirect_uri()],
+        }
+    }
+    return Flow.from_client_config(client_config, scopes=GOOGLE_CONTACTS_SCOPES, redirect_uri=conectacasa_google_redirect_uri())
+
+
+def conectacasa_google_obter_credentials(config):
+    token_json = config.get("google_contacts_token_json") or ""
+    if not token_json:
+        return None
+
+    try:
+        from google.oauth2.credentials import Credentials
+        from google.auth.transport.requests import Request as GoogleRequest
+    except ImportError:
+        return None
+
+    try:
+        cred_data = json.loads(token_json)
+    except json.JSONDecodeError:
+        return None
+
+    creds = Credentials.from_authorized_user_info(cred_data, GOOGLE_CONTACTS_SCOPES)
+    if creds.expired and creds.refresh_token:
+        creds.refresh(GoogleRequest())
+    return creds
+
+
+def conectacasa_google_salvar_credentials(conn, creds, perfil=None):
+    perfil = perfil or {}
+    conn.execute(
+        """
+        UPDATE conectacasa_config
+        SET google_contacts_token_json = ?, google_contacts_connected_email = ?, google_contacts_connected_name = ?,
+            google_contacts_sync_at = CURRENT_TIMESTAMP, atualizado_em = CURRENT_TIMESTAMP
+        WHERE id = 1
+        """,
+        (
+            creds.to_json(),
+            (perfil.get("email") or "").strip(),
+            (perfil.get("name") or "").strip(),
+        ),
+    )
+    conn.commit()
+
+
+def conectacasa_google_limpar_conexao(conn):
+    conn.execute(
+        """
+        UPDATE conectacasa_config
+        SET google_contacts_token_json = NULL, google_contacts_connected_email = NULL,
+            google_contacts_connected_name = NULL, google_contacts_sync_at = NULL, atualizado_em = CURRENT_TIMESTAMP
+        WHERE id = 1
+        """
+    )
+    conn.commit()
+
+
+def conectacasa_google_obter_perfil(service):
+    perfil = {"name": "", "email": ""}
+    try:
+        dados = service.people().get(resourceName="people/me", personFields="names,emailAddresses").execute()
+        nomes = dados.get("names") or []
+        emails = dados.get("emailAddresses") or []
+        if nomes:
+            perfil["name"] = (nomes[0].get("displayName") or "").strip()
+        if emails:
+            perfil["email"] = (emails[0].get("value") or "").strip().lower()
+    except Exception:
+        pass
+    return perfil
+
+
+def conectacasa_google_listar_contatos(config):
+    if not conectacasa_google_oauth_disponivel():
+        raise RuntimeError("As dependencias do Google Contacts nao estao instaladas no servidor.")
+
+    from googleapiclient.discovery import build
+
+    creds = conectacasa_google_obter_credentials(config)
+    if not creds or not creds.valid:
+        raise RuntimeError("A conexao com o Google expirou. Reconecte a conta para importar os contatos.")
+
+    service = build("people", "v1", credentials=creds, cache_discovery=False)
+    contatos = []
+    page_token = None
+
+    while True:
+        resposta = service.people().connections().list(
+            resourceName="people/me",
+            pageSize=500,
+            pageToken=page_token,
+            personFields="names,emailAddresses,phoneNumbers,organizations,addresses",
+            sortOrder="LAST_MODIFIED_ASCENDING",
+        ).execute()
+        for person in resposta.get("connections", []):
+            nomes = person.get("names") or []
+            telefones = person.get("phoneNumbers") or []
+            if not nomes or not telefones:
+                continue
+
+            nome = (nomes[0].get("displayName") or "").strip()
+            telefone_bruto = (telefones[0].get("value") or "").strip()
+            telefone = conectacasa_normalizar_telefone(telefone_bruto)
+            if not nome or not telefone:
+                continue
+
+            emails = person.get("emailAddresses") or []
+            orgs = person.get("organizations") or []
+            enderecos = person.get("addresses") or []
+            endereco = enderecos[0] if enderecos else {}
+
+            contatos.append(
+                {
+                    "nome": nome,
+                    "telefone_whatsapp": telefone,
+                    "email": ((emails[0].get("value") or "").strip().lower() if emails else ""),
+                    "empresa": ((orgs[0].get("name") or "").strip() if orgs else ""),
+                    "endereco": (endereco.get("streetAddress") or "").strip(),
+                    "bairro": (endereco.get("extendedAddress") or "").strip(),
+                    "cidade": (endereco.get("city") or "").strip(),
+                    "estado": (endereco.get("region") or "").strip(),
+                    "cep": conectacasa_normalizar_telefone(endereco.get("postalCode")),
+                    "observacoes": "Importado do Google Contacts",
+                    "ativo": 1,
+                }
+            )
+
+        page_token = resposta.get("nextPageToken")
+        if not page_token:
+            break
+
+    return contatos, service, creds
+
+
+def conectacasa_google_importar_clientes(conn, config):
+    contatos, service, creds = conectacasa_google_listar_contatos(config)
+    perfil = conectacasa_google_obter_perfil(service)
+    conectacasa_google_salvar_credentials(conn, creds, perfil=perfil)
+
+    resumo = {"importados": 0, "atualizados": 0, "ignorados": 0}
+    for contato in contatos:
+        telefone = contato["telefone_whatsapp"]
+        email = contato["email"]
+        existente = None
+        if telefone:
+            existente = conn.execute(
+                "SELECT id FROM conectacasa_clientes WHERE COALESCE(telefone_whatsapp, telefone) = ? ORDER BY id DESC LIMIT 1",
+                (telefone,),
+            ).fetchone()
+        if not existente and email:
+            existente = conn.execute(
+                "SELECT id FROM conectacasa_clientes WHERE email = ? ORDER BY id DESC LIMIT 1",
+                (email,),
+            ).fetchone()
+
+        if existente:
+            conn.execute(
+                """
+                UPDATE conectacasa_clientes
+                SET nome = ?, empresa = COALESCE(NULLIF(?, ''), empresa), telefone_whatsapp = ?, telefone = ?,
+                    email = COALESCE(NULLIF(?, ''), email), endereco = COALESCE(NULLIF(?, ''), endereco),
+                    bairro = COALESCE(NULLIF(?, ''), bairro), cidade = COALESCE(NULLIF(?, ''), cidade),
+                    estado = COALESCE(NULLIF(?, ''), estado), cep = COALESCE(NULLIF(?, ''), cep),
+                    observacoes = CASE WHEN COALESCE(observacoes, '') = '' THEN ? ELSE observacoes END,
+                    ativo = 1, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                (
+                    contato["nome"],
+                    contato["empresa"],
+                    telefone,
+                    telefone,
+                    email,
+                    contato["endereco"],
+                    contato["bairro"],
+                    contato["cidade"],
+                    contato["estado"],
+                    contato["cep"],
+                    contato["observacoes"],
+                    existente["id"],
+                ),
+            )
+            resumo["atualizados"] += 1
+        else:
+            conn.execute(
+                """
+                INSERT INTO conectacasa_clientes (
+                    nome, empresa, telefone_whatsapp, telefone, email, endereco, bairro, cidade, estado, cep, observacoes, ativo
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+                """,
+                (
+                    contato["nome"],
+                    contato["empresa"],
+                    telefone,
+                    telefone,
+                    email,
+                    contato["endereco"],
+                    contato["bairro"],
+                    contato["cidade"],
+                    contato["estado"],
+                    contato["cep"],
+                    contato["observacoes"],
+                ),
+            )
+            resumo["importados"] += 1
+
+    conn.execute("UPDATE conectacasa_config SET google_contacts_sync_at = CURRENT_TIMESTAMP WHERE id = 1")
+    conn.commit()
+    return resumo
 
 
 def igreja_criar_tabelas():
@@ -3164,6 +3424,8 @@ def conectacasa_configuracoes():
             "pix_descricao": (request.form.get("pix_descricao") or "").strip(),
             "pix_beneficiario": (request.form.get("pix_beneficiario") or "").strip(),
             "acesso_usuario": (request.form.get("acesso_usuario") or config.get("acesso_usuario") or "admin").strip() or "admin",
+            "google_client_id": (request.form.get("google_client_id") or "").strip(),
+            "google_client_secret": (request.form.get("google_client_secret") or "").strip() or (config.get("google_client_secret") or ""),
             "logo_path": logo_path,
             "pix_imagem_path": pix_imagem_path,
         }
@@ -3175,7 +3437,7 @@ def conectacasa_configuracoes():
             SET empresa_nome = ?, nome_responsavel = ?, telefone_empresa = ?, email_empresa = ?, endereco_empresa = ?, cidade_empresa = ?, estado_empresa = ?, cnpj_cpf = ?,
                 mensagem_padrao_whatsapp = ?, observacao_padrao_orcamento = ?, garantia_padrao = ?, validade_padrao_orcamento = ?, forma_pagamento_padrao = ?,
                 logo_path = ?, pix_imagem_path = ?, pix_nome = ?, pix_chave = ?, pix_cidade = ?,
-                pix_identificador = ?, pix_descricao = ?, pix_beneficiario = ?, acesso_usuario = ?, acesso_senha_hash = ?,
+                pix_identificador = ?, pix_descricao = ?, pix_beneficiario = ?, acesso_usuario = ?, acesso_senha_hash = ?, google_client_id = ?, google_client_secret = ?,
                 atualizado_em = CURRENT_TIMESTAMP
             WHERE id = 1
             """,
@@ -3203,6 +3465,8 @@ def conectacasa_configuracoes():
                 dados["pix_beneficiario"],
                 dados["acesso_usuario"],
                 senha_hash,
+                dados["google_client_id"],
+                dados["google_client_secret"],
             ),
         )
         conn.commit()
@@ -3211,7 +3475,105 @@ def conectacasa_configuracoes():
         return redirect(conectacasa_path("/configuracoes"))
 
     config = conectacasa_preparar_urls_config(config)
-    return render_template("conectacasa_configuracoes.html", config=config)
+    return render_template(
+        "conectacasa_configuracoes.html",
+        config=config,
+        google_redirect_uri=conectacasa_google_redirect_uri(),
+        google_oauth_disponivel=conectacasa_google_oauth_disponivel(),
+    )
+
+
+@app.route("/clientes/google/conectar")
+@app.route("/clientes/google/conectar/")
+@app.route("/conectacasa/clientes/google/conectar")
+@app.route("/conectacasa/clientes/google/conectar/")
+@conectacasa_required
+def conectacasa_google_conectar():
+    conn = get_db()
+    config = conectacasa_obter_config(conn)
+    if not conectacasa_google_oauth_disponivel():
+        flash("As dependencias do Google Contacts nao estao instaladas no servidor.", "danger")
+        return redirect(conectacasa_path("/configuracoes"))
+
+    try:
+        flow = conectacasa_google_criar_flow(config)
+    except ValueError as exc:
+        flash(str(exc), "warning")
+        return redirect(conectacasa_path("/configuracoes"))
+
+    authorization_url, state = flow.authorization_url(
+        access_type="offline",
+        include_granted_scopes="true",
+        prompt="consent",
+    )
+    session["conectacasa_google_state"] = state
+    return redirect(authorization_url)
+
+
+@app.route("/clientes/google/callback")
+@app.route("/clientes/google/callback/")
+@app.route("/conectacasa/clientes/google/callback")
+@app.route("/conectacasa/clientes/google/callback/")
+@conectacasa_required
+def conectacasa_google_callback():
+    conn = get_db()
+    config = conectacasa_obter_config(conn)
+    if not conectacasa_google_oauth_disponivel():
+        flash("As dependencias do Google Contacts nao estao instaladas no servidor.", "danger")
+        return redirect(conectacasa_path("/configuracoes"))
+
+    state = session.get("conectacasa_google_state")
+    try:
+        flow = conectacasa_google_criar_flow(config)
+        if state:
+            flow.state = state
+        authorization_response = conectacasa_google_redirect_uri()
+        if request.query_string:
+            authorization_response = f"{authorization_response}?{request.query_string.decode()}"
+        flow.fetch_token(authorization_response=authorization_response)
+        creds = flow.credentials
+        from googleapiclient.discovery import build
+
+        service = build("people", "v1", credentials=creds, cache_discovery=False)
+        perfil = conectacasa_google_obter_perfil(service)
+        conectacasa_google_salvar_credentials(conn, creds, perfil=perfil)
+        flash("Conta Google conectada com sucesso. Agora voce ja pode importar os contatos.", "success")
+    except Exception as exc:
+        flash(f"Nao foi possivel concluir a conexao com o Google: {exc}", "danger")
+    finally:
+        session.pop("conectacasa_google_state", None)
+    return redirect(conectacasa_path("/clientes"))
+
+
+@app.route("/clientes/google/sincronizar", methods=["POST"])
+@app.route("/clientes/google/sincronizar/", methods=["POST"])
+@app.route("/conectacasa/clientes/google/sincronizar", methods=["POST"])
+@app.route("/conectacasa/clientes/google/sincronizar/", methods=["POST"])
+@conectacasa_required
+def conectacasa_google_sincronizar():
+    conn = get_db()
+    config = conectacasa_obter_config(conn)
+    try:
+        resumo = conectacasa_google_importar_clientes(conn, config)
+        flash(
+            f"Importacao concluida. {resumo['importados']} cliente(s) novos e {resumo['atualizados']} atualizado(s).",
+            "success",
+        )
+    except Exception as exc:
+        flash(f"Nao foi possivel importar os contatos do Google: {exc}", "danger")
+    return redirect(conectacasa_path("/clientes"))
+
+
+@app.route("/clientes/google/desconectar", methods=["POST"])
+@app.route("/clientes/google/desconectar/", methods=["POST"])
+@app.route("/conectacasa/clientes/google/desconectar", methods=["POST"])
+@app.route("/conectacasa/clientes/google/desconectar/", methods=["POST"])
+@conectacasa_required
+def conectacasa_google_desconectar():
+    conn = get_db()
+    conectacasa_google_limpar_conexao(conn)
+    flash("Conexao com o Google removida da ConectaCasa.", "success")
+    return redirect(conectacasa_path("/configuracoes"))
 
 
 @app.route("/clientes", methods=["GET", "POST"])
@@ -3301,6 +3663,7 @@ def conectacasa_clientes():
         cliente_edicao=cliente_edicao,
         historico_orcamentos=historico_orcamentos,
         resumo_cliente=resumo_cliente,
+        google_oauth_disponivel=conectacasa_google_oauth_disponivel(),
     )
 
 

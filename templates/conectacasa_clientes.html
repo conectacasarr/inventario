@@ -120,8 +120,27 @@ document.querySelector('[name="telefone_whatsapp"]')?.addEventListener('input', 
                     <h2 class="h4 mb-1">Clientes cadastrados</h2>
                     <p class="cc-muted mb-0">Use a busca para localizar cliente rapidamente e reaproveitar no orçamento.</p>
                 </div>
-                <a href="{{ conectacasa_path('/clientes') }}" class="btn btn-outline-dark rounded-pill px-4">Novo cliente</a>
+                <div class="d-flex flex-wrap gap-2">
+                    {% if config.google_contacts_connected %}
+                    <form method="POST" action="{{ conectacasa_path('/clientes/google/sincronizar') }}">
+                        <button type="submit" class="btn btn-outline-dark rounded-pill px-4">Importar do Google</button>
+                    </form>
+                    {% else %}
+                    <a href="{{ conectacasa_path('/configuracoes') }}" class="btn btn-outline-secondary rounded-pill px-4">Configurar Google Contacts</a>
+                    {% endif %}
+                    <a href="{{ conectacasa_path('/clientes') }}" class="btn btn-outline-dark rounded-pill px-4">Novo cliente</a>
+                </div>
             </div>
+
+            {% if config.google_contacts_connected %}
+            <div class="alert alert-light border mb-4">
+                <div class="fw-semibold mb-1">Google Contacts conectado</div>
+                <div class="small text-muted">
+                    {{ config.google_contacts_connected_name or config.google_contacts_connected_email }}
+                    {% if config.google_contacts_sync_at %} • ultima sincronizacao: {{ config.google_contacts_sync_at }}{% endif %}
+                </div>
+            </div>
+            {% endif %}
 
             <form method="GET" class="row g-3 mb-4">
                 <div class="col-md-8">
