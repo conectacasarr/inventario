@@ -14,7 +14,10 @@ import re
 import io
 import tempfile
 import json
-from urllib.parse import quote, urlparse
+import secrets
+from urllib.parse import quote, urlparse, urlencode
+from urllib.request import Request, urlopen
+from urllib.error import HTTPError, URLError
 from html.parser import HTMLParser
 try:
     import fitz
@@ -678,7 +681,6 @@ def conectacasa_google_redirect_uri():
 
 def conectacasa_google_oauth_disponivel():
     try:
-        from google_auth_oauthlib.flow import Flow  # noqa: F401
         from google.oauth2.credentials import Credentials  # noqa: F401
         from google.auth.transport.requests import Request as GoogleRequest  # noqa: F401
         from googleapiclient.discovery import build  # noqa: F401
@@ -687,26 +689,59 @@ def conectacasa_google_oauth_disponivel():
         return False
 
 
-def conectacasa_google_criar_flow(config):
-    from google_auth_oauthlib.flow import Flow
-
+def conectacasa_google_validar_client_config(config):
     client_id = (config.get("google_client_id") or "").strip()
     client_secret = (config.get("google_client_secret") or "").strip()
     if not client_id or not client_secret:
         raise ValueError("Informe o Client ID e o Client Secret do Google nas configuracoes da ConectaCasa.")
+    return client_id, client_secret
 
-    client_config = {
-        "web": {
-            "client_id": client_id,
-            "project_id": "conectacasa",
-            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-            "token_uri": "https://oauth2.googleapis.com/token",
-            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-            "client_secret": client_secret,
-            "redirect_uris": [conectacasa_google_redirect_uri()],
-        }
+
+def conectacasa_google_authorization_url(config, state):
+    client_id, _ = conectacasa_google_validar_client_config(config)
+    params = {
+        "client_id": client_id,
+        "redirect_uri": conectacasa_google_redirect_uri(),
+        "response_type": "code",
+        "scope": " ".join(GOOGLE_CONTACTS_SCOPES),
+        "access_type": "offline",
+        "prompt": "consent",
+        "include_granted_scopes": "true",
+        "state": state,
     }
-    return Flow.from_client_config(client_config, scopes=GOOGLE_CONTACTS_SCOPES, redirect_uri=conectacasa_google_redirect_uri())
+    return f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
+
+
+def conectacasa_google_trocar_code_por_token(config, code):
+    client_id, client_secret = conectacasa_google_validar_client_config(config)
+    payload = urlencode(
+        {
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "code": code,
+            "grant_type": "authorization_code",
+            "redirect_uri": conectacasa_google_redirect_uri(),
+        }
+    ).encode("utf-8")
+    request_token = Request(
+        "https://oauth2.googleapis.com/token",
+        data=payload,
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        method="POST",
+    )
+    try:
+        with urlopen(request_token, timeout=30) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        resposta = exc.read().decode("utf-8", errors="replace")
+        try:
+            dados = json.loads(resposta)
+        except json.JSONDecodeError:
+            raise RuntimeError("Falha ao trocar o codigo do Google por token.") from exc
+        descricao = dados.get("error_description") or dados.get("error") or "Falha na autenticacao com o Google."
+        raise RuntimeError(descricao) from exc
+    except URLError as exc:
+        raise RuntimeError("Nao foi possivel conectar ao Google para concluir a autenticacao.") from exc
 
 
 def conectacasa_google_obter_credentials(config):
@@ -733,6 +768,7 @@ def conectacasa_google_obter_credentials(config):
 
 def conectacasa_google_salvar_credentials(conn, creds, perfil=None):
     perfil = perfil or {}
+    cred_json = creds.to_json()
     conn.execute(
         """
         UPDATE conectacasa_config
@@ -741,7 +777,7 @@ def conectacasa_google_salvar_credentials(conn, creds, perfil=None):
         WHERE id = 1
         """,
         (
-            creds.to_json(),
+            cred_json,
             (perfil.get("email") or "").strip(),
             (perfil.get("name") or "").strip(),
         ),
@@ -3496,18 +3532,14 @@ def conectacasa_google_conectar():
         return redirect(conectacasa_path("/configuracoes"))
 
     try:
-        flow = conectacasa_google_criar_flow(config)
+        conectacasa_google_validar_client_config(config)
     except ValueError as exc:
         flash(str(exc), "warning")
         return redirect(conectacasa_path("/configuracoes"))
 
-    authorization_url, state = flow.authorization_url(
-        access_type="offline",
-        include_granted_scopes="true",
-        prompt="consent",
-    )
+    state = secrets.token_urlsafe(32)
     session["conectacasa_google_state"] = state
-    return redirect(authorization_url)
+    return redirect(conectacasa_google_authorization_url(config, state))
 
 
 @app.route("/clientes/google/callback")
@@ -3523,23 +3555,59 @@ def conectacasa_google_callback():
         return redirect(conectacasa_path("/configuracoes"))
 
     state = session.get("conectacasa_google_state")
+    retorno_state = request.args.get("state") or ""
+    erro_google = (request.args.get("error") or "").strip()
+    codigo = (request.args.get("code") or "").strip()
+
+    erros_tratados = {
+        "access_denied": "O acesso aos contatos do Google foi negado.",
+        "invalid_client": "Google Client ID ou Client Secret invalidos.",
+        "redirect_uri_mismatch": "A URI de redirecionamento cadastrada no Google nao bate com a da ConectaCasa.",
+        "invalid_grant": "O codigo de autorizacao do Google expirou ou ficou invalido. Tente conectar novamente.",
+    }
+
     try:
-        flow = conectacasa_google_criar_flow(config)
-        if state:
-            flow.state = state
-        authorization_response = conectacasa_google_redirect_uri()
-        if request.query_string:
-            authorization_response = f"{authorization_response}?{request.query_string.decode()}"
-        flow.fetch_token(authorization_response=authorization_response)
-        creds = flow.credentials
+        conectacasa_google_validar_client_config(config)
+        if erro_google:
+            flash(erros_tratados.get(erro_google, f"Falha na autenticacao com o Google: {erro_google}"), "danger")
+            return redirect(conectacasa_path("/configuracoes"))
+        if not state or not retorno_state or retorno_state != state:
+            flash("A validacao de seguranca da conexao com o Google falhou. Tente novamente.", "danger")
+            return redirect(conectacasa_path("/configuracoes"))
+        if not codigo:
+            flash("O Google nao retornou o codigo de autorizacao esperado.", "danger")
+            return redirect(conectacasa_path("/configuracoes"))
+
+        token_data = conectacasa_google_trocar_code_por_token(config, codigo)
+        if not token_data.get("refresh_token"):
+            flash("O Google nao retornou refresh token. Tente conectar novamente com consentimento completo.", "warning")
+
+        from google.oauth2.credentials import Credentials
         from googleapiclient.discovery import build
 
+        creds = Credentials(
+            token=token_data.get("access_token"),
+            refresh_token=token_data.get("refresh_token"),
+            token_uri="https://oauth2.googleapis.com/token",
+            client_id=(config.get("google_client_id") or "").strip(),
+            client_secret=(config.get("google_client_secret") or "").strip(),
+            scopes=GOOGLE_CONTACTS_SCOPES,
+        )
+        try:
+            expires_in = int(token_data.get("expires_in") or 0)
+            if expires_in > 0:
+                creds.expiry = datetime.utcnow() + timedelta(seconds=expires_in)
+        except Exception:
+            pass
         service = build("people", "v1", credentials=creds, cache_discovery=False)
         perfil = conectacasa_google_obter_perfil(service)
         conectacasa_google_salvar_credentials(conn, creds, perfil=perfil)
-        flash("Conta Google conectada com sucesso. Agora voce ja pode importar os contatos.", "success")
+        flash("Conta Google conectada.", "success")
     except Exception as exc:
-        flash(f"Nao foi possivel concluir a conexao com o Google: {exc}", "danger")
+        mensagem = str(exc)
+        if "missing code verifier" in mensagem.lower():
+            mensagem = "O Google recusou a autenticacao anterior por causa do fluxo PKCE. O sistema foi ajustado. Tente conectar novamente."
+        flash(f"Nao foi possivel concluir a conexao com o Google: {mensagem}", "danger")
     finally:
         session.pop("conectacasa_google_state", None)
     return redirect(conectacasa_path("/clientes"))
