@@ -2337,7 +2337,7 @@ def conectacasa_salvar_orcamento(conn, dados_formulario, itens, usuario_id, arqu
             acrescimo_noturno_pct, acrescimo_final_semana_pct, acrescimo_feriado_pct, acrescimo_dificil_pct,
             acrescimo_emergencia_pct, valor_total,
             itens_json, criado_por
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             codigo,
