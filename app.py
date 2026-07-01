@@ -2903,6 +2903,15 @@ def migrar_usuarios_auth():
             "UPDATE usuarios SET pode_editar_igreja = 0 WHERE pode_editar_igreja IS NULL"
         )
         conn.execute(
+            """
+            UPDATE usuarios
+            SET pode_acessar_inventario = 0,
+                pode_editar_igreja = 0
+            WHERE COALESCE(ativo, 0) = 0
+              AND LOWER(COALESCE(usuario, '')) <> 'admin'
+            """
+        )
+        conn.execute(
             "UPDATE usuarios SET pode_editar_igreja = 1 WHERE usuario = 'admin'"
         )
         conn.execute(
@@ -3159,7 +3168,7 @@ def cadastro():
             INSERT INTO usuarios (nome, usuario, email, senha_hash, tipo, ativo, criado_em, pode_acessar_inventario, pode_editar_igreja)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (nome, usuario, email, generate_password_hash(senha), "comum", 0, datetime.now(), 1, 0),
+            (nome, usuario, email, generate_password_hash(senha), "comum", 0, datetime.now(), 0, 0),
         )
         db.commit()
         enviado, erro = enviar_email_cadastro_pendente(nome, email)
