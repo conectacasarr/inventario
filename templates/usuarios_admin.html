@@ -8,10 +8,22 @@
 
     <div class="card mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">{% if pode_gerenciar_usuarios %}Lista de Usuarios{% else %}Seus dados{% endif %}</h5>
+            <div>
+                <h5 class="mb-0">{% if pode_gerenciar_usuarios %}Lista de Usuarios{% else %}Seus dados{% endif %}</h5>
+                {% if pode_gerenciar_usuarios and total_pendentes %}
+                <small class="text-muted">{{ total_pendentes }} pendente(s) aguardando revisao</small>
+                {% endif %}
+            </div>
+            <div class="d-flex gap-2">
             {% if pode_gerenciar_usuarios %}
+            {% if total_pendentes %}
+            <form method="POST" action="{{ url_for('limpar_usuarios_pendentes') }}" onsubmit="return confirm('Deseja excluir todos os usuarios pendentes?');">
+                <button type="submit" class="btn btn-outline-danger">Limpar pendentes</button>
+            </form>
+            {% endif %}
             <a href="{{ url_for('novo_usuario') }}" class="btn btn-success">Cadastrar Novo Usuario</a>
             {% endif %}
+            </div>
         </div>
         <div class="card-body">
             {% if usuarios %}

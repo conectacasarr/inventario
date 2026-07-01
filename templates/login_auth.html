@@ -44,7 +44,9 @@
             <div class="auth-divider">ou</div>
 
             <div class="d-flex flex-column gap-2 text-center">
+                {% if public_signup_enabled %}
                 <a href="{{ url_for('cadastro') }}" class="auth-secondary-link">Criar uma nova conta</a>
+                {% endif %}
                 <a href="{{ url_for('esqueci_senha') }}" class="auth-secondary-link">Esqueci minha senha</a>
             </div>
         </div>

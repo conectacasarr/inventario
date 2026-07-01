@@ -275,6 +275,7 @@ app.config["RESET_PASSWORD_MAX_AGE"] = int(os.environ.get("RESET_PASSWORD_MAX_AG
 app.config["APP_BASE_URL"] = os.environ.get("APP_BASE_URL", "http://localhost:5000")
 app.config["CONECTACASA_PUBLIC_HOST"] = os.environ.get("CONECTACASA_PUBLIC_HOST", "conectacasa.oaibv.com.br").strip().lower()
 app.config["IGREJA_PUBLIC_HOST"] = os.environ.get("IGREJA_PUBLIC_HOST", "igrejaemboavista.oaibv.com.br").strip().lower()
+app.config["PUBLIC_SIGNUP_ENABLED"] = os.environ.get("PUBLIC_SIGNUP_ENABLED", "false").strip().lower() == "true"
 
 # Aqui pode adicionar a configuraÃ§Ã£o do SQLAlchemy, se ainda nÃ£o estiver
 from models import db, Usuario
@@ -3056,7 +3057,11 @@ def login():
             destino = destino_pos_login_com_next(user_obj)
             if not destino:
                 flash("Seu usuario esta ativo, mas ainda nao possui acessos liberados.", "warning")
-                return render_template("login_auth.html", next_url=login_next_seguro())
+                return render_template(
+                    "login_auth.html",
+                    next_url=login_next_seguro(),
+                    public_signup_enabled=app.config.get("PUBLIC_SIGNUP_ENABLED"),
+                )
             login_user(user_obj)
             registrar_log("Login realizado com sucesso")
             db.commit()
@@ -3066,7 +3071,11 @@ def login():
         else:
             flash("Usuario, e-mail ou senha invalidos.", "danger")
     
-    return render_template("login_auth.html", next_url=login_next_seguro())
+    return render_template(
+        "login_auth.html",
+        next_url=login_next_seguro(),
+        public_signup_enabled=app.config.get("PUBLIC_SIGNUP_ENABLED"),
+    )
 
 @app.route("/cadastro", methods=["GET", "POST"])
 @app.route("/cadastro/", methods=["GET", "POST"])
@@ -3074,24 +3083,59 @@ def cadastro():
     if current_user.is_authenticated:
         return redirect(destino_pos_login(current_user) or url_for("logout"))
 
+    if not app.config.get("PUBLIC_SIGNUP_ENABLED"):
+        flash("O cadastro publico esta desativado. Solicite a criacao do acesso a um administrador.", "warning")
+        return redirect(url_for("login"))
+
     if request.method == "POST":
         nome = request.form.get("nome", "").strip()
         usuario = request.form.get("usuario", "").strip()
         email = validar_email_informado(request.form.get("email"))
         senha = request.form.get("senha", "")
         confirmar_senha = request.form.get("confirmar_senha", "")
+        honeypot = (request.form.get("site") or "").strip()
+        form_started_at = request.form.get("form_started_at", "").strip()
+
+        if honeypot:
+            flash("Cadastro enviado com sucesso. Aguarde a aprovacao de um administrador para acessar o sistema.", "success")
+            return redirect(url_for("login"))
+
+        try:
+            inicio = float(form_started_at)
+        except (TypeError, ValueError):
+            inicio = 0
+
+        if not inicio or (datetime.now().timestamp() - inicio) < 3:
+            flash("Nao foi possivel validar o cadastro. Tente novamente em alguns segundos.", "danger")
+            return render_template(
+                "cadastro.html",
+                registration_enabled=app.config.get("PUBLIC_SIGNUP_ENABLED"),
+                form_started_at=datetime.now().timestamp(),
+            )
 
         if not nome or not usuario or not email or not senha:
             flash("Preencha todos os campos obrigatorios.", "danger")
-            return render_template("cadastro.html")
+            return render_template(
+                "cadastro.html",
+                registration_enabled=app.config.get("PUBLIC_SIGNUP_ENABLED"),
+                form_started_at=datetime.now().timestamp(),
+            )
 
         if not senha_atende_requisitos(senha):
             flash("A senha deve ter pelo menos 8 caracteres.", "danger")
-            return render_template("cadastro.html")
+            return render_template(
+                "cadastro.html",
+                registration_enabled=app.config.get("PUBLIC_SIGNUP_ENABLED"),
+                form_started_at=datetime.now().timestamp(),
+            )
 
         if senha != confirmar_senha:
             flash("As senhas nao coincidem.", "danger")
-            return render_template("cadastro.html")
+            return render_template(
+                "cadastro.html",
+                registration_enabled=app.config.get("PUBLIC_SIGNUP_ENABLED"),
+                form_started_at=datetime.now().timestamp(),
+            )
 
         db = get_db()
         existente = db.execute(
@@ -3104,7 +3148,11 @@ def cadastro():
 
         if existente:
             flash("Ja existe uma conta com este usuario ou e-mail.", "danger")
-            return render_template("cadastro.html")
+            return render_template(
+                "cadastro.html",
+                registration_enabled=app.config.get("PUBLIC_SIGNUP_ENABLED"),
+                form_started_at=datetime.now().timestamp(),
+            )
 
         db.execute(
             """
@@ -3120,7 +3168,11 @@ def cadastro():
         flash("Cadastro enviado com sucesso. Aguarde a aprovacao de um administrador para acessar o sistema.", "success")
         return redirect(url_for("login"))
 
-    return render_template("cadastro.html")
+    return render_template(
+        "cadastro.html",
+        registration_enabled=app.config.get("PUBLIC_SIGNUP_ENABLED"),
+        form_started_at=datetime.now().timestamp(),
+    )
 
 @app.route("/esqueci-senha", methods=["GET", "POST"])
 @app.route("/esqueci-senha/", methods=["GET", "POST"])
@@ -5712,7 +5764,13 @@ def usuarios():
         return redirect(url_for("meu_usuario"))
     db = get_db()
     usuarios = db.execute("SELECT * FROM usuarios ORDER BY nome").fetchall()
-    return render_template("usuarios_admin.html", usuarios=usuarios, pode_gerenciar_usuarios=pode_gerenciar_usuarios)
+    total_pendentes = sum(1 for usuario in usuarios if not int(usuario["ativo"]))
+    return render_template(
+        "usuarios_admin.html",
+        usuarios=usuarios,
+        pode_gerenciar_usuarios=pode_gerenciar_usuarios,
+        total_pendentes=total_pendentes,
+    )
 
 @app.route("/usuarios/ativar/<int:id>", methods=["POST"])
 @login_required
@@ -5741,6 +5799,34 @@ def ativar_usuario(id):
         db.rollback()
         flash(f"Erro ao aprovar usuario: {str(e)}", "danger")
 
+    return redirect(url_for("usuarios"))
+
+
+@app.route("/usuarios/limpar-pendentes", methods=["POST"])
+@login_required
+@admin_required
+def limpar_usuarios_pendentes():
+    db = get_db()
+    try:
+        total = db.execute(
+            """
+            SELECT COUNT(1) AS total
+            FROM usuarios
+            WHERE ativo = 0 AND lower(usuario) <> 'admin'
+            """
+        ).fetchone()["total"]
+        db.execute(
+            """
+            DELETE FROM usuarios
+            WHERE ativo = 0 AND lower(usuario) <> 'admin'
+            """
+        )
+        db.commit()
+        registrar_log(f"Limpeza de usuarios pendentes: {total} registro(s) removido(s)")
+        flash(f"{total} usuario(s) pendente(s) removido(s).", "success")
+    except Exception as e:
+        db.rollback()
+        flash(f"Erro ao limpar usuarios pendentes: {str(e)}", "danger")
     return redirect(url_for("usuarios"))
 
 @app.route("/usuarios/novo", methods=["GET", "POST"])

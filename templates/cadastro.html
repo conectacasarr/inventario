@@ -19,6 +19,11 @@
 
         <div class="auth-body">
             <form method="POST" class="row g-3">
+                <input type="hidden" name="form_started_at" value="{{ form_started_at or '' }}">
+                <div class="d-none" aria-hidden="true">
+                    <label for="site">Site</label>
+                    <input type="text" id="site" name="site" tabindex="-1" autocomplete="off">
+                </div>
                 <div class="col-12">
                     <label for="nome" class="auth-label">Nome completo</label>
                     <input type="text" class="form-control auth-input" id="nome" name="nome" required>
