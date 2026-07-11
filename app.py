@@ -4442,9 +4442,9 @@ def dashboard():
     if host_eh_conectacasa():
         return conectacasa_publico()
     if host_eh_igreja():
-        return igreja_publico()
+        return render_igreja_publico("inicio")
     if not current_user.is_authenticated:
-        return igreja_publico()
+        return render_igreja_publico("inicio")
     if not usuario_pode_acessar_inventario(current_user):
         destino = destino_pos_login(current_user)
         return redirect(destino or url_for("logout"))
