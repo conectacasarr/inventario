@@ -4450,7 +4450,7 @@ def dashboard():
     if host_eh_igreja():
         return igreja_publico()
     if not current_user.is_authenticated:
-        return login_manager.unauthorized()
+        return igreja_publico()
     if not usuario_pode_acessar_inventario(current_user):
         destino = destino_pos_login(current_user)
         return redirect(destino or url_for("logout"))
