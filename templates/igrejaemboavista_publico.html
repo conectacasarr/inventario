@@ -394,6 +394,13 @@
             box-shadow: 0 10px 24px rgba(10, 38, 68, 0.04);
         }
 
+        .ibv-tab-link {
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
         .ibv-tab-button:hover {
             transform: translateY(-1px);
             border-color: var(--ibv-border-strong);
@@ -853,6 +860,7 @@
                 <div class="ibv-tab-nav" aria-label="Seções do portal">
                     <button type="button" class="ibv-tab-button active" data-ibv-tab="historia">{{ config.historia_titulo_visivel or 'História da Igreja em Boa Vista' }}</button>
                     <button type="button" class="ibv-tab-button" data-ibv-tab="apostilas">{{ config.apostilas_titulo_visivel or 'Apostilas' }}</button>
+                    <a href="{{ igreja_path('/pregacoes') }}" class="ibv-tab-button ibv-tab-link">Pregações</a>
                 </div>
             </section>
 
