@@ -4257,14 +4257,10 @@ def conectacasa_orcamento_pdf(orcamento_id):
     return send_file(pdf, as_attachment=True, download_name=nome_arquivo, mimetype="application/pdf")
 
 
-@app.route("/igrejaemboavista")
-@app.route("/igrejaemboavista/")
-def igreja_publico():
-    if not igreja_request_permitida():
-        abort(404)
+def render_igreja_publico(pagina_atual="inicio"):
     conn = get_db()
     config = igreja_obter_config(conn)
-    apostilas = igreja_listar_materiais(conn, categoria="apostila", somente_ativos=True)
+    apostilas = igreja_listar_materiais(conn, categoria="apostila", somente_ativos=True) if pagina_atual != "pregacoes" else []
     pregacoes = igreja_listar_pregacoes()
     conn.close()
     return render_template(
@@ -4272,8 +4268,16 @@ def igreja_publico():
         config=config,
         apostilas=apostilas,
         pregacoes=pregacoes,
-        pagina_atual="inicio",
+        pagina_atual=pagina_atual,
     )
+
+
+@app.route("/igrejaemboavista")
+@app.route("/igrejaemboavista/")
+def igreja_publico():
+    if not igreja_request_permitida():
+        abort(404)
+    return render_igreja_publico("inicio")
 
 
 @app.route("/pregacoes")
@@ -4283,17 +4287,7 @@ def igreja_publico():
 def igreja_pregacoes():
     if not igreja_request_permitida():
         abort(404)
-    conn = get_db()
-    config = igreja_obter_config(conn)
-    pregacoes = igreja_listar_pregacoes()
-    conn.close()
-    return render_template(
-        "igrejaemboavista_publico.html",
-        config=config,
-        apostilas=[],
-        pregacoes=pregacoes,
-        pagina_atual="pregacoes",
-    )
+    return render_igreja_publico("pregacoes")
 
 
 @app.route("/editar", methods=["GET", "POST"])
