@@ -17,6 +17,13 @@
                 Inventario OAIBV
                 {% endif %}
             </h1>
+            <p class="auth-subtitle">
+                {% if host_eh_igreja() %}
+                Entre para acessar a área restrita e as ferramentas autorizadas do portal.
+                {% else %}
+                Acesse o sistema com seu usuário ou e-mail para continuar.
+                {% endif %}
+            </p>
         </div>
 
         <div class="auth-body">
@@ -36,7 +43,7 @@
 
                 <div class="col-12 d-grid">
                     <button type="submit" class="btn auth-primary-btn text-white">
-                        {% if host_eh_igreja() %}Entrar{% else %}Entrar no sistema{% endif %}
+                        {% if host_eh_igreja() %}Entrar na área restrita{% else %}Entrar no sistema{% endif %}
                     </button>
                 </div>
             </form>

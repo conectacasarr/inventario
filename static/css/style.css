@@ -1,8 +1,9 @@
 body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-family: "Inter", "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
     background:
-        radial-gradient(circle at top left, rgba(115, 170, 255, 0.1), transparent 28%),
-        linear-gradient(180deg, #f7faff 0%, #eef3fa 100%);
+        radial-gradient(circle at top left, rgba(193, 140, 55, 0.1), transparent 24rem),
+        radial-gradient(circle at top right, rgba(69, 119, 194, 0.1), transparent 28rem),
+        linear-gradient(180deg, #f8f5ef 0%, #edf3fb 100%);
     min-height: 100vh;
     display: flex;
     flex-direction: column;
@@ -14,18 +15,19 @@ body {
 }
 
 .app-navbar {
-    background: linear-gradient(135deg, #071f3a 0%, #0b2748 45%, #143867 100%);
-    box-shadow: 0 18px 34px rgba(7, 31, 58, 0.18);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-    padding-top: 0.85rem;
-    padding-bottom: 0.85rem;
+    background: linear-gradient(135deg, #0a2644 0%, #113458 52%, #1a4676 100%);
+    box-shadow: 0 22px 42px rgba(7, 31, 58, 0.18);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-top: 0.9rem;
+    padding-bottom: 0.9rem;
 }
 
 .logo-text {
-    font-weight: 700;
-    font-size: 1.35rem;
+    font-family: "Manrope", "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    font-weight: 800;
+    font-size: 1.38rem;
     color: #fff;
-    letter-spacing: 0.04em;
+    letter-spacing: -0.02em;
     white-space: nowrap;
 }
 
@@ -35,8 +37,8 @@ body {
 
 .app-navbar .navbar-nav .nav-link {
     color: rgba(255, 255, 255, 0.82);
-    border-radius: 12px;
-    padding: 0.7rem 0.9rem;
+    border-radius: 14px;
+    padding: 0.78rem 0.95rem;
     font-weight: 600;
     transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
 }
@@ -49,7 +51,7 @@ body {
 
 .app-navbar .navbar-nav .nav-link.active {
     color: #fff !important;
-    background: rgba(115, 170, 255, 0.18);
+    background: rgba(255, 255, 255, 0.14);
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
@@ -59,7 +61,7 @@ body {
 
 .app-user-menu {
     border: 1px solid rgba(148, 163, 184, 0.2);
-    border-radius: 16px;
+    border-radius: 18px;
     box-shadow: 0 20px 38px rgba(15, 23, 42, 0.12);
 }
 
@@ -73,9 +75,9 @@ body {
 }
 
 .app-footer {
-    background: #071f3a;
+    background: #0a2644;
     color: rgba(255, 255, 255, 0.78);
-    padding: 0.9rem 0;
+    padding: 1rem 0;
     margin-top: auto;
     font-size: 0.92rem;
 }
@@ -497,11 +499,11 @@ body {
 
 .auth-card {
     width: 100%;
-    max-width: 460px;
+    max-width: 480px;
     border: 0;
-    border-radius: 24px;
+    border-radius: 28px;
     overflow: hidden;
-    box-shadow: 0 24px 60px rgba(15, 23, 42, 0.16);
+    box-shadow: 0 28px 72px rgba(15, 23, 42, 0.16);
 }
 
 .auth-card.auth-card-wide {
@@ -509,9 +511,11 @@ body {
 }
 
 .auth-header {
-    background: linear-gradient(135deg, #071f3a 0%, #153a7a 100%);
+    background:
+        radial-gradient(circle at top right, rgba(255,255,255,0.12), transparent 12rem),
+        linear-gradient(135deg, #0a2644 0%, #174a80 100%);
     color: #fff;
-    padding: 2rem 2rem 1.5rem;
+    padding: 2.2rem 2rem 1.7rem;
 }
 
 .auth-badge {
@@ -530,8 +534,10 @@ body {
 
 .auth-title {
     margin: 0;
-    font-size: 1.9rem;
-    font-weight: 700;
+    font-family: "Manrope", "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 2rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
 }
 
 .auth-subtitle {
@@ -554,10 +560,11 @@ body {
 }
 
 .auth-input {
-    min-height: 52px;
-    border-radius: 14px;
-    border: 1px solid #d6dce5;
+    min-height: 54px;
+    border-radius: 16px;
+    border: 1px solid #d4dce8;
     padding: 0.85rem 1rem;
+    background: #fbfdff;
     box-shadow: none;
 }
 
@@ -567,16 +574,16 @@ body {
 }
 
 .auth-primary-btn {
-    min-height: 52px;
+    min-height: 54px;
     border: 0;
-    border-radius: 14px;
-    font-weight: 600;
-    background: linear-gradient(135deg, #0b2748 0%, #153a7a 100%);
-    box-shadow: 0 16px 30px rgba(11, 39, 72, 0.22);
+    border-radius: 16px;
+    font-weight: 700;
+    background: linear-gradient(135deg, #0a2644 0%, #174a80 100%);
+    box-shadow: 0 18px 32px rgba(11, 39, 72, 0.22);
 }
 
 .auth-primary-btn:hover {
-    background: linear-gradient(135deg, #071f3a 0%, #0f2854 100%);
+    background: linear-gradient(135deg, #081e35 0%, #123b67 100%);
 }
 
 .auth-secondary-link {
@@ -615,5 +622,24 @@ body {
 
     .auth-title {
         font-size: 1.55rem;
+    }
+}
+
+@media (max-width: 991px) {
+    .app-navbar .navbar-collapse {
+        margin-top: 0.9rem;
+        padding: 1rem;
+        border-radius: 18px;
+        background: rgba(5, 24, 43, 0.92);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow: 0 18px 34px rgba(0, 0, 0, 0.18);
+    }
+
+    .app-navbar .navbar-nav {
+        gap: 0.4rem;
+    }
+
+    .app-navbar .navbar-nav .nav-link {
+        padding: 0.82rem 0.95rem;
     }
 }

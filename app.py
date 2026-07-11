@@ -440,6 +440,70 @@ def extrair_youtube_embed_url(url):
     return None
 
 
+def extrair_youtube_video_id(url):
+    url = (url or "").strip()
+    if not url:
+        return None
+    padroes = [
+        r"(?:youtube\.com/watch\?v=)([\w-]{11})",
+        r"(?:youtu\.be/)([\w-]{11})",
+        r"(?:youtube\.com/embed/)([\w-]{11})",
+        r"(?:youtube\.com/shorts/)([\w-]{11})",
+    ]
+    for padrao in padroes:
+        match = re.search(padrao, url)
+        if match:
+            return match.group(1)
+    return None
+
+
+def igreja_normalizar_titulo_visivel(texto):
+    if not texto:
+        return ""
+    ajustes = {
+        "Historia": "História",
+        "Historia da Igreja em Boa Vista": "História da Igreja em Boa Vista",
+        "Principios Elementares": "Princípios Elementares",
+        "Comuhão Com Deus": "Comunhão com Deus",
+        "Apostila Familia": "Apostila Família",
+        "Confissção de Pecados": "Confissão de Pecados",
+    }
+    texto_limpo = " ".join(str(texto).split())
+    return ajustes.get(texto_limpo, texto_limpo)
+
+
+def igreja_listar_pregacoes():
+    caminho = os.path.join(PROJECT_DIR, "static", "data", "pregacoes.json")
+    if not os.path.exists(caminho):
+        return []
+    try:
+        with open(caminho, "r", encoding="utf-8") as arquivo:
+            dados = json.load(arquivo)
+    except (OSError, json.JSONDecodeError):
+        return []
+
+    pregacoes = []
+    for item in dados if isinstance(dados, list) else []:
+        titulo = igreja_normalizar_titulo_visivel((item.get("titulo") or "").strip())
+        youtube_url = (item.get("youtubeUrl") or item.get("youtube_url") or "").strip()
+        if not titulo or not youtube_url:
+            continue
+        video_id = extrair_youtube_video_id(youtube_url)
+        if not video_id:
+            continue
+        thumbnail = (item.get("thumbnail") or "").strip() or f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
+        pregacoes.append(
+            {
+                "titulo": titulo,
+                "youtube_url": youtube_url,
+                "thumbnail": thumbnail,
+                "data": (item.get("data") or "").strip(),
+                "video_id": video_id,
+            }
+        )
+    return pregacoes
+
+
 def emprestimos_tem_grupo_id(db_conn):
     return "grupo_id" in get_table_columns(db_conn, "emprestimos")
 
@@ -1062,6 +1126,8 @@ def igreja_obter_config(conn):
     if not config:
         return {}
     config = dict(config)
+    config["historia_titulo_visivel"] = igreja_normalizar_titulo_visivel(config.get("historia_titulo") or "Historia da Igreja em Boa Vista")
+    config["apostilas_titulo_visivel"] = igreja_normalizar_titulo_visivel(config.get("apostilas_titulo") or "Apostilas")
     videos = []
     for linha in (config.get("historia_videos") or "").splitlines():
         url = linha.strip()
@@ -1085,6 +1151,7 @@ def igreja_listar_avisos(conn, somente_ativos=False):
 
 def igreja_preparar_material(material):
     material = dict(material)
+    material["titulo_visivel"] = igreja_normalizar_titulo_visivel(material.get("titulo"))
     material["arquivo_url"] = url_for("static", filename=material["arquivo_path"]) if material.get("arquivo_path") else None
     material["capa_url"] = url_for("static", filename=material["capa_path"]) if material.get("capa_path") else None
     return material
@@ -4198,11 +4265,34 @@ def igreja_publico():
     conn = get_db()
     config = igreja_obter_config(conn)
     apostilas = igreja_listar_materiais(conn, categoria="apostila", somente_ativos=True)
+    pregacoes = igreja_listar_pregacoes()
     conn.close()
     return render_template(
         "igrejaemboavista_publico.html",
         config=config,
         apostilas=apostilas,
+        pregacoes=pregacoes,
+        pagina_atual="inicio",
+    )
+
+
+@app.route("/pregacoes")
+@app.route("/pregacoes/")
+@app.route("/igrejaemboavista/pregacoes")
+@app.route("/igrejaemboavista/pregacoes/")
+def igreja_pregacoes():
+    if not igreja_request_permitida():
+        abort(404)
+    conn = get_db()
+    config = igreja_obter_config(conn)
+    pregacoes = igreja_listar_pregacoes()
+    conn.close()
+    return render_template(
+        "igrejaemboavista_publico.html",
+        config=config,
+        apostilas=[],
+        pregacoes=pregacoes,
+        pagina_atual="pregacoes",
     )
 
 
