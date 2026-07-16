@@ -5,13 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>
         {% if pagina_atual == 'pregacoes' %}
-        Pregações | {{ config.nome_site or 'Igreja em Boa Vista' }}
+        Vídeos | {{ config.nome_site or 'Igreja em Boa Vista' }}
         {% else %}
         {{ config.nome_site or 'Igreja em Boa Vista' }}
         {% endif %}
     </title>
     <meta name="description" content="{% if pagina_atual == 'pregacoes' %}Mensagens e estudos publicados pela Igreja em Boa Vista.{% else %}Portal oficial da Igreja em Boa Vista com história, apostilas e acesso à área restrita.{% endif %}">
-    <meta property="og:title" content="{% if pagina_atual == 'pregacoes' %}Pregações | {% endif %}{{ config.nome_site or 'Igreja em Boa Vista' }}">
+    <meta property="og:title" content="{% if pagina_atual == 'pregacoes' %}Vídeos | {% endif %}{{ config.nome_site or 'Igreja em Boa Vista' }}">
     <meta property="og:description" content="{% if pagina_atual == 'pregacoes' %}Mensagens e estudos publicados pela Igreja em Boa Vista.{% else %}História da igreja, apostilas e acesso à área restrita em um só lugar.{% endif %}">
     <meta property="og:type" content="website">
     <meta property="og:url" content="{{ request.url }}">
@@ -448,15 +448,23 @@
             box-shadow: var(--ibv-shadow-soft);
         }
 
-        .ibv-apostilas-grid,
-        .ibv-pregacoes-grid {
+        .ibv-apostilas-grid {
             display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+            grid-template-columns: repeat(3, minmax(0, 1fr));
             gap: 1.4rem;
         }
 
+        .ibv-pregacoes-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1.65fr) minmax(280px, 0.95fr);
+            gap: 1.4rem;
+            align-items: start;
+        }
+
         .ibv-apostila-card,
-        .ibv-pregacao-card {
+        .ibv-pregacao-card,
+        .ibv-pregacao-player-shell,
+        .ibv-pregacao-list-shell {
             height: 100%;
             border: 1px solid var(--ibv-border);
             border-radius: 26px;
@@ -466,21 +474,31 @@
         }
 
         .ibv-apostila-card:hover,
-        .ibv-pregacao-card:hover {
+        .ibv-pregacao-card:hover,
+        .ibv-pregacao-player-shell:hover,
+        .ibv-pregacao-list-shell:hover {
             transform: translateY(-3px);
             box-shadow: 0 22px 42px rgba(10, 38, 68, 0.1);
         }
 
         .ibv-apostila-layout {
-            display: grid;
-            grid-template-columns: 220px minmax(0, 1fr);
-            gap: 1.5rem;
-            align-items: start;
-            padding: 1.4rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.9rem;
+            padding: 1rem 1rem 1.1rem;
+            height: 100%;
         }
 
         .ibv-apostila-capa-wrap {
             width: 100%;
+            position: relative;
+            padding: 0.8rem 0.7rem 0;
+            border-radius: 20px 20px 16px 16px;
+            background:
+                linear-gradient(180deg, rgba(193, 140, 55, 0.08), rgba(193, 140, 55, 0.03)),
+                linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,244,237,0.98));
+            border: 1px solid rgba(16, 44, 79, 0.08);
+            box-shadow: inset 0 -18px 0 rgba(160, 117, 41, 0.12);
         }
 
         .ibv-apostila-capa,
@@ -492,16 +510,19 @@
         }
 
         .ibv-apostila-capa {
-            aspect-ratio: 3 / 4;
-            border-radius: 20px;
+            aspect-ratio: 3 / 4.15;
+            max-width: 150px;
+            margin: 0 auto;
+            border-radius: 14px 14px 10px 10px;
             border: 1px solid rgba(16, 44, 79, 0.08);
             box-shadow: 0 16px 30px rgba(10, 38, 68, 0.08);
         }
 
         .ibv-apostila-capa-placeholder {
-            width: 100%;
+            width: min(150px, 100%);
             aspect-ratio: 3 / 4;
-            border-radius: 20px;
+            margin: 0 auto;
+            border-radius: 14px 14px 10px 10px;
             border: 1px dashed rgba(16, 44, 79, 0.18);
             background: linear-gradient(180deg, rgba(250, 247, 241, 0.95), rgba(241, 236, 228, 0.95));
             color: var(--ibv-text-soft);
@@ -516,8 +537,23 @@
         .ibv-apostila-content {
             display: flex;
             flex-direction: column;
-            justify-content: center;
+            justify-content: space-between;
             min-width: 0;
+            flex: 1;
+        }
+
+        .ibv-apostila-title {
+            font-size: 1.05rem;
+            line-height: 1.35;
+            margin: 0;
+        }
+
+        .ibv-apostila-shelf {
+            height: 10px;
+            margin-top: 0.75rem;
+            border-radius: 999px;
+            background: linear-gradient(180deg, rgba(121, 83, 30, 0.3), rgba(193, 140, 55, 0.56));
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.35);
         }
 
         .ibv-btn-row {
@@ -569,6 +605,89 @@
 
         .ibv-pregacao-body {
             padding: 1.25rem 1.25rem 1.35rem;
+        }
+
+        .ibv-pregacao-player-shell {
+            padding: 1rem;
+        }
+
+        .ibv-pregacao-featured {
+            border-radius: 22px;
+            overflow: hidden;
+            border: 1px solid var(--ibv-border);
+            background: #0a2644;
+            box-shadow: var(--ibv-shadow-soft);
+        }
+
+        .ibv-pregacao-featured iframe {
+            width: 100%;
+            border: 0;
+            display: block;
+            aspect-ratio: 16 / 9;
+        }
+
+        .ibv-pregacao-featured-body {
+            padding: 1rem 0.2rem 0.1rem;
+        }
+
+        .ibv-pregacao-list-shell {
+            padding: 1rem;
+        }
+
+        .ibv-pregacao-list {
+            display: grid;
+            gap: 0.9rem;
+        }
+
+        .ibv-pregacao-item {
+            width: 100%;
+            border: 1px solid var(--ibv-border);
+            border-radius: 20px;
+            background: rgba(255,255,255,0.92);
+            padding: 0.8rem;
+            text-align: left;
+            box-shadow: 0 10px 24px rgba(10, 38, 68, 0.05);
+        }
+
+        .ibv-pregacao-item:hover {
+            border-color: var(--ibv-border-strong);
+            transform: translateY(-1px);
+        }
+
+        .ibv-pregacao-item.active {
+            border-color: rgba(10, 38, 68, 0.28);
+            background: linear-gradient(180deg, rgba(16, 44, 79, 0.08), rgba(255,255,255,0.96));
+        }
+
+        .ibv-pregacao-item-layout {
+            display: grid;
+            grid-template-columns: 112px minmax(0, 1fr);
+            gap: 0.85rem;
+            align-items: start;
+        }
+
+        .ibv-pregacao-item-thumb {
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            border-radius: 14px;
+            object-fit: cover;
+            display: block;
+            border: 1px solid rgba(16, 44, 79, 0.08);
+            background: linear-gradient(180deg, rgba(16, 44, 79, 0.05), rgba(16, 44, 79, 0.12));
+        }
+
+        .ibv-pregacao-item-title {
+            margin: 0;
+            font-size: 1rem;
+            line-height: 1.35;
+            color: var(--ibv-title);
+        }
+
+        .ibv-pregacao-item-date {
+            display: block;
+            font-size: 0.85rem;
+            color: var(--ibv-text-soft);
+            margin-top: 0.25rem;
         }
 
         .ibv-eyebrow {
@@ -631,9 +750,8 @@
                 grid-template-columns: 1fr;
             }
 
-            .ibv-apostila-capa-wrap {
-                max-width: 280px;
-                margin: 0 auto;
+            .ibv-pregacao-item-layout {
+                grid-template-columns: 96px minmax(0, 1fr);
             }
         }
 
@@ -797,9 +915,9 @@
                 <div class="ibv-hero-grid">
                     <div>
                         <span class="ibv-chip"><i class="fas fa-play-circle"></i> Canal oficial</span>
-                        <h1 class="ibv-title-xl">Pregações e estudos para assistir com tranquilidade.</h1>
+                        <h1 class="ibv-title-xl">Mensagens da igreja para assistir com tranquilidade.</h1>
                         <p class="ibv-body-text mb-0">
-                            Reunimos aqui os conteúdos em vídeo publicados pela igreja, com navegação simples e leitura confortável também no celular.
+                            Escolha uma mensagem da lista e assista aqui mesmo, sem sair da página.
                         </p>
                     </div>
                 </div>
@@ -807,41 +925,74 @@
 
             <section class="ibv-section-shell ibv-page-nav" id="conteudo-portal">
                 <div class="ibv-tab-nav" aria-label="Seções do portal">
-                    <a href="{{ igreja_path('/#conteudo-portal') }}" class="ibv-tab-button ibv-tab-link">{{ config.historia_titulo_visivel or 'História da Igreja em Boa Vista' }}</a>
-                    <a href="{{ igreja_path('/#conteudo-portal') }}" class="ibv-tab-button ibv-tab-link">{{ config.apostilas_titulo_visivel or 'Apostilas' }}</a>
-                    <a href="{{ igreja_path('/pregacoes') }}" class="ibv-tab-button ibv-tab-link active">Pregações</a>
+                    <a href="{{ igreja_path('/#historia') }}" class="ibv-tab-button ibv-tab-link">{{ config.historia_titulo_visivel or 'História da Igreja em Boa Vista' }}</a>
+                    <a href="{{ igreja_path('/#apostilas') }}" class="ibv-tab-button ibv-tab-link">{{ config.apostilas_titulo_visivel or 'Apostilas' }}</a>
+                    <a href="{{ igreja_path('/pregacoes') }}" class="ibv-tab-button ibv-tab-link active">Vídeos</a>
                 </div>
             </section>
 
             <section class="ibv-section-shell ibv-content-shell mt-4">
                 <div class="d-flex flex-column flex-lg-row align-items-lg-end justify-content-between gap-3 mb-4">
                     <div>
-                        <span class="ibv-eyebrow"><i class="fab fa-youtube"></i> Pregações</span>
+                        <span class="ibv-eyebrow"><i class="fab fa-youtube"></i> Mensagens</span>
                         <h2 class="ibv-title-lg mb-2">Mensagens disponíveis</h2>
-                        <p class="ibv-body-text mb-0">Conteúdos organizados em cards leves, sem carregar players pesados automaticamente.</p>
+                        <p class="ibv-body-text mb-0">Selecione uma mensagem para assistir aqui no portal ou abrir no YouTube.</p>
                     </div>
                 </div>
 
                 {% if pregacoes %}
                 <div class="ibv-pregacoes-grid">
-                    {% for item in pregacoes %}
-                    <article class="ibv-pregacao-card">
-                        <img src="{{ item.thumbnail }}" alt="Miniatura da pregação {{ item.titulo }}" class="ibv-pregacao-thumb" loading="lazy" referrerpolicy="no-referrer">
-                        <div class="ibv-pregacao-body">
-                            <span class="ibv-eyebrow"><i class="fas fa-video"></i> {% if item.data %}{{ item.data }}{% else %}YouTube{% endif %}</span>
-                            <h3 class="ibv-title-md">{{ item.titulo }}</h3>
+                    {% set destaque = pregacoes[0] %}
+                    <article class="ibv-pregacao-player-shell">
+                        <div class="ibv-pregacao-featured">
+                            <iframe
+                                id="ibv-pregacao-player"
+                                src="https://www.youtube.com/embed/{{ destaque.video_id }}"
+                                title="Vídeo da igreja"
+                                loading="lazy"
+                                allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                referrerpolicy="strict-origin-when-cross-origin"
+                                allowfullscreen
+                            ></iframe>
+                        </div>
+                        <div class="ibv-pregacao-featured-body">
+                            <span class="ibv-eyebrow"><i class="fas fa-video"></i> Agora assistindo</span>
+                            <h3 class="ibv-title-md" id="ibv-pregacao-titulo">{{ destaque.titulo }}</h3>
+                            <p class="ibv-body-text mb-0" id="ibv-pregacao-meta">{% if destaque.data %}{{ destaque.data }}{% else %}Canal oficial no YouTube{% endif %}</p>
                             <div class="ibv-btn-row">
-                                <a href="{{ item.youtube_url }}" target="_blank" rel="noopener noreferrer" class="ibv-btn-primary">
-                                    <i class="fab fa-youtube"></i> Assistir no YouTube
+                                <a href="{{ destaque.youtube_url }}" target="_blank" rel="noopener noreferrer" class="ibv-btn-primary" id="ibv-pregacao-link">
+                                    <i class="fab fa-youtube"></i> Abrir no YouTube
                                 </a>
                             </div>
                         </div>
                     </article>
-                    {% endfor %}
+
+                    <aside class="ibv-pregacao-list-shell">
+                        <div class="ibv-pregacao-list">
+                            {% for item in pregacoes %}
+                            <button
+                                type="button"
+                                class="ibv-pregacao-item{% if loop.first %} active{% endif %}"
+                                data-video-id="{{ item.video_id }}"
+                                data-video-url="{{ item.youtube_url }}"
+                                data-video-titulo="{{ item.titulo }}"
+                                data-video-meta="{% if item.data %}{{ item.data }}{% else %}Canal oficial no YouTube{% endif %}"
+                            >
+                                <div class="ibv-pregacao-item-layout">
+                                    <img src="{{ item.thumbnail }}" alt="Miniatura da pregação {{ item.titulo }}" class="ibv-pregacao-item-thumb" loading="lazy" referrerpolicy="no-referrer">
+                                    <div>
+                                        <h3 class="ibv-pregacao-item-title">{{ item.titulo }}</h3>
+                                        <span class="ibv-pregacao-item-date">{% if item.data %}{{ item.data }}{% else %}YouTube{% endif %}</span>
+                                    </div>
+                                </div>
+                            </button>
+                            {% endfor %}
+                        </div>
+                    </aside>
                 </div>
                 {% else %}
                 <div class="ibv-empty-state">
-                    <h3 class="ibv-title-md">As pregações serão disponibilizadas em breve.</h3>
+                    <h3 class="ibv-title-md">Os vídeos serão disponibilizados em breve.</h3>
                     <p class="mb-0">Assim que os links oficiais forem adicionados, eles aparecerão aqui.</p>
                 </div>
                 {% endif %}
@@ -867,12 +1018,12 @@
                 <div class="ibv-tab-nav" aria-label="Seções do portal">
                     <button type="button" class="ibv-tab-button active" data-ibv-tab="historia">{{ config.historia_titulo_visivel or 'História da Igreja em Boa Vista' }}</button>
                     <button type="button" class="ibv-tab-button" data-ibv-tab="apostilas">{{ config.apostilas_titulo_visivel or 'Apostilas' }}</button>
-                    <a href="{{ igreja_path('/pregacoes') }}" class="ibv-tab-button ibv-tab-link">Pregações</a>
+                    <a href="{{ igreja_path('/pregacoes') }}" class="ibv-tab-button ibv-tab-link">Vídeos</a>
                 </div>
             </section>
 
             <section class="ibv-section-shell ibv-content-shell">
-                <div class="ibv-tab-pane active" data-ibv-pane="historia">
+                <div class="ibv-tab-pane active" data-ibv-pane="historia" id="historia">
                     <article>
                         <h2 class="ibv-title-lg">{{ config.historia_titulo_visivel or 'História da Igreja em Boa Vista' }}</h2>
                         <div class="ibv-text-content">{{ rich_text(config.historia_texto or 'Em breve, esta area vai contar a historia da igreja, seus marcos e testemunhos.') }}</div>
@@ -898,7 +1049,7 @@
                     </article>
                 </div>
 
-                <div class="ibv-tab-pane" data-ibv-pane="apostilas">
+                <div class="ibv-tab-pane" data-ibv-pane="apostilas" id="apostilas">
                     {% if apostilas %}
                     <div class="ibv-apostilas-grid">
                         {% for material in apostilas %}
@@ -915,8 +1066,9 @@
                                     {% endif %}
                                 </div>
                                 <div class="ibv-apostila-content">
+                                    <span class="ibv-apostila-shelf">Estante de estudos</span>
                                     <span class="ibv-eyebrow"><i class="fas fa-book"></i> Apostila</span>
-                                    <h3 class="ibv-title-md">{{ material.titulo_visivel or material.titulo }}</h3>
+                                    <h3 class="ibv-apostila-title">{{ material.titulo_visivel or material.titulo }}</h3>
                                     {% if material.descricao %}
                                     <div class="ibv-text-content">{{ rich_text(material.descricao) }}</div>
                                     {% endif %}
@@ -1010,14 +1162,59 @@
             const tabButtons = document.querySelectorAll('[data-ibv-tab]');
             const tabPanes = document.querySelectorAll('[data-ibv-pane]');
             if (tabButtons.length && tabPanes.length) {
+                function ativarAba(destino) {
+                    tabButtons.forEach(function(item) {
+                        item.classList.toggle('active', item.getAttribute('data-ibv-tab') === destino);
+                    });
+                    tabPanes.forEach(function(pane) {
+                        pane.classList.toggle('active', pane.getAttribute('data-ibv-pane') === destino);
+                    });
+                }
+
                 tabButtons.forEach(function(button) {
                     button.addEventListener('click', function() {
                         const destino = button.getAttribute('data-ibv-tab');
-                        tabButtons.forEach(function(item) {
+                        ativarAba(destino);
+                        if (window.history && window.history.replaceState) {
+                            window.history.replaceState(null, '', '#' + destino);
+                        } else {
+                            window.location.hash = destino;
+                        }
+                    });
+                });
+
+                const hashInicial = window.location.hash.replace('#', '');
+                if (hashInicial === 'apostilas' || hashInicial === 'historia') {
+                    ativarAba(hashInicial);
+                    const alvo = document.getElementById(hashInicial);
+                    if (alvo) {
+                        alvo.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                }
+            }
+
+            const player = document.getElementById('ibv-pregacao-player');
+            const playerTitle = document.getElementById('ibv-pregacao-titulo');
+            const playerMeta = document.getElementById('ibv-pregacao-meta');
+            const playerLink = document.getElementById('ibv-pregacao-link');
+            const pregacaoButtons = document.querySelectorAll('.ibv-pregacao-item');
+
+            if (player && playerTitle && playerMeta && playerLink && pregacaoButtons.length) {
+                pregacaoButtons.forEach(function(button) {
+                    button.addEventListener('click', function() {
+                        const videoId = button.getAttribute('data-video-id');
+                        const videoUrl = button.getAttribute('data-video-url');
+                        const videoTitulo = button.getAttribute('data-video-titulo');
+                        const videoMeta = button.getAttribute('data-video-meta');
+
+                        player.src = 'https://www.youtube.com/embed/' + videoId;
+                        player.title = videoTitulo;
+                        playerTitle.textContent = videoTitulo;
+                        playerMeta.textContent = videoMeta;
+                        playerLink.href = videoUrl;
+
+                        pregacaoButtons.forEach(function(item) {
                             item.classList.toggle('active', item === button);
-                        });
-                        tabPanes.forEach(function(pane) {
-                            pane.classList.toggle('active', pane.getAttribute('data-ibv-pane') === destino);
                         });
                     });
                 });

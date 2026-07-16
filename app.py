@@ -64,6 +64,23 @@ def format_date(data):
         return data
 
 
+def corrigir_mojibake_texto(valor):
+    if valor is None:
+        return ""
+    texto = str(valor)
+    for _ in range(2):
+        if not any(marcador in texto for marcador in ("Ã", "Â", "â", "ðŸ")):
+            break
+        try:
+            reparado = texto.encode("latin1").decode("utf-8")
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            break
+        if reparado == texto:
+            break
+        texto = reparado
+    return texto.replace("\u00a0", " ").strip()
+
+
 PORTAL_ALLOWED_TAGS = {
     "p",
     "br",
@@ -2535,10 +2552,10 @@ def conectacasa_render_pdf(orcamento, config):
 
     cabecalho_esquerda = [
         Paragraph("CONECTACASA", overline_style),
-        Paragraph("Projetos, orcamentos e propostas com visual profissional.", titulo_style),
+        Paragraph("Projetos, orçamentos e propostas com visual profissional.", titulo_style),
         Paragraph(
-            f"Orcamento {orcamento['codigo']} para {orcamento['cliente_nome']}. "
-            f"Documento preparado para apresentacao comercial e aprovacao.",
+            f"Orçamento {orcamento['codigo']} para {corrigir_mojibake_texto(orcamento['cliente_nome'])}. "
+            f"Documento preparado para apresentação comercial e aprovação.",
             subtitulo_style,
         ),
     ]
@@ -2578,14 +2595,14 @@ def conectacasa_render_pdf(orcamento, config):
 
     cliente_bloco = [
         Paragraph("Cliente", secao_style),
-        Paragraph(f"<b>{orcamento['cliente_nome']}</b>", styles["BodyText"]),
+        Paragraph(f"<b>{corrigir_mojibake_texto(orcamento['cliente_nome'])}</b>", styles["BodyText"]),
     ]
     if orcamento.get("cliente_empresa"):
-        cliente_bloco.append(Paragraph(orcamento["cliente_empresa"], styles["BodyText"]))
+        cliente_bloco.append(Paragraph(corrigir_mojibake_texto(orcamento["cliente_empresa"]), styles["BodyText"]))
     if orcamento.get("cliente_email"):
-        cliente_bloco.append(Paragraph(orcamento["cliente_email"], styles["BodyText"]))
+        cliente_bloco.append(Paragraph(corrigir_mojibake_texto(orcamento["cliente_email"]), styles["BodyText"]))
     if orcamento.get("cliente_telefone"):
-        cliente_bloco.append(Paragraph(orcamento["cliente_telefone"], styles["BodyText"]))
+        cliente_bloco.append(Paragraph(corrigir_mojibake_texto(orcamento["cliente_telefone"]), styles["BodyText"]))
 
     resumo_bloco = [
         Paragraph("Resumo", secao_style),
@@ -2593,7 +2610,7 @@ def conectacasa_render_pdf(orcamento, config):
             [
                 [Paragraph("Status", resumo_label_style), Paragraph(orcamento["status_label"], resumo_valor_style)],
                 [Paragraph("Subtotal", resumo_label_style), Paragraph(formata_brl(orcamento["subtotal"]), resumo_valor_style)],
-                [Paragraph("Acrescimos", resumo_label_style), Paragraph(formata_brl(orcamento.get("acrescimo_total", 0)), resumo_valor_style)],
+                [Paragraph("Acréscimos", resumo_label_style), Paragraph(formata_brl(orcamento.get("acrescimo_total", 0)), resumo_valor_style)],
                 [Paragraph("Desconto", resumo_label_style), Paragraph(formata_brl(orcamento["desconto"]), resumo_valor_style)],
                 [Paragraph("Valor final", resumo_label_style), Paragraph(formata_brl(orcamento["valor_total"]), valor_final_style)],
             ],
@@ -2630,13 +2647,13 @@ def conectacasa_render_pdf(orcamento, config):
     elementos.append(resumo_tabela)
     elementos.append(Spacer(1, 18))
 
-    tabela_dados = [["Descricao", "Qtd.", "Un.", "Valor unit.", "Total"]]
+    tabela_dados = [["Descrição", "Qtd.", "Un.", "Valor unit.", "Total"]]
     for item in orcamento["itens"]:
         tabela_dados.append(
             [
-                item["descricao"],
+                corrigir_mojibake_texto(item["descricao"]),
                 str(item["quantidade"]).replace(".", ","),
-                item["unidade"],
+                corrigir_mojibake_texto(item["unidade"]),
                 formata_brl(item["valor_unitario"]),
                 formata_brl(item["total"]),
             ]
@@ -2665,7 +2682,7 @@ def conectacasa_render_pdf(orcamento, config):
 
     resumo = [
         ["Subtotal", formata_brl(orcamento["subtotal"])],
-        ["Acrescimos", formata_brl(orcamento.get("acrescimo_total", 0))],
+        ["Acréscimos", formata_brl(orcamento.get("acrescimo_total", 0))],
         ["Desconto", formata_brl(orcamento["desconto"])],
         ["Valor final", formata_brl(orcamento["valor_total"])],
     ]
@@ -2686,12 +2703,12 @@ def conectacasa_render_pdf(orcamento, config):
     if orcamento.get("descricao"):
         elementos.append(Spacer(1, 18))
         elementos.append(Paragraph("Escopo", secao_style))
-        elementos.append(Paragraph(orcamento["descricao"].replace("\n", "<br/>"), styles["BodyText"]))
+        elementos.append(Paragraph(corrigir_mojibake_texto(orcamento["descricao"]).replace("\n", "<br/>"), styles["BodyText"]))
 
     if orcamento.get("observacoes"):
         elementos.append(Spacer(1, 18))
-        elementos.append(Paragraph("Observacoes", secao_style))
-        elementos.append(Paragraph(orcamento["observacoes"].replace("\n", "<br/>"), styles["BodyText"]))
+        elementos.append(Paragraph("Observações", secao_style))
+        elementos.append(Paragraph(corrigir_mojibake_texto(orcamento["observacoes"]).replace("\n", "<br/>"), styles["BodyText"]))
 
     pix_imagem = carregar_logo_flowable(config.get("pix_imagem_path"), max_width=120, max_height=120)
     if pix_imagem:
@@ -2699,7 +2716,7 @@ def conectacasa_render_pdf(orcamento, config):
         elementos.append(Paragraph("Pagamento via PIX", secao_style))
         pix_info = []
         if config.get("pix_beneficiario"):
-            pix_info.append(Paragraph(f"<b>Beneficiario:</b> {config['pix_beneficiario']}", styles["BodyText"]))
+            pix_info.append(Paragraph(f"<b>Beneficiário:</b> {corrigir_mojibake_texto(config['pix_beneficiario'])}", styles["BodyText"]))
         pix_info.append(Paragraph(f"<b>Valor:</b> {formata_brl(orcamento['valor_total'])}", styles["BodyText"]))
         pix_tabela = Table([[pix_info, pix_imagem]], colWidths=[340, 120], hAlign="LEFT")
         pix_tabela.setStyle(
@@ -4434,17 +4451,28 @@ def igreja_material_excluir(material_id):
     return redirect(igreja_path("/editar"))
 
 
-# Rota principal - Dashboard
 @app.route("/")
-@app.route("/dashboard")
-@app.route("/dashboard/")
-def dashboard():
+def home():
     if host_eh_conectacasa():
         return conectacasa_publico()
     if host_eh_igreja():
         return render_igreja_publico("inicio")
     if not current_user.is_authenticated:
         return render_igreja_publico("inicio")
+    destino = destino_pos_login(current_user)
+    return redirect(destino or url_for("logout"))
+
+
+# Rota principal - Dashboard
+@app.route("/dashboard")
+@app.route("/dashboard/")
+def dashboard():
+    if host_eh_conectacasa():
+        return redirect(conectacasa_path("/"))
+    if host_eh_igreja():
+        return redirect(igreja_path("/"))
+    if not current_user.is_authenticated:
+        return redirect(url_for("login", next=url_for("dashboard")))
     if not usuario_pode_acessar_inventario(current_user):
         destino = destino_pos_login(current_user)
         return redirect(destino or url_for("logout"))
@@ -5303,20 +5331,20 @@ def termo_compromisso(emprestimo_id):
     styles = getSampleStyleSheet()
     elements = []
 
-    elements.append(Paragraph("TERMO DE COMPROMISSO DE EMPRÃ‰STIMO", styles["Title"]))
+    elements.append(Paragraph("TERMO DE COMPROMISSO DE EMPRÉSTIMO", styles["Title"]))
     elements.append(Spacer(1, 0.3 * inch))
 
-    elements.append(Paragraph(f"<b>Data do EmprÃ©stimo:</b> {format_date(emprestimo_base['data_emprestimo'])}", styles["Normal"]))
+    elements.append(Paragraph(f"<b>Data do Empréstimo:</b> {format_date(emprestimo_base['data_emprestimo'])}", styles["Normal"]))
     elements.append(Spacer(1, 0.2 * inch))
 
     elements.append(Paragraph("<b>DADOS DOS ITENS</b>", styles["Heading3"]))
-    data_itens = [["Tombamento", "DescriÃ§Ã£o", "Marca", "Grupo", "Qtd"]]
+    data_itens = [["Tombamento", "Descrição", "Marca", "Grupo", "Qtd"]]
     for item in itens_emprestimo:
         data_itens.append([
-            item["tombamento"],
-            item["descricao"],
-            item["marca"],
-            item["item_grupo"],
+            corrigir_mojibake_texto(item["tombamento"]),
+            corrigir_mojibake_texto(item["descricao"]),
+            corrigir_mojibake_texto(item["marca"]),
+            corrigir_mojibake_texto(item["item_grupo"]),
             str(item["quantidade"])
         ])
     t_itens = Table(data_itens, colWidths=[1*inch, 2.5*inch, 1.2*inch, 1.2*inch, 0.8*inch])
@@ -5330,11 +5358,11 @@ def termo_compromisso(emprestimo_id):
     elements.append(t_itens)
     elements.append(Spacer(1, 0.3 * inch))
 
-    elements.append(Paragraph("<b>DADOS DO RESPONSÃVEL</b>", styles["Heading3"]))
+    elements.append(Paragraph("<b>DADOS DO RESPONSÁVEL</b>", styles["Heading3"]))
     data_resp = [
-        ["Nome:", emprestimo_base["nome"]],
-        ["Grupo:", emprestimo_base["grupo_caseiro"] or ""],
-        ["Contato:", emprestimo_base["contato"] or ""]
+        ["Nome:", corrigir_mojibake_texto(emprestimo_base["nome"])],
+        ["Grupo:", corrigir_mojibake_texto(emprestimo_base["grupo_caseiro"] or "")],
+        ["Contato:", corrigir_mojibake_texto(emprestimo_base["contato"] or "")]
     ]
     t_resp = Table(data_resp, colWidths=[2*inch, 4*inch])
     t_resp.setStyle(TableStyle([
@@ -5346,18 +5374,18 @@ def termo_compromisso(emprestimo_id):
     elements.append(Spacer(1, 0.4 * inch))
 
     termo_text = """
-    Pelo presente termo, declaro ter recebido o(s) item(ns) acima descrito(s) da OAIBV â€“ OrganizaÃ§Ã£o e Apoio Ã  Igreja em Boa Vista, 
-    comprometendo-me a devolvÃª-lo(s) nas mesmas condiÃ§Ãµes em que o(s) recebi, responsabilizando-me por eventuais danos ou extravios.
+    Pelo presente termo, declaro ter recebido o(s) item(ns) acima descrito(s) da OAIBV – Organização e Apoio à Igreja em Boa Vista,
+    comprometendo-me a devolvê-lo(s) nas mesmas condições em que o(s) recebi, responsabilizando-me por eventuais danos ou extravios.
     <br/><br/>
-    Estou ciente de que devo devolver o(s) item(ns) atÃ© a data acordada e que, em caso de necessidade de prorrogaÃ§Ã£o do prazo, 
-    deverei comunicar antecipadamente Ã  administraÃ§Ã£o.
+    Estou ciente de que devo devolver o(s) item(ns) até a data acordada e que, em caso de necessidade de prorrogação do prazo,
+    deverei comunicar antecipadamente à administração.
     """
     elements.append(Paragraph(termo_text, styles["Normal"]))
     elements.append(Spacer(1, 0.5 * inch))
 
     assinaturas = [
         ["_______________________________", "_______________________________"],
-        ["Assinatura do ResponsÃ¡vel", "Assinatura do Administrador"],
+        ["Assinatura do Responsável", "Assinatura do Administrador"],
         ["Data: ____/____/________", "Data: ____/____/________"]
     ]
     t_ass = Table(assinaturas, colWidths=[3*inch, 3*inch])
@@ -5368,7 +5396,7 @@ def termo_compromisso(emprestimo_id):
     elements.append(t_ass)
     elements.append(Spacer(1, 0.5 * inch))
 
-    elements.append(Paragraph("OAIBV â€“ OrganizaÃ§Ã£o e Apoio Ã  Igreja em Boa Vista", styles["Normal"]))
+    elements.append(Paragraph("OAIBV – Organização e Apoio à Igreja em Boa Vista", styles["Normal"]))
     elements.append(Paragraph(f"Documento gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}", styles["Normal"]))
 
     doc.build(elements)
@@ -5582,9 +5610,9 @@ def exportar_pdf(itens, emprestimos, filtro_tipo, filtro_grupo, filtro_data_inic
     )
     elements = []
 
-    # TÃ­tulo
+    # Título
     title_style = ParagraphStyle("Title", parent=styles["Heading1"], alignment=1)
-    elements.append(Paragraph("RELATÃ“RIO DE INVENTÃRIO - OAIBV", title_style))
+    elements.append(Paragraph("RELATÓRIO DE INVENTÁRIO - OAIBV", title_style))
     elements.append(Spacer(1, 0.2*inch))
 
     # Agrupar itens por grupo
@@ -5611,21 +5639,21 @@ def exportar_pdf(itens, emprestimos, filtro_tipo, filtro_grupo, filtro_data_inic
 
     for grupo_nome, itens_grupo in grupos_dict.items():
         
-        # TÃ­tulo do grupo
+        # Título do grupo
         elements.append(Spacer(1, 0.2*inch))
-        elements.append(Paragraph(grupo_nome, ParagraphStyle(name="Grupo", alignment=1, fontSize=12)))
+        elements.append(Paragraph(corrigir_mojibake_texto(grupo_nome), ParagraphStyle(name="Grupo", alignment=1, fontSize=12)))
         elements.append(Spacer(1, 0.1*inch))
 
         # Tabela de itens do grupo
-        data = [["Tombamento", "DescriÃ§Ã£o", "Marca", "Qtd", "Valor (R$)"]]
+        data = [["Tombamento", "Descrição", "Marca", "Qtd", "Valor (R$)"]]
         total = 0
         for i in itens_grupo:
             valor = i["valor_unitario"] or 0
             subtotal = valor * i["quantidade"]
             data.append([
-                i["tombamento"],
-                Paragraph(i["descricao"], descricao_style),
-                i["marca"] or "",
+                corrigir_mojibake_texto(i["tombamento"]),
+                Paragraph(corrigir_mojibake_texto(i["descricao"]), descricao_style),
+                corrigir_mojibake_texto(i["marca"] or ""),
                 str(i["quantidade"]),
                 Paragraph(formata_brl(subtotal), descricao_style_right)
             ])
@@ -5643,7 +5671,7 @@ def exportar_pdf(itens, emprestimos, filtro_tipo, filtro_grupo, filtro_data_inic
     if total_geral > 0:
         elements.append(Spacer(1, 0.4*inch))
         elements.append(Paragraph(
-            f"<b>Resumo Financeiro:</b> O valor total de todos os itens inventariados neste relatÃ³rio Ã© de <b>{formata_brl(total_geral)}</b>.",
+            f"<b>Resumo financeiro:</b> O valor total de todos os itens inventariados neste relatório é de <b>{formata_brl(total_geral)}</b>.",
             styles["Normal"]
         ))
         elements.append(Spacer(1, 0.3*inch))
@@ -5652,9 +5680,9 @@ def exportar_pdf(itens, emprestimos, filtro_tipo, filtro_grupo, filtro_data_inic
         # elements.append(Paragraph(f"<b>Total do grupo:</b> R$ {total:.2f}", styles["Normal"]))
         # elements.append(Spacer(1, 0.2*inch))
 
-    # EmprÃ©stimos
+    # Empréstimos
     if emprestimos and filtro_tipo in ["todos", "emprestimos"]:
-        elements.append(Paragraph("EMPRÃ‰STIMOS", styles["Heading2"]))
+        elements.append(Paragraph("EMPRÉSTIMOS", styles["Heading2"]))
 
         descricao_style = ParagraphStyle(
             "DescricaoStyle",
@@ -5664,7 +5692,7 @@ def exportar_pdf(itens, emprestimos, filtro_tipo, filtro_grupo, filtro_data_inic
             wordWrap='CJK'
         )
 
-        data_emprestimos_pdf = [["Data Emp.", "Data Dev.", "Tombamento", "DescriÃ§Ã£o", "Qtd", "ResponsÃ¡vel", "Status"]]
+        data_emprestimos_pdf = [["Data Emp.", "Data Dev.", "Tombamento", "Descrição", "Qtd", "Responsável", "Status"]]
 
         for emp in emprestimos:
             tombamentos = emp.get("tombamentos", [])
@@ -5677,17 +5705,17 @@ def exportar_pdf(itens, emprestimos, filtro_tipo, filtro_grupo, filtro_data_inic
                 data_emprestimos_pdf.append([
                     format_date(emp["data_emprestimo"]),
                     format_date(emp["data_devolucao"]) if emp["data_devolucao"] else "-",
-                    "-", "-", "-", emp["nome"], "Devolvido" if emp["data_devolucao"] else "Ativo"
+                    "-", "-", "-", corrigir_mojibake_texto(emp["nome"]), "Devolvido" if emp["data_devolucao"] else "Ativo"
                 ])
             else:
                 for i in range(max_itens):
                     data_emprestimos_pdf.append([
                         format_date(emp["data_emprestimo"]) if i == 0 else "",
                         format_date(emp["data_devolucao"]) if i == 0 and emp["data_devolucao"] else "-" if i == 0 else "",
-                        tombamentos[i] if i < len(tombamentos) else "",
-                        Paragraph(emp["descricoes"][i], descricao_style),
+                        corrigir_mojibake_texto(tombamentos[i] if i < len(tombamentos) else ""),
+                        Paragraph(corrigir_mojibake_texto(emp["descricoes"][i] if i < len(emp["descricoes"]) else ""), descricao_style),
                         quantidades[i] if i < len(quantidades) else "",
-                        Paragraph(emp["nome"], responsavel_style) if i == 0 else "",
+                        Paragraph(corrigir_mojibake_texto(emp["nome"]), responsavel_style) if i == 0 else "",
                         "Devolvido" if emp["data_devolucao"] else "Ativo" if i == 0 else ""
                     ])
 
@@ -5698,15 +5726,15 @@ def exportar_pdf(itens, emprestimos, filtro_tipo, filtro_grupo, filtro_data_inic
         elements.append(table_emp)
         elements.append(Spacer(1, 0.2*inch))
 
-    # ðŸ“† Data de geraÃ§Ã£o do documento
+    # Data de geração do documento
     elements.append(Spacer(1, 0.4 * inch))
     elements.append(Paragraph(f"<b>Documento gerado em:</b> {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}", styles["Normal"]))
     elements.append(Spacer(1, 0.3 * inch))
 
-    # âœï¸ Assinatura
+    # Assinatura
     assinatura = Table([
         ["________________________", "________________________"],
-        ["Assinatura do ResponsÃ¡vel", "Data"]
+        ["Assinatura do Responsável", "Data"]
     ], colWidths=[3*inch, 3*inch])
 
     assinatura.setStyle(TableStyle([
