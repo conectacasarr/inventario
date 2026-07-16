@@ -4525,8 +4525,6 @@ def home():
 def dashboard():
     if host_eh_conectacasa():
         return redirect(conectacasa_path("/"))
-    if host_eh_igreja():
-        return redirect(igreja_path("/"))
     if not current_user.is_authenticated:
         return redirect(url_for("login", next=url_for("dashboard")))
     if not usuario_pode_acessar_inventario(current_user):
