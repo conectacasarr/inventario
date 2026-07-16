@@ -108,6 +108,12 @@
         border-radius: 22px;
         background: rgba(248, 250, 255, 0.92);
     }
+
+    .church-inline-card {
+        border: 1px solid rgba(16, 44, 79, 0.08);
+        border-radius: 22px;
+        background: rgba(248, 250, 255, 0.92);
+    }
 </style>
 {% endblock %}
 
@@ -132,6 +138,11 @@
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="apostilas-tab" data-bs-toggle="tab" data-bs-target="#apostilas-pane" type="button" role="tab">
                 Apostilas
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="pregacoes-tab" data-bs-toggle="tab" data-bs-target="#pregacoes-pane" type="button" role="tab">
+                Pregações
             </button>
         </li>
     </ul>
@@ -319,6 +330,81 @@
                             {% endif %}
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="pregacoes-pane" role="tabpanel" aria-labelledby="pregacoes-tab">
+            <div class="card church-editor-card">
+                <div class="card-header">
+                    <h5 class="mb-0">Editar pregações e vídeos</h5>
+                </div>
+                <div class="card-body p-4">
+                    <form method="POST" action="{{ igreja_path('/pregacoes/salvar') }}" id="pregacoes-form">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                            <div>
+                                <h6 class="mb-1">Lista exibida na página de vídeos</h6>
+                                <p class="church-editor-note mb-0">Adicione, edite ou remova mensagens por aqui. Sempre que surgir uma nova área pública, ela deve ganhar edição neste painel também.</p>
+                            </div>
+                            <button type="button" class="btn btn-outline-primary rounded-pill" id="add-pregacao-row">
+                                <i class="fas fa-plus me-2"></i>Nova pregação
+                            </button>
+                        </div>
+
+                        <div class="d-flex flex-column gap-3" id="pregacoes-list">
+                            {% for pregacao in pregacoes %}
+                            <div class="church-inline-card p-3 pregacao-row">
+                                <div class="row g-3 align-items-end">
+                                    <div class="col-lg-4">
+                                        <label class="form-label">Título</label>
+                                        <input type="text" class="form-control" name="pregacao_titulo[]" value="{{ pregacao.titulo }}" required>
+                                    </div>
+                                    <div class="col-lg-5">
+                                        <label class="form-label">Link do YouTube</label>
+                                        <input type="url" class="form-control" name="pregacao_url[]" value="{{ pregacao.youtube_url }}" required>
+                                    </div>
+                                    <div class="col-lg-2">
+                                        <label class="form-label">Data</label>
+                                        <input type="text" class="form-control" name="pregacao_data[]" value="{{ pregacao.data or '' }}" placeholder="Ex.: Julho 2026">
+                                    </div>
+                                    <div class="col-lg-1 d-grid">
+                                        <button type="button" class="btn btn-outline-danger remove-pregacao-row" title="Remover">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+
+                        {% if not pregacoes %}
+                        <div class="church-inline-card p-3 pregacao-row mt-3">
+                            <div class="row g-3 align-items-end">
+                                <div class="col-lg-4">
+                                    <label class="form-label">Título</label>
+                                    <input type="text" class="form-control" name="pregacao_titulo[]" required>
+                                </div>
+                                <div class="col-lg-5">
+                                    <label class="form-label">Link do YouTube</label>
+                                    <input type="url" class="form-control" name="pregacao_url[]" required>
+                                </div>
+                                <div class="col-lg-2">
+                                    <label class="form-label">Data</label>
+                                    <input type="text" class="form-control" name="pregacao_data[]" placeholder="Ex.: Julho 2026">
+                                </div>
+                                <div class="col-lg-1 d-grid">
+                                    <button type="button" class="btn btn-outline-danger remove-pregacao-row" title="Remover">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <div class="d-flex justify-content-end mt-4">
+                            <button type="submit" class="btn btn-primary rounded-pill px-4">Salvar pregações</button>
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>
@@ -562,6 +648,55 @@
                 });
             });
         });
+
+        const pregacoesList = document.getElementById('pregacoes-list');
+        const addPregacaoButton = document.getElementById('add-pregacao-row');
+
+        function criarPregacaoRow() {
+            const row = document.createElement('div');
+            row.className = 'church-inline-card p-3 pregacao-row';
+            row.innerHTML = `
+                <div class="row g-3 align-items-end">
+                    <div class="col-lg-4">
+                        <label class="form-label">Título</label>
+                        <input type="text" class="form-control" name="pregacao_titulo[]" required>
+                    </div>
+                    <div class="col-lg-5">
+                        <label class="form-label">Link do YouTube</label>
+                        <input type="url" class="form-control" name="pregacao_url[]" required>
+                    </div>
+                    <div class="col-lg-2">
+                        <label class="form-label">Data</label>
+                        <input type="text" class="form-control" name="pregacao_data[]" placeholder="Ex.: Julho 2026">
+                    </div>
+                    <div class="col-lg-1 d-grid">
+                        <button type="button" class="btn btn-outline-danger remove-pregacao-row" title="Remover">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+            return row;
+        }
+
+        if (addPregacaoButton && pregacoesList) {
+            addPregacaoButton.addEventListener('click', function () {
+                pregacoesList.appendChild(criarPregacaoRow());
+            });
+
+            document.addEventListener('click', function (event) {
+                const button = event.target.closest('.remove-pregacao-row');
+                if (!button) return;
+                const rows = pregacoesList.querySelectorAll('.pregacao-row');
+                if (rows.length <= 1) {
+                    rows[0].querySelectorAll('input').forEach(function (input) {
+                        input.value = '';
+                    });
+                    return;
+                }
+                button.closest('.pregacao-row')?.remove();
+            });
+        }
     });
 </script>
 {% endblock %}

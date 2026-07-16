@@ -521,6 +521,43 @@ def igreja_listar_pregacoes():
     return pregacoes
 
 
+def igreja_salvar_pregacoes(form):
+    titulos = form.getlist("pregacao_titulo[]")
+    urls = form.getlist("pregacao_url[]")
+    datas = form.getlist("pregacao_data[]")
+
+    pregacoes = []
+    total_linhas = max(len(titulos), len(urls), len(datas))
+    for indice in range(total_linhas):
+        titulo = igreja_normalizar_titulo_visivel((titulos[indice] if indice < len(titulos) else "").strip())
+        youtube_url = (urls[indice] if indice < len(urls) else "").strip()
+        data = (datas[indice] if indice < len(datas) else "").strip()
+
+        if not titulo and not youtube_url and not data:
+            continue
+        if not titulo or not youtube_url:
+            return False, "Cada pregação precisa ter título e link do YouTube."
+
+        video_id = extrair_youtube_video_id(youtube_url)
+        if not video_id:
+            return False, f"O link informado para '{titulo}' não é um vídeo válido do YouTube."
+
+        pregacoes.append(
+            {
+                "titulo": titulo,
+                "youtubeUrl": youtube_url,
+                "data": data,
+                "thumbnail": f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg",
+            }
+        )
+
+    caminho = os.path.join(PROJECT_DIR, "static", "data", "pregacoes.json")
+    os.makedirs(os.path.dirname(caminho), exist_ok=True)
+    with open(caminho, "w", encoding="utf-8") as arquivo:
+        json.dump(pregacoes, arquivo, ensure_ascii=False, indent=2)
+    return True, None
+
+
 def emprestimos_tem_grupo_id(db_conn):
     return "grupo_id" in get_table_columns(db_conn, "emprestimos")
 
@@ -4328,6 +4365,7 @@ def igreja_admin():
     avisos = []
     apostilas = igreja_listar_materiais(conn, categoria="apostila", somente_ativos=True)
     ensinos = []
+    pregacoes = igreja_listar_pregacoes()
     conn.close()
     return render_template(
         "igrejaemboavista_admin.html",
@@ -4335,6 +4373,7 @@ def igreja_admin():
         avisos=avisos,
         apostilas=apostilas,
         ensinos=ensinos,
+        pregacoes=pregacoes,
     )
 
 
@@ -4352,6 +4391,23 @@ def igreja_editor_upload_imagem():
     if erro:
         return {"ok": False, "error": erro}, 400
     return {"ok": True, "url": imagem_url}
+
+
+@app.route("/pregacoes/salvar", methods=["POST"])
+@app.route("/pregacoes/salvar/", methods=["POST"])
+@app.route("/igrejaemboavista/pregacoes/salvar", methods=["POST"])
+@app.route("/igrejaemboavista/pregacoes/salvar/", methods=["POST"])
+@login_required
+@igreja_edit_required
+def igreja_pregacoes_salvar():
+    if not igreja_request_permitida():
+        abort(404)
+    ok, erro = igreja_salvar_pregacoes(request.form)
+    if not ok:
+        flash(erro, "danger")
+    else:
+        flash("Pregações atualizadas com sucesso.", "success")
+    return redirect(igreja_path("/editar"))
 
 
 @app.route("/avisos/novo", methods=["POST"])
