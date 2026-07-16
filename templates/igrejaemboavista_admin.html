@@ -341,10 +341,26 @@
                 </div>
                 <div class="card-body p-4">
                     <form method="POST" action="{{ igreja_path('/pregacoes/salvar') }}" id="pregacoes-form">
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <label for="pregacoes_titulo" class="form-label">Título da página</label>
+                                <input type="text" class="form-control" id="pregacoes_titulo" name="pregacoes_titulo" value="{{ config.pregacoes_titulo or '' }}">
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label">Texto complementar</label>
+                            <div class="editor-shell" data-editor-root>
+                                <div class="editor-toolbar" data-editor-toolbar></div>
+                                <div class="editor-surface" data-editor-surface contenteditable="true">{{ config.pregacoes_subtitulo | safe }}</div>
+                            </div>
+                            <textarea name="pregacoes_subtitulo" hidden data-editor-hidden>{{ config.pregacoes_subtitulo or '' }}</textarea>
+                        </div>
+
                         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
                             <div>
-                                <h6 class="mb-1">Lista exibida na página de vídeos</h6>
-                                <p class="church-editor-note mb-0">Adicione, edite ou remova mensagens por aqui. Sempre que surgir uma nova área pública, ela deve ganhar edição neste painel também.</p>
+                                <h6 class="mb-1">Lista exibida na página de pregações</h6>
+                                <p class="church-editor-note mb-0">Adicione, edite ou remova mensagens por aqui.</p>
                             </div>
                             <button type="button" class="btn btn-outline-primary rounded-pill" id="add-pregacao-row">
                                 <i class="fas fa-plus me-2"></i>Nova pregação

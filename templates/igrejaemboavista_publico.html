@@ -915,10 +915,10 @@
                 <div class="ibv-hero-grid">
                     <div>
                         <span class="ibv-chip"><i class="fas fa-play-circle"></i> Canal oficial</span>
-                        <h1 class="ibv-title-xl">Mensagens da igreja para assistir com tranquilidade.</h1>
-                        <p class="ibv-body-text mb-0">
-                            Escolha uma mensagem da lista e assista aqui mesmo, sem sair da página.
-                        </p>
+                        <h1 class="ibv-title-xl">{{ config.pregacoes_titulo_visivel or 'Pregações' }}</h1>
+                        {% if config.pregacoes_subtitulo %}
+                        <div class="ibv-text-content mb-0">{{ rich_text(config.pregacoes_subtitulo) }}</div>
+                        {% endif %}
                     </div>
                 </div>
             </section>
@@ -927,16 +927,14 @@
                 <div class="ibv-tab-nav" aria-label="Seções do portal">
                     <a href="{{ igreja_path('/#historia') }}" class="ibv-tab-button ibv-tab-link">{{ config.historia_titulo_visivel or 'História da Igreja em Boa Vista' }}</a>
                     <a href="{{ igreja_path('/#apostilas') }}" class="ibv-tab-button ibv-tab-link">{{ config.apostilas_titulo_visivel or 'Apostilas' }}</a>
-                    <a href="{{ igreja_path('/pregacoes') }}" class="ibv-tab-button ibv-tab-link active">Vídeos</a>
+                    <a href="{{ igreja_path('/pregacoes') }}" class="ibv-tab-button ibv-tab-link active">Pregações</a>
                 </div>
             </section>
 
             <section class="ibv-section-shell ibv-content-shell mt-4">
                 <div class="d-flex flex-column flex-lg-row align-items-lg-end justify-content-between gap-3 mb-4">
                     <div>
-                        <span class="ibv-eyebrow"><i class="fab fa-youtube"></i> Mensagens</span>
-                        <h2 class="ibv-title-lg mb-2">Mensagens disponíveis</h2>
-                        <p class="ibv-body-text mb-0">Selecione uma mensagem para assistir aqui no portal ou abrir no YouTube.</p>
+                        <span class="ibv-eyebrow"><i class="fab fa-youtube"></i> Pregação</span>
                     </div>
                 </div>
 
@@ -1018,7 +1016,7 @@
                 <div class="ibv-tab-nav" aria-label="Seções do portal">
                     <button type="button" class="ibv-tab-button active" data-ibv-tab="historia">{{ config.historia_titulo_visivel or 'História da Igreja em Boa Vista' }}</button>
                     <button type="button" class="ibv-tab-button" data-ibv-tab="apostilas">{{ config.apostilas_titulo_visivel or 'Apostilas' }}</button>
-                    <a href="{{ igreja_path('/pregacoes') }}" class="ibv-tab-button ibv-tab-link">Vídeos</a>
+                    <a href="{{ igreja_path('/pregacoes') }}" class="ibv-tab-button ibv-tab-link">Pregações</a>
                 </div>
             </section>
 
@@ -1066,7 +1064,6 @@
                                     {% endif %}
                                 </div>
                                 <div class="ibv-apostila-content">
-                                    <span class="ibv-apostila-shelf">Estante de estudos</span>
                                     <span class="ibv-eyebrow"><i class="fas fa-book"></i> Apostila</span>
                                     <h3 class="ibv-apostila-title">{{ material.titulo_visivel or material.titulo }}</h3>
                                     {% if material.descricao %}

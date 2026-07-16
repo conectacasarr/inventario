@@ -558,6 +558,23 @@ def igreja_salvar_pregacoes(form):
     return True, None
 
 
+def igreja_salvar_textos_pregacoes(conn, form):
+    conn.execute(
+        """
+        UPDATE igreja_config
+        SET pregacoes_titulo = ?,
+            pregacoes_subtitulo = ?,
+            atualizado_em = CURRENT_TIMESTAMP
+        WHERE id = 1
+        """,
+        (
+            (form.get("pregacoes_titulo") or "").strip() or "Pregações",
+            sanitizar_html_portal(form.get("pregacoes_subtitulo")),
+        ),
+    )
+    conn.commit()
+
+
 def emprestimos_tem_grupo_id(db_conn):
     return "grupo_id" in get_table_columns(db_conn, "emprestimos")
 
@@ -1086,6 +1103,8 @@ def igreja_criar_tabelas():
             historia_texto TEXT,
             historia_videos TEXT,
             apostilas_titulo TEXT,
+            pregacoes_titulo TEXT,
+            pregacoes_subtitulo TEXT,
             ensinos_titulo TEXT,
             youtube_url TEXT,
             instagram_url TEXT,
@@ -1131,13 +1150,15 @@ def igreja_criar_tabelas():
     adicionar_coluna_se_faltar(conn, "igreja_config", "historia_texto", "TEXT")
     adicionar_coluna_se_faltar(conn, "igreja_config", "historia_videos", "TEXT")
     adicionar_coluna_se_faltar(conn, "igreja_config", "apostilas_titulo", "TEXT")
+    adicionar_coluna_se_faltar(conn, "igreja_config", "pregacoes_titulo", "TEXT")
+    adicionar_coluna_se_faltar(conn, "igreja_config", "pregacoes_subtitulo", "TEXT")
     adicionar_coluna_se_faltar(conn, "igreja_config", "ensinos_titulo", "TEXT")
     conn.execute(
         """
         INSERT INTO igreja_config (
             id, nome_site, hero_titulo, hero_subtitulo, mensagem_boas_vindas,
             agenda_titulo, agenda_texto, historia_titulo, historia_texto, historia_videos,
-            apostilas_titulo, ensinos_titulo, youtube_url, instagram_url, pix_cnpj, pix_texto
+            apostilas_titulo, pregacoes_titulo, pregacoes_subtitulo, ensinos_titulo, youtube_url, instagram_url, pix_cnpj, pix_texto
         )
         SELECT
             1,
@@ -1152,6 +1173,8 @@ def igreja_criar_tabelas():
             'https://www.youtube.com/watch?v=lVhH5Tjmc5Y
 https://www.youtube.com/watch?v=bHlavUfkEZg',
             'Apostilas',
+            'Pregações',
+            '',
             'Ensinos',
             'https://www.youtube.com/@igrejaemboavista',
             'https://www.instagram.com/igrejaemboavista?igsh=MWR1aXR6NzNuNm1kNw%3D%3D',
@@ -1167,6 +1190,8 @@ https://www.youtube.com/watch?v=bHlavUfkEZg',
             historia_videos = COALESCE(NULLIF(historia_videos, ''), 'https://www.youtube.com/watch?v=lVhH5Tjmc5Y
 https://www.youtube.com/watch?v=bHlavUfkEZg'),
             apostilas_titulo = COALESCE(NULLIF(apostilas_titulo, ''), 'Apostilas'),
+            pregacoes_titulo = COALESCE(NULLIF(pregacoes_titulo, ''), 'Pregações'),
+            pregacoes_subtitulo = COALESCE(pregacoes_subtitulo, ''),
             ensinos_titulo = COALESCE(NULLIF(ensinos_titulo, ''), 'Ensinos')
         WHERE id = 1
         """
@@ -1182,6 +1207,7 @@ def igreja_obter_config(conn):
     config = dict(config)
     config["historia_titulo_visivel"] = igreja_normalizar_titulo_visivel(config.get("historia_titulo") or "Historia da Igreja em Boa Vista")
     config["apostilas_titulo_visivel"] = igreja_normalizar_titulo_visivel(config.get("apostilas_titulo") or "Apostilas")
+    config["pregacoes_titulo_visivel"] = igreja_normalizar_titulo_visivel(config.get("pregacoes_titulo") or "Pregações")
     videos = []
     for linha in (config.get("historia_videos") or "").splitlines():
         url = linha.strip()
@@ -4402,6 +4428,9 @@ def igreja_editor_upload_imagem():
 def igreja_pregacoes_salvar():
     if not igreja_request_permitida():
         abort(404)
+    conn = get_db()
+    igreja_salvar_textos_pregacoes(conn, request.form)
+    conn.close()
     ok, erro = igreja_salvar_pregacoes(request.form)
     if not ok:
         flash(erro, "danger")
